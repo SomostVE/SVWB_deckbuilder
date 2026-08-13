@@ -311,7 +311,7 @@ function renderFilterGroups() {
 
   renderCheckboxGroup(els.setFilter, "Set", unique(available.map(card => card.set)), state.filters.sets);
   renderCheckboxGroup(els.typeFilter, "Type", unique(available.map(card => card.type)), state.filters.types);
-  renderCheckboxGroup(els.rarityFilter, "Rarity", unique(available.map(card => card.rarity)), state.filters.rarities);
+  renderCheckboxGroup(els.rarityFilter, "Rarity", ["Bronze", "Silver", "Gold", "Legendary"].filter(value => available.some(card => card.rarity === value)), state.filters.rarities);
   renderCheckboxGroup(els.traitFilter, "Trait", unique(available.flatMap(card => card.traits ?? [])), state.filters.traits);
   renderCheckboxGroup(els.keywordFilter, "Keyword", unique(available.flatMap(card => card.keywords ?? [])), state.filters.keywords);
 }
