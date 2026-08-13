@@ -28,6 +28,7 @@ export function saveWorkspace(state) {
     preferences: {
       selectedClass: state.selectedClass,
       includeNeutral: state.includeNeutral,
+      format: state.format ?? "Rotation",
       showGenerated: state.showGenerated,
       showExcluded: state.showExcluded,
       showUnavailableFilters: state.showUnavailableFilters,
@@ -49,6 +50,7 @@ export function applyWorkspace(state, workspace) {
   const prefs = workspace.preferences ?? {};
   if (prefs.selectedClass) state.selectedClass = prefs.selectedClass;
   if (typeof prefs.includeNeutral === "boolean") state.includeNeutral = prefs.includeNeutral;
+  if (["Rotation", "Unlimited", "Boundless"].includes(prefs.format)) state.format = prefs.format;
   if (typeof prefs.showGenerated === "boolean") state.showGenerated = prefs.showGenerated;
   if (typeof prefs.showExcluded === "boolean") state.showExcluded = prefs.showExcluded;
   if (typeof prefs.showUnavailableFilters === "boolean") state.showUnavailableFilters = prefs.showUnavailableFilters;
@@ -60,6 +62,7 @@ export function exportCurrentDeck(state) {
     version: 2,
     exportedAt: new Date().toISOString(),
     class: state.selectedClass,
+    format: state.format ?? "Rotation",
     includeNeutral: state.includeNeutral,
     deck: Array.from(state.deck.entries()),
     marks: Array.from(state.deckMarks.entries())
@@ -71,12 +74,14 @@ export function importDeckPayload(state, payload) {
   state.deck = new Map(deck.map(([id, qty]) => [Number(id), Number(qty)]));
   state.deckMarks = new Map((payload?.marks ?? payload?.deckMarks ?? []).map(([id, mark]) => [Number(id), mark]));
   if (payload?.class) state.selectedClass = payload.class;
+  if (["Rotation", "Unlimited", "Boundless"].includes(payload?.format)) state.format = payload.format;
   if (typeof payload?.includeNeutral === "boolean") state.includeNeutral = payload.includeNeutral;
 }
 
 export function encodeSharePayload(state) {
   const payload = {
     c: state.selectedClass,
+    f: state.format ?? "Rotation",
     n: state.includeNeutral ? 1 : 0,
     d: Array.from(state.deck.entries()),
     m: Array.from(state.deckMarks.entries())
@@ -97,6 +102,7 @@ export function decodeSharePayload(value) {
     const payload = JSON.parse(new TextDecoder().decode(bytes));
     return {
       class: payload.c,
+      format: ["Rotation", "Unlimited", "Boundless"].includes(payload.f) ? payload.f : "Rotation",
       includeNeutral: Boolean(payload.n),
       deck: payload.d ?? [],
       marks: payload.m ?? []
