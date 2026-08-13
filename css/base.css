@@ -37,34 +37,25 @@ h1, h2, h3, p { margin-top: 0; }
   background: var(--panel);
 }
 
-.header-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: .65rem .9rem .55rem;
-}
-
-.app-header h1 {
-  margin-bottom: .12rem;
-  font-size: 1.12rem;
-}
-
-.app-header p {
-  margin-bottom: 0;
-  color: var(--muted);
-  font-size: .75rem;
-}
-
 .header-toolbar {
   display: flex;
   align-items: center;
   gap: .8rem;
-  min-height: 46px;
-  padding: .45rem .9rem;
+  min-height: 48px;
+  padding: .45rem .75rem;
   overflow-x: auto;
-  border-top: 1px solid rgba(255,255,255,.035);
   background: #141820;
+}
+
+.header-toolbar .header-actions {
+  margin-left: auto;
+  flex-wrap: nowrap;
+  flex: 0 0 auto;
+}
+
+.header-toolbar .header-actions .button {
+  padding: .45rem .7rem;
+  white-space: nowrap;
 }
 
 .header-control {
