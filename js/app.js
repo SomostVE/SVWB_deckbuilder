@@ -178,6 +178,9 @@ function renderCards() {
     getQuantity(card) {
       return state.deck.get(card.id) ?? 0;
     },
+    getCardById(id) {
+      return state.cards.find(card => Number(card.id) === Number(id)) ?? null;
+    },
     onAdd(card) {
       addCard(card);
       render();
