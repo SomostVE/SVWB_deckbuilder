@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="./css/deck.css">
   <link rel="stylesheet" href="./css/filters.css">
   <link rel="stylesheet" href="./css/assistant.css">
+  <link rel="stylesheet" href="./css/qol.css">
 </head>
 <body>
   <header class="app-header">
@@ -32,10 +33,12 @@
     <div class="content-toolbar header-subtoolbar">
       <strong id="results-count">0 cards</strong>
       <div id="cost-filter" class="cost-filter" aria-label="Cost filter"></div>
+      <div id="active-filters" class="active-filters" aria-label="Active filters"></div>
       <div id="discover-status" class="discover-status" hidden>
         <span id="discover-label"></span>
         <button id="clear-discover" type="button" aria-label="Clear discover">×</button>
       </div>
+      <button id="reset-view" class="button" type="button">Reset view</button>
       <button id="reset-filters" class="button" type="button">Reset filters</button>
     </div>
   </header>
@@ -52,6 +55,11 @@
         <label><input id="favorites-only" type="checkbox"> Favorites only</label>
         <label><input id="show-generated" type="checkbox"> Show generated cards</label>
         <label><input id="show-excluded" type="checkbox"> Show excluded cards</label>
+      </section>
+
+      <section>
+        <h2>Recent</h2>
+        <div id="recent-cards" class="compact-list recent-cards"></div>
       </section>
 
       <section id="filters-root">
@@ -74,9 +82,11 @@
 
     <section class="content">
       <div id="card-grid" class="card-grid"></div>
+      <button id="back-to-top" class="back-to-top" type="button" hidden>↑ Top</button>
     </section>
 
     <aside class="deck-panel">
+      <div id="deck-resizer" class="deck-resizer" aria-hidden="true"></div>
       <div class="deck-tabs" role="tablist">
         <button class="deck-tab-button active" data-tab="deck" type="button">Deck</button>
         <button class="deck-tab-button" data-tab="analysis" type="button">Analysis</button>
