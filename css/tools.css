@@ -1,3 +1,5 @@
+@import url("./mobile.css");
+
 body.tools-body {
   min-height: 100vh;
   overflow: auto;
