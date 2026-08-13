@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="./css/filters.css">
   <link rel="stylesheet" href="./css/assistant.css">
   <link rel="stylesheet" href="./css/qol.css">
+  <link rel="stylesheet" href="./css/sidebar.css">
 </head>
 <body>
   <header class="app-header">
@@ -22,6 +23,7 @@
       <div id="type-filter" class="header-filter-root"></div>
 
       <div class="header-actions">
+        <a class="button page-nav-button" href="./engines.html">Engines</a>
         <button id="undo-deck" class="button" type="button">Undo</button>
         <button id="redo-deck" class="button" type="button">Redo</button>
         <button id="open-io" class="button" type="button">Import / Export</button>
@@ -49,17 +51,21 @@
         <input id="search-input" class="input" type="search" placeholder="Search cards, role:draw, related:&quot;Bat&quot;...">
       </section>
 
-      <section class="quick-filters">
-        <h2>View</h2>
-        <label><input id="favorites-only" type="checkbox"> Favorites only</label>
-        <label><input id="show-generated" type="checkbox"> Show generated cards</label>
-        <label><input id="show-excluded" type="checkbox"> Show excluded cards</label>
-        <label><input id="show-unavailable" type="checkbox"> Show unavailable filters</label>
+      <section class="quick-filters sidebar-collapsible" data-collapse-key="view">
+        <h2 class="sidebar-collapse-title">View</h2>
+        <div class="sidebar-collapse-body">
+          <label><input id="favorites-only" type="checkbox"> Favorites only</label>
+          <label><input id="show-generated" type="checkbox"> Show generated cards</label>
+          <label><input id="show-excluded" type="checkbox"> Show excluded cards</label>
+          <label><input id="show-unavailable" type="checkbox"> Show unavailable filters</label>
+        </div>
       </section>
 
-      <section>
-        <h2>Recent</h2>
-        <div id="recent-cards" class="compact-list recent-cards"></div>
+      <section class="sidebar-collapsible" data-collapse-key="recent">
+        <h2 class="sidebar-collapse-title">Recent</h2>
+        <div class="sidebar-collapse-body">
+          <div id="recent-cards" class="compact-list recent-cards"></div>
+        </div>
       </section>
 
       <section id="filters-root">
@@ -69,15 +75,8 @@
         <div id="keyword-filter"></div>
       </section>
 
-      <section>
-        <h2>Archetypes</h2>
-        <div id="archetype-browser" class="compact-list"></div>
-      </section>
-
-      <section>
-        <h2>Packages</h2>
-        <div id="package-browser" class="compact-list"></div>
-      </section>
+      <div id="archetype-browser" hidden></div>
+      <div id="package-browser" hidden></div>
     </aside>
 
     <section class="content">
@@ -158,6 +157,7 @@
     </div>
   </dialog>
 
+  <script type="module" src="./js/sidebar-collapse.js"></script>
   <script type="module" src="./js/app.js"></script>
 </body>
 </html>
