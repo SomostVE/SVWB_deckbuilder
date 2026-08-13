@@ -13,19 +13,29 @@ export function renderCardGrid(root, cards, handlers) {
   for (const card of cards) {
     const article = document.createElement("article");
     article.className = "card-tile";
+    if (!card.deckSelectable) article.classList.add("generated-card");
+    if (handlers.isFavorite?.(card)) article.classList.add("favorite-card");
+    if (handlers.isExcluded?.(card)) article.classList.add("excluded-card");
 
     const quantity = handlers.getQuantity?.(card) ?? 0;
+    const owned = handlers.getOwned?.(card) ?? 0;
 
     article.innerHTML = `
       <img src="${escapeAttr(card.image)}" alt="${escapeAttr(card.name)}" loading="lazy">
       ${quantity > 0 ? `<span class="card-quantity">${quantity}</span>` : ""}
+      ${owned > 0 ? `<span class="card-owned">O${owned}</span>` : ""}
+      ${handlers.isFavorite?.(card) ? `<span class="card-favorite">★</span>` : ""}
+      ${!card.deckSelectable ? `<span class="card-generated-label">Generated</span>` : ""}
     `;
 
-    article.addEventListener("click", () => handlers.onAdd(card));
+    article.addEventListener("click", () => {
+      if (card.deckSelectable) handlers.onAdd?.(card);
+      else showHoverCard(card, handlers);
+    });
 
     article.addEventListener("contextmenu", event => {
       event.preventDefault();
-      handlers.onRemove(card);
+      if (card.deckSelectable) handlers.onRemove?.(card);
     });
 
     article.addEventListener("pointerenter", event => {
@@ -50,60 +60,82 @@ function showHoverCard(card, handlers) {
 
   const preview = document.createElement("div");
   preview.className = "card-hover-preview";
-
   preview.addEventListener("pointerenter", cancelHide);
   preview.addEventListener("pointerleave", scheduleHide);
 
   document.body.appendChild(preview);
   hoverCard = preview;
   renderPreviewContent(card, handlers);
-
-  // Position once when the preview opens. It deliberately does not follow the cursor
-  // and it stays at the same top/left position when navigating related cards.
   positionHoverCard(preview);
 }
 
 function renderPreviewContent(card, handlers) {
   if (!hoverCard) return;
-
   cancelHide();
 
-  const relatedCards = (card.relatedCards ?? [])
-    .map(id => handlers.getCardById?.(id))
-    .filter(Boolean);
+  const relatedGroups = handlers.getRelatedGroups?.(card) ?? [];
+  const packages = handlers.getPackagesForCard?.(card) ?? [];
+  const owned = handlers.getOwned?.(card) ?? 0;
+  const favorite = Boolean(handlers.isFavorite?.(card));
+  const excluded = Boolean(handlers.isExcluded?.(card));
 
   hoverCard.innerHTML = `
     <div class="card-hover-main">
       <img class="card-hover-main-image" src="${escapeAttr(card.image)}" alt="${escapeAttr(card.name)}">
       <div class="card-hover-content">
         <div class="card-hover-title-row">
-          <h3>${escapeHtml(card.name)}</h3>
+          <div>
+            <h3>${escapeHtml(card.name)}</h3>
+            <div class="card-hover-meta">${escapeHtml(card.class)} · ${escapeHtml(card.rarity)} · ${escapeHtml(card.set)}</div>
+          </div>
           ${history.length ? `<button class="card-hover-back" type="button">← Back</button>` : ""}
         </div>
-        <div class="card-hover-meta">${escapeHtml(card.class)} · ${escapeHtml(card.rarity)} · ${escapeHtml(card.set)}</div>
+
+        <div class="card-hover-statline">
+          <span>Cost ${Number(card.cost) || 0}</span>
+          ${card.type === "Follower" ? `<span>${Number(card.attack) || 0}/${Number(card.defense) || 0}</span>` : ""}
+          <span>${escapeHtml(card.type)}</span>
+          ${!card.deckSelectable ? `<span class="generated-status">Generated card</span>` : ""}
+        </div>
+
         ${card.traits?.length ? `<div class="card-hover-line"><strong>Traits:</strong> ${card.traits.map(escapeHtml).join(", ")}</div>` : ""}
-        ${card.keywords?.length ? `<div class="keyword-chips">${card.keywords.map(k => `<span class="keyword-chip">${escapeHtml(k)}</span>`).join("")}</div>` : ""}
+        ${card.keywords?.length ? `<div class="preview-chip-row"><span class="chip-label">Keywords</span>${card.keywords.map(k => `<span class="keyword-chip">${escapeHtml(k)}</span>`).join("")}</div>` : ""}
+        ${card.roles?.length ? `<div class="preview-chip-row"><span class="chip-label">Roles</span>${card.roles.map(role => `<span class="role-chip">${escapeHtml(role)}</span>`).join("")}</div>` : ""}
+
         <div class="card-hover-effect">${escapeHtml(cleanPreviewText(card.text)).replaceAll("\n", "<br>")}</div>
+
+        <div class="card-hover-actions">
+          <button type="button" data-action="favorite">${favorite ? "★ Favorite" : "☆ Favorite"}</button>
+          <button type="button" data-action="exclude">${excluded ? "Unexclude" : "Exclude"}</button>
+          <button type="button" data-action="discover">Discover</button>
+          <button type="button" data-action="find-linked">Find linked</button>
+          <span class="owned-control">
+            <button type="button" data-action="owned-minus">−</button>
+            <span>Owned ${owned}</span>
+            <button type="button" data-action="owned-plus">+</button>
+          </span>
+        </div>
       </div>
     </div>
 
-    ${relatedCards.length ? `
-      <div class="card-hover-related">
-        <div class="card-hover-related-title">Related cards</div>
-        <div class="card-hover-related-grid">
-          ${relatedCards.map(related => `
-            <button class="card-hover-related-card" type="button" data-related-id="${related.id}">
-              <img src="${escapeAttr(related.image)}" alt="${escapeAttr(related.name)}">
-              <span>${escapeHtml(related.name)}</span>
+    ${packages.length ? `
+      <div class="card-hover-packages">
+        <div class="card-hover-related-title">Packages</div>
+        <div class="package-preview-list">
+          ${packages.map(packageDef => `
+            <button type="button" class="package-preview-button" data-package-id="${escapeAttr(packageDef.id)}">
+              <strong>${escapeHtml(packageDef.name ?? packageDef.id)}</strong>
+              <span>${escapeHtml(packageDef.description ?? "Add the recommended package")}</span>
             </button>
           `).join("")}
         </div>
       </div>
     ` : ""}
+
+    ${relatedGroups.map(group => renderRelatedGroup(group)).join("")}
   `;
 
-  const backButton = hoverCard.querySelector(".card-hover-back");
-  backButton?.addEventListener("click", event => {
+  hoverCard.querySelector(".card-hover-back")?.addEventListener("click", event => {
     event.stopPropagation();
     const previous = history.pop();
     if (previous) renderPreviewContent(previous, handlers);
@@ -118,6 +150,69 @@ function renderPreviewContent(card, handlers) {
       renderPreviewContent(related, handlers);
     });
   });
+
+  hoverCard.querySelector('[data-action="favorite"]')?.addEventListener("click", event => {
+    event.stopPropagation();
+    handlers.onToggleFavorite?.(card);
+    renderPreviewContent(card, handlers);
+  });
+
+  hoverCard.querySelector('[data-action="exclude"]')?.addEventListener("click", event => {
+    event.stopPropagation();
+    handlers.onToggleExclude?.(card);
+    renderPreviewContent(card, handlers);
+  });
+
+  hoverCard.querySelector('[data-action="owned-minus"]')?.addEventListener("click", event => {
+    event.stopPropagation();
+    handlers.onOwnedChange?.(card, -1);
+    renderPreviewContent(card, handlers);
+  });
+
+  hoverCard.querySelector('[data-action="owned-plus"]')?.addEventListener("click", event => {
+    event.stopPropagation();
+    handlers.onOwnedChange?.(card, 1);
+    renderPreviewContent(card, handlers);
+  });
+
+  hoverCard.querySelector('[data-action="discover"]')?.addEventListener("click", event => {
+    event.stopPropagation();
+    handlers.onDiscover?.(card);
+    hideHoverCard();
+  });
+
+  hoverCard.querySelector('[data-action="find-linked"]')?.addEventListener("click", event => {
+    event.stopPropagation();
+    handlers.onFindLinked?.(card);
+    hideHoverCard();
+  });
+
+  hoverCard.querySelectorAll("[data-package-id]").forEach(button => {
+    button.addEventListener("click", event => {
+      event.stopPropagation();
+      const packageDef = packages.find(item => String(item.id) === String(button.dataset.packageId));
+      if (packageDef) handlers.onAddPackage?.(packageDef, card);
+    });
+  });
+}
+
+function renderRelatedGroup(group) {
+  const cards = group.cards ?? [];
+  if (!cards.length) return "";
+
+  return `
+    <div class="card-hover-related">
+      <div class="card-hover-related-title">${escapeHtml(group.title)}</div>
+      <div class="card-hover-related-grid">
+        ${cards.map(related => `
+          <button class="card-hover-related-card" type="button" data-related-id="${related.id}">
+            <img src="${escapeAttr(related.image)}" alt="${escapeAttr(related.name)}">
+            <span>${escapeHtml(related.name)}</span>
+          </button>
+        `).join("")}
+      </div>
+    </div>
+  `;
 }
 
 function cleanPreviewText(value) {
