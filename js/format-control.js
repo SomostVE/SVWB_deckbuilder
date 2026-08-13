@@ -1,5 +1,6 @@
 import { state } from "./state.js";
 import { saveWorkspace } from "./storage.js";
+import "./update-report.js";
 
 waitForReady();
 
