@@ -1,0 +1,125 @@
+name: Apply filter QoL patch
+
+on:
+  push:
+    paths:
+      - ".github/workflows/apply-filter-qol.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Patch index and app
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          index = Path('index.html')
+          html = index.read_text(encoding='utf-8')
+          old = '        <label><input id="show-excluded" type="checkbox"> Show excluded cards</label>\n'
+          new = old + '        <label><input id="show-unavailable" type="checkbox"> Show unavailable filters</label>\n'
+          if old not in html:
+              raise SystemExit('index view anchor missing')
+          html = html.replace(old, new, 1)
+          index.write_text(html, encoding='utf-8')
+
+          app = Path('js/app.js')
+          t = app.read_text(encoding='utf-8')
+
+          old = '  showExcluded: document.getElementById("show-excluded"),\n  archetypes:'
+          new = '  showExcluded: document.getElementById("show-excluded"),\n  showUnavailable: document.getElementById("show-unavailable"),\n  archetypes:'
+          if old not in t:
+              raise SystemExit('els anchor missing')
+          t = t.replace(old, new, 1)
+
+          old = '''  els.showExcluded.addEventListener("change", () => {
+            state.showExcluded = els.showExcluded.checked;
+            persist();
+            renderCards();
+          });'''
+          new = old + '''
+
+          els.showUnavailable.addEventListener("change", () => {
+            state.showUnavailableFilters = els.showUnavailable.checked;
+            persist();
+            renderEverything();
+          });'''
+          if old not in t:
+              raise SystemExit('show excluded anchor missing')
+          t = t.replace(old, new, 1)
+
+          old = '''  els.showGenerated.checked = state.showGenerated;
+            els.showExcluded.checked = state.showExcluded;
+          }'''
+          new = '''  els.showGenerated.checked = state.showGenerated;
+            els.showExcluded.checked = state.showExcluded;
+            els.showUnavailable.checked = state.showUnavailableFilters;
+          }'''
+          if old not in t:
+              raise SystemExit('sync controls anchor missing')
+          t = t.replace(old, new, 1)
+
+          old_count = '''    const count = classPool.filter(card => {
+                if (title === "Set") return card.set === value;
+                if (title === "Type") return card.type === value;
+                if (title === "Rarity") return card.rarity === value;
+                if (title === "Trait") return (card.traits ?? []).includes(value);
+                if (title === "Keyword") return (card.keywords ?? []).includes(value);
+                return true;
+              }).length;
+
+              label.append(input, document.createTextNode(value));'''
+          new_count = '''    const count = getFilterOptionResultCount(title, value, targetSet);
+              if (!state.showUnavailableFilters && count === 0 && !targetSet.has(value)) continue;
+
+              label.append(input, document.createTextNode(value));'''
+          if old_count not in t:
+              raise SystemExit('filter count block missing')
+          t = t.replace(old_count, new_count, 1)
+
+          anchor = '\nfunction renderArchetypes() {'
+          helper = r'''
+          function getFilterOptionResultCount(title, value, targetSet) {
+            const original = [...targetSet];
+            const andGroup = title === "Trait" || title === "Keyword";
+            targetSet.clear();
+
+            if (andGroup) {
+              for (const selected of original) targetSet.add(selected);
+              targetSet.add(value);
+            } else {
+              targetSet.add(value);
+            }
+
+            const count = filteredCards().length;
+            targetSet.clear();
+            for (const selected of original) targetSet.add(selected);
+            return count;
+          }
+          '''
+          if anchor not in t:
+              raise SystemExit('archetype anchor missing')
+          t = t.replace(anchor, helper + anchor, 1)
+
+          old_saved = '<div class="muted">${escapeHtml(variant.class ?? "Unknown")} · ${size}/40</div>'
+          new_saved = '<div class="muted">${escapeHtml(variant.class ?? "Unknown")} · ${size > 40 ? `40 (+${size - 40})` : `${size}/40`}</div>'
+          if old_saved in t:
+              t = t.replace(old_saved, new_saved, 1)
+
+          app.write_text(t, encoding='utf-8')
+          PY
+
+      - run: node --check js/app.js
+
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html js/app.js
+          git commit -m "feat: add unavailable-filter QoL and overflow labels"
+          git push
