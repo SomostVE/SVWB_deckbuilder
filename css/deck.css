@@ -4,6 +4,11 @@
   justify-content: space-between;
 }
 
+.deck-overflow {
+  color: var(--danger);
+  font-weight: 900;
+}
+
 .deck-list {
   display: flex;
   flex-direction: column;
