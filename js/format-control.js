@@ -39,6 +39,28 @@ function setup() {
     else toolbar.appendChild(control);
   }
 
+  const viewBody = document.querySelector('[data-collapse-key="view"] .sidebar-collapse-body');
+  if (viewBody && !document.getElementById("owned-only")) {
+    const ownedLabel = document.createElement("label");
+    ownedLabel.innerHTML = `<input id="owned-only" type="checkbox" ${state.ownedOnly ? "checked" : ""}> Owned cards only`;
+    const missingLabel = document.createElement("label");
+    missingLabel.innerHTML = `<input id="missing-only" type="checkbox" ${state.missingOnly ? "checked" : ""}> Missing deck cards only`;
+    viewBody.append(ownedLabel, missingLabel);
+
+    ownedLabel.querySelector("input").addEventListener("change", event => {
+      state.ownedOnly = event.target.checked;
+      if (state.ownedOnly) state.missingOnly = false;
+      saveWorkspace(state);
+      location.reload();
+    });
+    missingLabel.querySelector("input").addEventListener("change", event => {
+      state.missingOnly = event.target.checked;
+      if (state.missingOnly) state.ownedOnly = false;
+      saveWorkspace(state);
+      location.reload();
+    });
+  }
+
   if (actions) {
     const existingCollection = document.getElementById("open-collection");
     if (existingCollection) existingCollection.textContent = "Collection quick";
