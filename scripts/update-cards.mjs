@@ -64,10 +64,13 @@ function cleanSkillText(value) {
     .trim();
 }
 
-function extractKeywords(skillText, skillNames) {
+function extractKeywords(skillText) {
   const raw = String(skillText ?? "");
   const found = new Set();
 
+  // The Deck Portal explicitly marks real mechanics with <color=Keyword>.
+  // Do not infer keywords by substring matching skill_names: that produced
+  // false positives such as single letters like "d" and "s".
   for (const match of raw.matchAll(/<color=Keyword>(.*?)<\/color>/g)) {
     const value = match[1]
       .replace(/<[^>]+>/g, "")
@@ -77,12 +80,6 @@ function extractKeywords(skillText, skillNames) {
     if (value && !value.startsWith("Quest:") && !value.includes("Deck")) {
       found.add(value);
     }
-  }
-
-  for (const name of Object.values(skillNames ?? {})) {
-    if (!name) continue;
-    const normalized = String(name).trim();
-    if (normalized && raw.includes(normalized)) found.add(normalized);
   }
 
   return [...found].sort();
@@ -110,7 +107,7 @@ function normalizeCard(id, detail, relations, dictionaries) {
     attack: Number(common.atk ?? 0),
     defense: Number(common.life ?? 0),
     traits,
-    keywords: extractKeywords(common.skill_text, dictionaries.skillNames),
+    keywords: extractKeywords(common.skill_text),
     text: cleanSkillText(common.skill_text),
     rawSkillText: common.skill_text ?? "",
     flavourText: common.flavour_text ?? "",
