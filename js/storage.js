@@ -32,7 +32,9 @@ export function saveWorkspace(state) {
       showGenerated: state.showGenerated,
       showExcluded: state.showExcluded,
       showUnavailableFilters: state.showUnavailableFilters,
-      favoritesOnly: state.favoritesOnly
+      favoritesOnly: state.favoritesOnly,
+      ownedOnly: state.ownedOnly,
+      missingOnly: state.missingOnly
     }
   };
 
@@ -55,6 +57,8 @@ export function applyWorkspace(state, workspace) {
   if (typeof prefs.showExcluded === "boolean") state.showExcluded = prefs.showExcluded;
   if (typeof prefs.showUnavailableFilters === "boolean") state.showUnavailableFilters = prefs.showUnavailableFilters;
   if (typeof prefs.favoritesOnly === "boolean") state.favoritesOnly = prefs.favoritesOnly;
+  if (typeof prefs.ownedOnly === "boolean") state.ownedOnly = prefs.ownedOnly;
+  if (typeof prefs.missingOnly === "boolean") state.missingOnly = prefs.missingOnly;
 }
 
 export function exportCurrentDeck(state) {
