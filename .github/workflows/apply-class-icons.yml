@@ -19,27 +19,15 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           from textwrap import dedent
+          import re
 
           p = Path('index.html')
           s = p.read_text(encoding='utf-8')
-          old = dedent('''
-                <div class="header-control header-class-control">
-                  <span class="header-control-label">Class</span>
-                  <div id="class-filter" class="class-list header-class-list"></div>
-                </div>
-                <div id="type-filter" class="header-filter-root"></div>
-                <div id="rarity-filter" class="header-filter-root"></div>
-          ''').strip('\n')
-          new = dedent('''
-                <div class="header-control header-class-control">
-                  <div id="class-filter" class="class-list header-class-list"></div>
-                </div>
-                <div id="rarity-filter" class="header-filter-root header-rarity-root"></div>
-                <div id="type-filter" class="header-filter-root"></div>
-          ''').strip('\n')
-          if old not in s:
+          pattern = re.compile(r'''\s*<div class="header-control header-class-control">\s*<span class="header-control-label">Class</span>\s*<div id="class-filter" class="class-list header-class-list"></div>\s*</div>\s*<div id="type-filter" class="header-filter-root"></div>\s*<div id="rarity-filter" class="header-filter-root"></div>''')
+          replacement = '''\n      <div class="header-control header-class-control">\n        <div id="class-filter" class="class-list header-class-list"></div>\n      </div>\n      <div id="rarity-filter" class="header-filter-root header-rarity-root"></div>\n      <div id="type-filter" class="header-filter-root"></div>'''
+          s, count = pattern.subn(replacement, s, count=1)
+          if count != 1:
               raise SystemExit('header order anchor missing')
-          s = s.replace(old, new, 1)
           p.write_text(s, encoding='utf-8')
 
           p = Path('js/app.js')
