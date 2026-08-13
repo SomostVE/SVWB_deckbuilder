@@ -15,6 +15,7 @@ export const state = {
   search: "",
 
   filters: {
+    costs: new Set(),
     sets: new Set(),
     types: new Set(),
     rarities: new Set(),
