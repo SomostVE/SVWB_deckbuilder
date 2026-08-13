@@ -512,7 +512,10 @@ function getPackagesForCard(card) {
 }
 
 function renderDeck() {
-  els.deckCount.textContent = `${getDeckSize()} / 40`;
+  const deckSize = getDeckSize();
+  els.deckCount.innerHTML = deckSize > 40
+    ? `40 <span class="deck-overflow">(+${deckSize - 40})</span>`
+    : `${deckSize} / 40`;
   els.deckList.innerHTML = "";
 
   const rows = Array.from(state.deck.entries())
@@ -748,7 +751,7 @@ function updateHistoryButtons() {
 
 function sanitizeDeck() {
   const clean = new Map();
-  let remaining = 40;
+  let remaining = 80;
 
   for (const [idValue, qtyValue] of state.deck.entries()) {
     const id = Number(idValue);
