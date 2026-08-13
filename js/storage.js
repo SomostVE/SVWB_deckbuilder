@@ -28,7 +28,7 @@ export function saveWorkspace(state) {
     preferences: {
       selectedClass: state.selectedClass,
       includeNeutral: state.includeNeutral,
-      format: state.format ?? "Rotation",
+      format: state.format ?? "Unlimited",
       showGenerated: state.showGenerated,
       showExcluded: state.showExcluded,
       showUnavailableFilters: state.showUnavailableFilters,
@@ -66,7 +66,7 @@ export function exportCurrentDeck(state) {
     version: 2,
     exportedAt: new Date().toISOString(),
     class: state.selectedClass,
-    format: state.format ?? "Rotation",
+    format: state.format ?? "Unlimited",
     includeNeutral: state.includeNeutral,
     deck: Array.from(state.deck.entries()),
     marks: Array.from(state.deckMarks.entries())
@@ -85,7 +85,7 @@ export function importDeckPayload(state, payload) {
 export function encodeSharePayload(state) {
   const payload = {
     c: state.selectedClass,
-    f: state.format ?? "Rotation",
+    f: state.format ?? "Unlimited",
     n: state.includeNeutral ? 1 : 0,
     d: Array.from(state.deck.entries()),
     m: Array.from(state.deckMarks.entries())
@@ -106,7 +106,7 @@ export function decodeSharePayload(value) {
     const payload = JSON.parse(new TextDecoder().decode(bytes));
     return {
       class: payload.c,
-      format: ["Rotation", "Unlimited", "Boundless"].includes(payload.f) ? payload.f : "Rotation",
+      format: ["Rotation", "Unlimited", "Boundless"].includes(payload.f) ? payload.f : "Unlimited",
       includeNeutral: Boolean(payload.n),
       deck: payload.d ?? [],
       marks: payload.m ?? []
