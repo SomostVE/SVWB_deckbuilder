@@ -11,7 +11,7 @@ export function getDeckSize() {
 }
 
 export function addCard(card, quantity = 1) {
-  if (!card?.deckSelectable) return false;
+  if (!card?.deckSelectable || isBlocked(card)) return false;
 
   const current = state.deck.get(card.id) ?? 0;
   const maxCopies = Number(card.maxCopies ?? 3);
@@ -31,7 +31,7 @@ export function addCards(entries, cardMap = state.cardMap) {
 
   for (const entry of entries ?? []) {
     const card = cardMap.get(Number(entry.id));
-    if (!card?.deckSelectable || remaining <= 0) continue;
+    if (!card?.deckSelectable || isBlocked(card) || remaining <= 0) continue;
     const current = state.deck.get(card.id) ?? 0;
     const wanted = Number(entry.count ?? entry.quantity ?? 1);
     const add = Math.min(wanted, Number(card.maxCopies ?? 3) - current, remaining);
@@ -147,6 +147,10 @@ export function getVariant(name) {
     };
   }
   return state.savedDecks?.[name] ?? null;
+}
+
+function isBlocked(card) {
+  return state.excluded.has(Number(card.id)) || state.globalExclusions.has(Number(card.id));
 }
 
 function pushHistory() {
