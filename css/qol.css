@@ -1,0 +1,242 @@
+:root {
+  --deck-panel-width: 270px;
+}
+
+.app-shell {
+  grid-template-columns: 205px minmax(0, 1fr) var(--deck-panel-width);
+}
+
+.deck-panel {
+  position: relative;
+}
+
+.deck-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  z-index: 30;
+  width: 8px;
+  cursor: col-resize;
+}
+
+.deck-resizer:hover,
+.deck-resizer.dragging {
+  background: rgba(124, 140, 255, .28);
+}
+
+.active-filters {
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.active-filter-chip {
+  border: 1px solid rgba(124, 140, 255, .5);
+  border-radius: 999px;
+  padding: .22rem .42rem;
+  background: rgba(124, 140, 255, .12);
+  color: var(--text);
+  font-size: .68rem;
+  white-space: nowrap;
+}
+
+.active-filter-chip:hover {
+  border-color: var(--accent);
+}
+
+.filter-group-clear {
+  margin-left: .25rem;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: .72rem;
+  padding: 0 .15rem;
+}
+
+.filter-group-clear:hover {
+  color: var(--text);
+}
+
+.filter-option-count {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: .66rem;
+}
+
+.card-size-control {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+}
+
+.card-size-presets {
+  display: inline-flex;
+  gap: .2rem;
+}
+
+.card-size-preset {
+  border: 1px solid var(--border);
+  border-radius: .35rem;
+  padding: .18rem .32rem;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: .65rem;
+}
+
+.card-size-preset:hover,
+.card-size-preset.active {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.back-to-top {
+  position: sticky;
+  left: calc(100% - 78px);
+  bottom: .7rem;
+  z-index: 40;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: .42rem .6rem;
+  background: rgba(23, 26, 34, .95);
+  color: var(--text);
+  box-shadow: 0 5px 18px rgba(0,0,0,.35);
+}
+
+.recent-cards .compact-button {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  gap: .4rem;
+}
+
+.recent-cards img {
+  width: 24px;
+  height: 34px;
+  object-fit: cover;
+  border-radius: .2rem;
+}
+
+.qol-hint {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  z-index: 12000;
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  transform: translateX(-50%);
+  border: 1px solid var(--border);
+  border-radius: .6rem;
+  padding: .55rem .7rem;
+  background: rgba(23,26,34,.98);
+  color: var(--text);
+  box-shadow: 0 10px 30px rgba(0,0,0,.45);
+  font-size: .72rem;
+}
+
+.qol-hint button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.deck-toolbar {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: .35rem;
+  margin-bottom: .45rem;
+}
+
+.deck-toolbar select,
+.deck-toolbar button {
+  border: 1px solid var(--border);
+  border-radius: .4rem;
+  padding: .32rem .4rem;
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: .69rem;
+}
+
+.deck-cost-strip {
+  display: grid;
+  grid-template-columns: repeat(11, minmax(0, 1fr));
+  gap: .15rem;
+  margin-bottom: .55rem;
+}
+
+.deck-cost-cell {
+  border: 1px solid var(--border);
+  border-radius: .3rem;
+  padding: .18rem .08rem;
+  background: var(--panel-2);
+  text-align: center;
+  font-size: .6rem;
+  color: var(--muted);
+}
+
+.deck-cost-cell strong {
+  display: block;
+  color: var(--text);
+  font-size: .7rem;
+}
+
+.deck-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .4rem;
+  margin: .55rem 0 .35rem;
+  color: var(--muted);
+  font-size: .7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+.deck-section-title.workbench {
+  color: #e4b45c;
+  border-top: 1px solid #66512b;
+  padding-top: .55rem;
+}
+
+.deck-valid {
+  color: #77d591;
+}
+
+.deck-panel.compact-deck .deck-row {
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  padding: .25rem .3rem;
+}
+
+.deck-panel.compact-deck .deck-row img {
+  width: 24px;
+  height: 33px;
+}
+
+.deck-panel.compact-deck .deck-row-meta,
+.deck-panel.compact-deck .deck-mark-select {
+  display: none;
+}
+
+.deck-panel.compact-deck .deck-row-title {
+  font-size: .7rem;
+}
+
+.deck-panel.compact-deck .deck-controls button {
+  width: 22px;
+  height: 22px;
+}
+
+@media (max-width: 1100px) {
+  .app-shell { grid-template-columns: 190px minmax(0, 1fr); }
+  .deck-resizer { display: none; }
+}
+
+@media (max-width: 720px) {
+  .active-filters { width: 100%; }
+  .qol-hint { width: calc(100vw - 20px); }
+}
