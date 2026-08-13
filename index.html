@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="./css/assistant.css">
   <link rel="stylesheet" href="./css/qol.css">
   <link rel="stylesheet" href="./css/sidebar.css">
+  <link rel="stylesheet" href="./css/collection.css">
 </head>
 <body>
   <header class="app-header">
@@ -24,6 +25,7 @@
 
       <div class="header-actions">
         <a class="button page-nav-button" href="./engines.html">Engines</a>
+        <button id="open-collection" class="button" type="button">Collection</button>
         <button id="undo-deck" class="button" type="button">Undo</button>
         <button id="redo-deck" class="button" type="button">Redo</button>
         <button id="open-io" class="button" type="button">Import / Export</button>
@@ -129,6 +131,24 @@
       <button id="import-deck" class="button" type="button">Import JSON</button>
       <button id="copy-share-link" class="button" type="button">Copy share link</button>
     </div>
+  </dialog>
+
+  <dialog id="collection-dialog" class="assistant-dialog">
+    <div class="dialog-header">
+      <h2>Collection</h2>
+      <button id="collection-dialog-close" type="button">×</button>
+    </div>
+    <div id="collection-summary" class="collection-summary"></div>
+    <div class="collection-help">
+      Collection files are keyed by the official card ID, not by the current card name, text, rarity or set label. New sets do not invalidate old exports. Unknown IDs are preserved on import so they can resolve automatically after a future card-database update.
+    </div>
+    <textarea id="collection-text" rows="14" spellcheck="false" placeholder="Export your collection or paste a collection JSON here..."></textarea>
+    <div class="dialog-actions">
+      <button id="export-collection" class="button" type="button">Export collection</button>
+      <button id="import-collection-merge" class="button" type="button">Import & merge</button>
+      <button id="import-collection-replace" class="button button-danger" type="button">Import & replace</button>
+    </div>
+    <div id="collection-status" class="collection-status" data-type="info"></div>
   </dialog>
 
   <dialog id="compare-dialog" class="assistant-dialog">
