@@ -5,7 +5,7 @@ let lastPointer = { x: 0, y: 0 };
 let history = [];
 
 const PREVIEW_DELAY = 1000;
-const PREVIEW_HIDE_DELAY = 2000;
+const PREVIEW_HIDE_DELAY = 1000;
 
 export function renderCardGrid(root, cards, handlers) {
   root.innerHTML = "";
