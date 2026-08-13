@@ -97,6 +97,7 @@ function normalizeCard(id, detail, relations, dictionaries) {
 
   return {
     id: Number(common.card_id ?? id),
+    baseCardId: Number(common.base_card_id ?? common.card_id ?? id),
     name: common.name ?? "",
     class: CLASS_NAMES[Number(common.class)] ?? `Class ${common.class}`,
     setId: Number(common.card_set_id ?? 0),

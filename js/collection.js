@@ -1,3 +1,5 @@
+import { saveWorkspace } from "./storage.js";
+
 const COLLECTION_FORMAT = "svwb-deck-assistant-collection";
 const COLLECTION_VERSION = 1;
 
@@ -47,7 +49,7 @@ export function setupCollectionUI({ state, renderEverything }) {
     try {
       const payload = JSON.parse(els.text.value);
       const result = importCollection(state, payload, mode);
-      persistOwned(state);
+      saveWorkspace(state);
       renderEverything();
       renderDialogSummary(state, els);
       setStatus(
@@ -80,6 +82,7 @@ export function exportCollection(state) {
       const card = state.cardMap.get(cardId);
       return {
         cardId,
+        baseCardId: Number(card?.baseCardId ?? cardId),
         owned,
         name: card?.name ?? null,
         class: card?.class ?? null,
@@ -308,6 +311,7 @@ function normalizeEntry(entry) {
 
   return {
     cardId,
+    baseCardId: Number.isFinite(Number(entry.baseCardId)) ? Number(entry.baseCardId) : cardId,
     owned,
     name: entry.name ? String(entry.name) : null,
     setId: Number.isFinite(Number(entry.setId)) ? Number(entry.setId) : null
@@ -317,6 +321,11 @@ function normalizeEntry(entry) {
 function resolveCollectionEntry(state, entry) {
   const exact = state.cardMap.get(entry.cardId);
   if (exact) return { id: exact.id, card: exact };
+
+  if (Number.isFinite(entry.baseCardId)) {
+    const baseMatches = state.cards.filter(card => Number(card.baseCardId) === Number(entry.baseCardId) && card.deckSelectable);
+    if (baseMatches.length === 1) return { id: baseMatches[0].id, card: baseMatches[0] };
+  }
 
   if (entry.name && entry.setId !== null) {
     const matches = state.cards.filter(card => card.name === entry.name && Number(card.setId) === entry.setId);
@@ -352,26 +361,6 @@ function getCraftCost(card) {
 
 function isBasic(card) {
   return Number(card?.setId) === 10000 || String(card?.set ?? "").toLowerCase() === "basic";
-}
-
-function persistOwned(state) {
-  const payload = {
-    deck: Array.from(state.deck.entries()),
-    deckMarks: Array.from(state.deckMarks.entries()),
-    favorites: Array.from(state.favorites.values()),
-    owned: Array.from(state.owned.entries()),
-    excluded: Array.from(state.excluded.values()),
-    savedDecks: state.savedDecks ?? {},
-    preferences: {
-      selectedClass: state.selectedClass,
-      includeNeutral: state.includeNeutral,
-      showGenerated: state.showGenerated,
-      showExcluded: state.showExcluded,
-      showUnavailableFilters: state.showUnavailableFilters,
-      favoritesOnly: state.favoritesOnly
-    }
-  };
-  localStorage.setItem("shadowverse-deck-assistant:v2", JSON.stringify(payload));
 }
 
 function setStatus(els, text, type) {

@@ -27,6 +27,7 @@ import {
 } from "./storage.js";
 import { analyzeDeck, compareDecks } from "./analysis.js";
 import { setupQol } from "./qol.js";
+import { setupCollectionUI } from "./collection.js";
 
 const els = {
   classFilter: document.getElementById("class-filter"),
@@ -80,6 +81,7 @@ const els = {
 let pendingPackage = null;
 let pendingPackageTrigger = null;
 let qol = null;
+let collectionUi = null;
 
 const CLASS_ICON_URLS = {
   Forestcraft: "https://shadowverse-wb.com/assets/images/common/common/class/class_elf.svg",
@@ -110,6 +112,7 @@ async function init() {
 
     setupCardSizeControl();
     qol = setupQol({ state, renderEverything, renderCards, undoDeck, redoDeck });
+    collectionUi = setupCollectionUI({ state, renderEverything });
     bindEvents();
     renderEverything();
   } catch (error) {
@@ -268,6 +271,7 @@ function renderEverything() {
   renderCards();
   renderDeck();
   renderAnalysis();
+  collectionUi?.render();
   renderSavedDecks();
   updateHistoryButtons();
   qol?.render();
@@ -568,12 +572,15 @@ function renderCards() {
     renderCards();
   },
   onOwnedChange(card, delta) {
-    const next = Math.max(0, (state.owned.get(card.id) ?? 0) + Number(delta));
+    const maxOwned = Number(card.maxCopies ?? 3);
+    const next = Math.min(maxOwned, Math.max(0, (state.owned.get(card.id) ?? 0) + Number(delta)));
     if (next === 0) state.owned.delete(card.id);
     else state.owned.set(card.id, next);
     persist();
     renderCards();
     renderDeck();
+    renderAnalysis();
+    collectionUi?.render();
   },
   onDiscover(card) {
     state.discoverCardId = card.id;
