@@ -8,7 +8,6 @@ export function renderCardGrid(root, cards, handlers) {
   for (const card of cards) {
     const article = document.createElement("article");
     article.className = "card-tile";
-    article.title = `${card.name}\nLeft click: add card\nRight click: remove card`;
 
     const quantity = handlers.getQuantity?.(card) ?? 0;
 
