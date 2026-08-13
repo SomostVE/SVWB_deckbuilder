@@ -58,12 +58,9 @@ async function fetchPage(offset) {
 
 function cleanSkillText(value) {
   return String(value ?? "")
-    .replace(/<b>/g, "")
-    .replace(/<\/b>/g, "")
-    .replace(/<color=Keyword>/g, "")
-    .replace(/<\/color>/g, "")
-    .replace(/<ev>|<\/ev>|<sev>|<\/sev>|<ridx=\d+>|<\/ridx>/g, "")
-    .replace(/<hr>/g, "\n")
+    .replace(/<hr\s*\/?\s*>/gi, "\n")
+    .replace(/<br\s*\/?\s*>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
     .trim();
 }
 
