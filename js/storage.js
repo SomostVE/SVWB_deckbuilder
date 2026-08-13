@@ -30,6 +30,7 @@ export function saveWorkspace(state) {
       includeNeutral: state.includeNeutral,
       showGenerated: state.showGenerated,
       showExcluded: state.showExcluded,
+      showUnavailableFilters: state.showUnavailableFilters,
       favoritesOnly: state.favoritesOnly
     }
   };
@@ -50,6 +51,7 @@ export function applyWorkspace(state, workspace) {
   if (typeof prefs.includeNeutral === "boolean") state.includeNeutral = prefs.includeNeutral;
   if (typeof prefs.showGenerated === "boolean") state.showGenerated = prefs.showGenerated;
   if (typeof prefs.showExcluded === "boolean") state.showExcluded = prefs.showExcluded;
+  if (typeof prefs.showUnavailableFilters === "boolean") state.showUnavailableFilters = prefs.showUnavailableFilters;
   if (typeof prefs.favoritesOnly === "boolean") state.favoritesOnly = prefs.favoritesOnly;
 }
 
