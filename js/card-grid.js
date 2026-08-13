@@ -3,9 +3,14 @@ let hideTimer = null;
 let hoverCard = null;
 let lastPointer = { x: 0, y: 0 };
 let history = [];
+let pinned = false;
 
 const PREVIEW_DELAY = 1000;
 const PREVIEW_HIDE_DELAY = 1000;
+
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape") closeCardPreview();
+});
 
 export function renderCardGrid(root, cards, handlers) {
   root.innerHTML = "";
@@ -19,29 +24,40 @@ export function renderCardGrid(root, cards, handlers) {
 
     const quantity = handlers.getQuantity?.(card) ?? 0;
     const owned = handlers.getOwned?.(card) ?? 0;
+    const maxCopies = Number(card.maxCopies ?? 3);
+    const deckMark = handlers.getDeckMark?.(card) ?? "";
+    if (card.deckSelectable && quantity >= maxCopies) article.classList.add("maxed-card");
 
     article.innerHTML = `
       <img src="${escapeAttr(card.image)}" alt="${escapeAttr(card.name)}" loading="lazy">
       ${quantity > 0 ? `<span class="card-quantity">${quantity}</span>` : ""}
       ${owned > 0 ? `<span class="card-owned">O${owned}</span>` : ""}
       ${handlers.isFavorite?.(card) ? `<span class="card-favorite">★</span>` : ""}
+      ${deckMark ? `<span class="card-mark card-mark-${escapeAttr(deckMark.toLowerCase())}">${escapeHtml(deckMark)}</span>` : ""}
       ${!card.deckSelectable ? `<span class="card-generated-label">Generated</span>` : ""}
     `;
 
-    article.addEventListener("click", () => {
-      if (card.deckSelectable) handlers.onAdd?.(card);
-      else showHoverCard(card, handlers);
+    article.addEventListener("click", event => {
+      if (card.deckSelectable) {
+        const amount = event.shiftKey ? Math.max(1, maxCopies - quantity) : 1;
+        handlers.onAdd?.(card, amount);
+      } else {
+        showHoverCard(card, handlers);
+      }
     });
 
     article.addEventListener("contextmenu", event => {
       event.preventDefault();
-      if (card.deckSelectable) handlers.onRemove?.(card);
+      if (!card.deckSelectable) return;
+      const amount = event.shiftKey ? Math.max(1, quantity) : 1;
+      handlers.onRemove?.(card, amount);
     });
 
     article.addEventListener("pointerenter", event => {
       lastPointer = { x: event.clientX, y: event.clientY };
       cancelHide();
       clearTimeout(hoverTimer);
+      if (hoverCard && pinned) return;
       hoverTimer = setTimeout(() => showHoverCard(card, handlers), PREVIEW_DELAY);
     });
 
@@ -54,9 +70,15 @@ export function renderCardGrid(root, cards, handlers) {
   }
 }
 
+export function closeCardPreview() {
+  hideHoverCard(true);
+}
+
 function showHoverCard(card, handlers) {
-  hideHoverCard();
+  if (hoverCard && pinned) return;
+  hideHoverCard(true);
   history = [];
+  pinned = false;
 
   const preview = document.createElement("div");
   preview.className = "card-hover-preview";
@@ -65,6 +87,7 @@ function showHoverCard(card, handlers) {
 
   document.body.appendChild(preview);
   hoverCard = preview;
+  handlers.onPreviewOpen?.(card);
   renderPreviewContent(card, handlers);
   positionHoverCard(preview);
 }
@@ -79,6 +102,7 @@ function renderPreviewContent(card, handlers) {
   const favorite = Boolean(handlers.isFavorite?.(card));
   const excluded = Boolean(handlers.isExcluded?.(card));
 
+  hoverCard.classList.toggle("pinned", pinned);
   hoverCard.innerHTML = `
     <div class="card-hover-main">
       <img class="card-hover-main-image" src="${escapeAttr(card.image)}" alt="${escapeAttr(card.name)}">
@@ -86,9 +110,16 @@ function renderPreviewContent(card, handlers) {
         <div class="card-hover-title-row">
           <div>
             <h3>${escapeHtml(card.name)}</h3>
-            <div class="card-hover-meta">${escapeHtml(card.class)} · ${escapeHtml(card.rarity)} · ${escapeHtml(card.set)}</div>
+            <div class="card-hover-meta">
+              ${escapeHtml(card.class)} · ${escapeHtml(card.rarity)} ·
+              <button type="button" class="preview-inline-link" data-filter-set="${escapeAttr(card.set)}">${escapeHtml(card.set)}</button>
+            </div>
           </div>
-          ${history.length ? `<button class="card-hover-back" type="button">← Back</button>` : ""}
+          <div class="card-hover-title-actions">
+            ${history.length ? `<button class="card-hover-back" type="button">← Back</button>` : ""}
+            <button class="card-hover-pin ${pinned ? "active" : ""}" type="button" aria-label="${pinned ? "Unpin preview" : "Pin preview"}">${pinned ? "📌" : "Pin"}</button>
+            <button class="card-hover-close" type="button" aria-label="Close">×</button>
+          </div>
         </div>
 
         <div class="card-hover-statline">
@@ -98,8 +129,18 @@ function renderPreviewContent(card, handlers) {
           ${!card.deckSelectable ? `<span class="generated-status">Generated card</span>` : ""}
         </div>
 
-        ${card.traits?.length ? `<div class="card-hover-line"><strong>Traits:</strong> ${card.traits.map(escapeHtml).join(", ")}</div>` : ""}
-        ${card.keywords?.length ? `<div class="preview-chip-row"><span class="chip-label">Keywords</span>${card.keywords.map(k => `<span class="keyword-chip">${escapeHtml(k)}</span>`).join("")}</div>` : ""}
+        ${card.traits?.length ? `
+          <div class="preview-chip-row">
+            <span class="chip-label">Traits</span>
+            ${card.traits.map(trait => `<button type="button" class="trait-chip" data-filter-trait="${escapeAttr(trait)}">${escapeHtml(trait)}</button>`).join("")}
+          </div>
+        ` : ""}
+        ${card.keywords?.length ? `
+          <div class="preview-chip-row">
+            <span class="chip-label">Keywords</span>
+            ${card.keywords.map(keyword => `<button type="button" class="keyword-chip" data-filter-keyword="${escapeAttr(keyword)}">${escapeHtml(keyword)}</button>`).join("")}
+          </div>
+        ` : ""}
         ${card.roles?.length ? `<div class="preview-chip-row"><span class="chip-label">Roles</span>${card.roles.map(role => `<span class="role-chip">${escapeHtml(role)}</span>`).join("")}</div>` : ""}
 
         <div class="card-hover-effect">${escapeHtml(cleanPreviewText(card.text)).replaceAll("\n", "<br>")}</div>
@@ -108,7 +149,7 @@ function renderPreviewContent(card, handlers) {
           <button type="button" data-action="favorite">${favorite ? "★ Favorite" : "☆ Favorite"}</button>
           <button type="button" data-action="exclude">${excluded ? "Unexclude" : "Exclude"}</button>
           <button type="button" data-action="discover">Discover</button>
-          <button type="button" data-action="find-linked">Find linked</button>
+          <button type="button" data-action="find-linked">${card.deckSelectable ? "Find linked" : "Find cards mentioning this"}</button>
           <span class="owned-control">
             <button type="button" data-action="owned-minus">−</button>
             <span>Owned ${owned}</span>
@@ -135,6 +176,18 @@ function renderPreviewContent(card, handlers) {
     ${relatedGroups.map(group => renderRelatedGroup(group)).join("")}
   `;
 
+  hoverCard.querySelector(".card-hover-close")?.addEventListener("click", event => {
+    event.stopPropagation();
+    closeCardPreview();
+  });
+
+  hoverCard.querySelector(".card-hover-pin")?.addEventListener("click", event => {
+    event.stopPropagation();
+    pinned = !pinned;
+    hoverCard?.classList.toggle("pinned", pinned);
+    renderPreviewContent(card, handlers);
+  });
+
   hoverCard.querySelector(".card-hover-back")?.addEventListener("click", event => {
     event.stopPropagation();
     const previous = history.pop();
@@ -147,8 +200,31 @@ function renderPreviewContent(card, handlers) {
       const related = handlers.getCardById?.(button.dataset.relatedId);
       if (!related) return;
       history.push(card);
+      handlers.onPreviewOpen?.(related);
       renderPreviewContent(related, handlers);
     });
+  });
+
+  hoverCard.querySelectorAll("[data-filter-trait]").forEach(button => {
+    button.addEventListener("dblclick", event => {
+      event.stopPropagation();
+      handlers.onFilterTrait?.(button.dataset.filterTrait);
+      closeCardPreview();
+    });
+  });
+
+  hoverCard.querySelectorAll("[data-filter-keyword]").forEach(button => {
+    button.addEventListener("dblclick", event => {
+      event.stopPropagation();
+      handlers.onFilterKeyword?.(button.dataset.filterKeyword);
+      closeCardPreview();
+    });
+  });
+
+  hoverCard.querySelector("[data-filter-set]")?.addEventListener("click", event => {
+    event.stopPropagation();
+    handlers.onFilterSet?.(event.currentTarget.dataset.filterSet);
+    closeCardPreview();
   });
 
   hoverCard.querySelector('[data-action="favorite"]')?.addEventListener("click", event => {
@@ -178,13 +254,13 @@ function renderPreviewContent(card, handlers) {
   hoverCard.querySelector('[data-action="discover"]')?.addEventListener("click", event => {
     event.stopPropagation();
     handlers.onDiscover?.(card);
-    hideHoverCard();
+    closeCardPreview();
   });
 
   hoverCard.querySelector('[data-action="find-linked"]')?.addEventListener("click", event => {
     event.stopPropagation();
     handlers.onFindLinked?.(card);
-    hideHoverCard();
+    closeCardPreview();
   });
 
   hoverCard.querySelectorAll("[data-package-id]").forEach(button => {
@@ -239,6 +315,7 @@ function positionHoverCard(preview) {
 }
 
 function scheduleHide() {
+  if (pinned) return;
   clearTimeout(hideTimer);
   hideTimer = setTimeout(() => {
     if (!hoverCard?.matches(":hover")) hideHoverCard();
@@ -249,11 +326,14 @@ function cancelHide() {
   clearTimeout(hideTimer);
 }
 
-function hideHoverCard() {
+function hideHoverCard(force = false) {
+  if (pinned && !force) return;
   clearTimeout(hideTimer);
+  clearTimeout(hoverTimer);
   hoverCard?.remove();
   hoverCard = null;
   history = [];
+  pinned = false;
 }
 
 function escapeHtml(value) {
