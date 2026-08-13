@@ -1,0 +1,44 @@
+.page-nav-button {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.sidebar-collapse-title,
+#filters-root .filter-group-title {
+  cursor: pointer;
+  user-select: none;
+}
+
+.sidebar-collapse-title::after {
+  content: "▾";
+  float: right;
+  color: var(--muted);
+  font-size: .78rem;
+}
+
+.sidebar-collapsible.collapsed .sidebar-collapse-title::after {
+  content: "▸";
+}
+
+.sidebar-collapsible.collapsed .sidebar-collapse-body {
+  display: none;
+}
+
+#filters-root .filter-group-title strong::before {
+  content: "▾ ";
+  color: var(--muted);
+  font-size: .72rem;
+}
+
+#filters-root .filter-group.collapsed .filter-group-title strong::before {
+  content: "▸ ";
+}
+
+#filters-root .filter-group.collapsed .filter-options {
+  display: none;
+}
+
+#filters-root .filter-group.collapsed {
+  padding-bottom: 0;
+}
