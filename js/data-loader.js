@@ -11,5 +11,11 @@ export async function loadData() {
   const cards = await cardsResponse.json();
   const metadata = metadataResponse.ok ? await metadataResponse.json() : {};
 
+  for (const card of cards) {
+    if (card.setId === 90000 || card.set === "90000") {
+      card.set = "Token";
+    }
+  }
+
   return { cards, metadata };
 }
