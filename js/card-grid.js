@@ -55,13 +55,21 @@ function showHoverCard(card) {
       <div class="card-hover-meta">${escapeHtml(card.class)} · ${escapeHtml(card.rarity)} · ${escapeHtml(card.set)}</div>
       ${card.traits?.length ? `<div class="card-hover-line"><strong>Traits:</strong> ${card.traits.map(escapeHtml).join(", ")}</div>` : ""}
       ${card.keywords?.length ? `<div class="keyword-chips">${card.keywords.map(k => `<span class="keyword-chip">${escapeHtml(k)}</span>`).join("")}</div>` : ""}
-      <div class="card-hover-effect">${escapeHtml(card.text).replaceAll("\n", "<br>")}</div>
+      <div class="card-hover-effect">${escapeHtml(cleanPreviewText(card.text)).replaceAll("\n", "<br>")}</div>
     </div>
   `;
 
   document.body.appendChild(preview);
   hoverCard = preview;
   positionHoverCard(preview);
+}
+
+function cleanPreviewText(value) {
+  return String(value ?? "")
+    .replace(/<hr\s*\/?\s*>/gi, "\n")
+    .replace(/<br\s*\/?\s*>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .trim();
 }
 
 function positionHoverCard(preview) {
