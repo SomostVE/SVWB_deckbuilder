@@ -349,3 +349,11 @@
     grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
   }
 }
+
+
+/* Official card text formatting in hover preview */
+.card-hover-effect .card-text-keyword { color: #f2e1a3; font-weight: 800; }
+.card-hover-effect .card-text-emphasis { color: #d8dcff; }
+.card-hover-effect strong, .card-hover-effect span, .card-hover-effect em { display: inline; }
+.card-hover-effect em { color: #f0f2f8; font-style: italic; }
+.card-hover-effect .card-text-separator { height: 1px; margin: .45rem 0; border: 0; background: var(--border); }

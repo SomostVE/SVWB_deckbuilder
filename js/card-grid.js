@@ -1,3 +1,5 @@
+import { formatCardText } from "./card-text.js";
+
 let hoverTimer = null;
 let hideTimer = null;
 let hoverCard = null;
@@ -144,7 +146,7 @@ function renderPreviewContent(card, handlers) {
         ` : ""}
         ${card.roles?.length ? `<div class="preview-chip-row"><span class="chip-label">Roles</span>${card.roles.map(role => `<span class="role-chip">${escapeHtml(role)}</span>`).join("")}</div>` : ""}
 
-        <div class="card-hover-effect">${escapeHtml(cleanPreviewText(card.text)).replaceAll("\n", "<br>")}</div>
+        <div class="card-hover-effect">${formatCardText(card.rawSkillText || card.text || "No effect text.")}</div>
 
         <div class="card-hover-actions">
           <button type="button" data-action="favorite">${favorite ? "★ Favorite" : "☆ Favorite"}</button>
