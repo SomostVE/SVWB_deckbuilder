@@ -37,7 +37,10 @@
   color: var(--text);
 }
 
-.class-button.active { border-color: var(--accent); }
+.class-button.active {
+  border-color: var(--accent);
+  background: rgba(124,140,255,.16);
+}
 
 .neutral-toggle {
   display: flex;
@@ -50,4 +53,79 @@
   color: var(--text);
   background: rgba(124,140,255,.08);
   font-size: .82rem;
+}
+
+.header-class-list {
+  flex-direction: row;
+  align-items: center;
+  gap: .3rem;
+  flex-wrap: nowrap;
+}
+
+.header-class-list .class-button {
+  width: auto;
+  padding: .38rem .58rem;
+  white-space: nowrap;
+  font-size: .77rem;
+}
+
+.header-class-list .neutral-toggle {
+  flex: 0 0 auto;
+  width: auto;
+  margin: 0 0 0 .2rem;
+  padding: .38rem .55rem;
+  white-space: nowrap;
+  font-size: .77rem;
+}
+
+.header-filter-root {
+  flex: 0 0 auto;
+}
+
+.header-filter-root .filter-group {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  margin: 0;
+  padding: 0 0 0 .8rem;
+  border-top: 0;
+  border-left: 1px solid var(--border);
+}
+
+.header-filter-root .filter-group-title {
+  margin: 0;
+  color: var(--text);
+  font-size: .75rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.header-filter-root .filter-group-title span {
+  display: none;
+}
+
+.header-filter-root .filter-options {
+  flex-direction: row;
+  align-items: center;
+  gap: .3rem;
+}
+
+.header-filter-root .filter-option {
+  gap: .28rem;
+  padding: .34rem .48rem;
+  border: 1px solid var(--border);
+  border-radius: .4rem;
+  background: var(--panel-2);
+  color: var(--text);
+  white-space: nowrap;
+  font-size: .75rem;
+}
+
+.header-filter-root .filter-option:has(input:checked) {
+  border-color: var(--accent);
+  background: rgba(124,140,255,.16);
+}
+
+.header-filter-root input {
+  margin: 0;
 }
