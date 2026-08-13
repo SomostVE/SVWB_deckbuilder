@@ -9,15 +9,21 @@
   <link rel="stylesheet" href="./css/cards.css">
   <link rel="stylesheet" href="./css/deck.css">
   <link rel="stylesheet" href="./css/filters.css">
+  <link rel="stylesheet" href="./css/assistant.css">
 </head>
 <body>
   <header class="app-header">
     <div class="header-top">
       <div>
         <h1>Shadowverse Deck Assistant</h1>
-        <p>Explore cards, build decks, and learn synergies.</p>
+        <p>Explore cards, build decks, discover packages and analyze your list.</p>
       </div>
-      <button id="clear-deck" class="button button-danger" type="button">Clear deck</button>
+      <div class="header-actions">
+        <button id="undo-deck" class="button" type="button">Undo</button>
+        <button id="redo-deck" class="button" type="button">Redo</button>
+        <button id="open-io" class="button" type="button">Import / Export</button>
+        <button id="clear-deck" class="button button-danger" type="button">Clear deck</button>
+      </div>
     </div>
 
     <div class="header-toolbar">
@@ -34,7 +40,14 @@
     <aside class="sidebar">
       <section>
         <h2>Search</h2>
-        <input id="search-input" class="input" type="search" placeholder="Search cards...">
+        <input id="search-input" class="input" type="search" placeholder="Search cards, role:draw, related:&quot;Bat&quot;...">
+      </section>
+
+      <section class="quick-filters">
+        <h2>View</h2>
+        <label><input id="favorites-only" type="checkbox"> Favorites only</label>
+        <label><input id="show-generated" type="checkbox"> Show generated cards</label>
+        <label><input id="show-excluded" type="checkbox"> Show excluded cards</label>
       </section>
 
       <section id="filters-root">
@@ -43,24 +56,100 @@
         <div id="trait-filter"></div>
         <div id="keyword-filter"></div>
       </section>
+
+      <section>
+        <h2>Archetypes</h2>
+        <div id="archetype-browser" class="compact-list"></div>
+      </section>
+
+      <section>
+        <h2>Packages</h2>
+        <div id="package-browser" class="compact-list"></div>
+      </section>
     </aside>
 
     <section class="content">
       <div class="content-toolbar">
         <strong id="results-count">0 cards</strong>
+        <div id="discover-status" class="discover-status" hidden>
+          <span id="discover-label"></span>
+          <button id="clear-discover" type="button">×</button>
+        </div>
         <button id="reset-filters" class="button" type="button">Reset filters</button>
       </div>
       <div id="card-grid" class="card-grid"></div>
     </section>
 
     <aside class="deck-panel">
-      <div class="deck-header">
-        <h2>Deck</h2>
-        <strong id="deck-count">0 / 40</strong>
+      <div class="deck-tabs" role="tablist">
+        <button class="deck-tab-button active" data-tab="deck" type="button">Deck</button>
+        <button class="deck-tab-button" data-tab="analysis" type="button">Analysis</button>
+        <button class="deck-tab-button" data-tab="saved" type="button">Saved</button>
       </div>
-      <div id="deck-list" class="deck-list"></div>
+
+      <section id="deck-tab" class="deck-tab-content active">
+        <div class="deck-header">
+          <h2>Deck</h2>
+          <strong id="deck-count">0 / 40</strong>
+        </div>
+        <div id="deck-list" class="deck-list"></div>
+      </section>
+
+      <section id="analysis-tab" class="deck-tab-content">
+        <div class="deck-header"><h2>Analysis</h2></div>
+        <div id="deck-analysis"></div>
+      </section>
+
+      <section id="saved-tab" class="deck-tab-content">
+        <div class="deck-header"><h2>Deck variants</h2></div>
+        <div class="save-variant-row">
+          <input id="variant-name" class="input" type="text" placeholder="Variant name">
+          <button id="save-variant" class="button" type="button">Save</button>
+        </div>
+        <button id="open-compare" class="button full-button" type="button">Compare decks</button>
+        <div id="saved-decks" class="saved-decks"></div>
+      </section>
     </aside>
   </main>
+
+  <dialog id="io-dialog" class="assistant-dialog">
+    <div class="dialog-header">
+      <h2>Import / Export</h2>
+      <button data-close-dialog="io-dialog" type="button">×</button>
+    </div>
+    <p class="muted">Export the current deck as JSON, import another deck, or copy a shareable URL.</p>
+    <textarea id="io-text" rows="14" spellcheck="false"></textarea>
+    <div class="dialog-actions">
+      <button id="export-deck" class="button" type="button">Export JSON</button>
+      <button id="import-deck" class="button" type="button">Import JSON</button>
+      <button id="copy-share-link" class="button" type="button">Copy share link</button>
+    </div>
+  </dialog>
+
+  <dialog id="compare-dialog" class="assistant-dialog">
+    <div class="dialog-header">
+      <h2>Compare decks</h2>
+      <button data-close-dialog="compare-dialog" type="button">×</button>
+    </div>
+    <div class="compare-selects">
+      <select id="compare-left"></select>
+      <span>vs</span>
+      <select id="compare-right"></select>
+    </div>
+    <div id="compare-results"></div>
+  </dialog>
+
+  <dialog id="package-dialog" class="assistant-dialog">
+    <div class="dialog-header">
+      <h2 id="package-dialog-title">Add package</h2>
+      <button data-close-dialog="package-dialog" type="button">×</button>
+    </div>
+    <p id="package-dialog-description" class="muted"></p>
+    <div id="package-dialog-cards" class="package-dialog-cards"></div>
+    <div class="dialog-actions">
+      <button id="confirm-package" class="button" type="button">Add selected cards</button>
+    </div>
+  </dialog>
 
   <script type="module" src="./js/app.js"></script>
 </body>
