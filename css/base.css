@@ -43,7 +43,7 @@ h1, h2, h3, p { margin-top: 0; }
   gap: .8rem;
   min-height: 48px;
   padding: .45rem .75rem;
-  overflow-x: auto;
+  overflow-x: hidden;
   background: #141820;
 }
 
@@ -71,6 +71,19 @@ h1, h2, h3, p { margin-top: 0; }
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .04em;
+}
+
+.neutral-toggle {
+  font-size: 0;
+}
+
+.neutral-toggle input {
+  font-size: initial;
+}
+
+.neutral-toggle::after {
+  content: " Neutral";
+  font-size: .8rem;
 }
 
 .button {
