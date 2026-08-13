@@ -1,0 +1,167 @@
+.collection-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .45rem;
+  margin: .65rem 0;
+}
+
+.collection-summary > div {
+  border: 1px solid var(--border);
+  border-radius: .5rem;
+  padding: .55rem;
+  background: var(--panel-2);
+}
+
+.collection-summary strong,
+.collection-summary span {
+  display: block;
+}
+
+.collection-summary strong {
+  margin-bottom: .15rem;
+  font-size: 1rem;
+}
+
+.collection-summary span {
+  color: var(--muted);
+  font-size: .68rem;
+}
+
+.collection-help {
+  margin: .55rem 0;
+  border-left: 3px solid var(--accent);
+  padding: .45rem .55rem;
+  background: rgba(124,140,255,.08);
+  color: var(--muted);
+  font-size: .72rem;
+  line-height: 1.45;
+}
+
+.collection-status {
+  min-height: 1.2rem;
+  margin-top: .45rem;
+  font-size: .72rem;
+}
+
+.collection-status[data-type="success"] { color: #8fd6a4; }
+.collection-status[data-type="error"] { color: #f09a9a; }
+.collection-status[data-type="info"] { color: var(--muted); }
+
+.deck-craft-summary {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr;
+  gap: .35rem;
+  align-items: center;
+  margin: .45rem 0;
+  border: 1px solid var(--border);
+  border-radius: .45rem;
+  padding: .4rem .45rem;
+  background: var(--panel-2);
+  font-size: .68rem;
+}
+
+.deck-craft-summary > span:first-child {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  font-weight: 700;
+}
+
+.deck-craft-summary > span:not(:first-child) {
+  text-align: right;
+}
+
+.craft-missing-value {
+  color: #efb26c;
+}
+
+.crafting-overview-grid {
+  margin-bottom: .55rem;
+}
+
+.craft-rarity-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+  margin-bottom: .6rem;
+}
+
+.craft-rarity-row {
+  display: grid;
+  grid-template-columns: 72px 1fr auto;
+  gap: .4rem;
+  align-items: center;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+  padding: .25rem .1rem;
+  font-size: .68rem;
+}
+
+.craft-rarity-row span {
+  color: var(--muted);
+}
+
+.craft-missing-list {
+  display: flex;
+  flex-direction: column;
+  gap: .3rem;
+}
+
+.craft-missing-card {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: .4rem;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: .42rem;
+  padding: .3rem;
+  background: var(--panel-2);
+}
+
+.craft-missing-card img {
+  width: 34px;
+  height: 47px;
+  object-fit: cover;
+  object-position: top center;
+  border-radius: .24rem;
+}
+
+.craft-missing-card > div {
+  min-width: 0;
+}
+
+.craft-missing-card > div strong,
+.craft-missing-card > div span {
+  display: block;
+}
+
+.craft-missing-card > div strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: .7rem;
+}
+
+.craft-missing-card > div span {
+  margin-top: .1rem;
+  color: var(--muted);
+  font-size: .62rem;
+}
+
+.craft-missing-card > strong {
+  color: #efb26c;
+  font-size: .7rem;
+}
+
+.craft-note {
+  margin: .55rem 0 0;
+  color: var(--muted);
+  font-size: .62rem;
+  line-height: 1.4;
+}
+
+@media (max-width: 720px) {
+  .collection-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .deck-craft-summary { grid-template-columns: 1fr 1fr; }
+  .deck-craft-summary > span:first-child { grid-column: 1 / -1; }
+  .deck-craft-summary > span:not(:first-child) { text-align: left; }
+}
