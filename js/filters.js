@@ -28,6 +28,7 @@ export function filteredCards() {
 
     if (!matchesAdvancedSearch(card, query)) return false;
 
+    if (state.filters.costs.size && !matchesCostFilter(card.cost)) return false;
     if (state.filters.sets.size && !state.filters.sets.has(card.set)) return false;
     if (state.filters.types.size && !state.filters.types.has(card.type)) return false;
     if (state.filters.rarities.size && !state.filters.rarities.has(card.rarity)) return false;
@@ -56,6 +57,15 @@ export function filteredCards() {
   }
 
   return cards;
+}
+
+function matchesCostFilter(costValue) {
+  const cost = Number(costValue) || 0;
+  for (const bucket of state.filters.costs) {
+    if (bucket === "10+" && cost >= 10) return true;
+    if (bucket !== "10+" && cost === Number(bucket)) return true;
+  }
+  return false;
 }
 
 export function discoveryScore(source, candidate) {
