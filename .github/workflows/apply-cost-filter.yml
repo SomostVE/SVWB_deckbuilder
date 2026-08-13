@@ -1,0 +1,82 @@
+name: Apply cost filter patch
+
+on:
+  push:
+    paths:
+      - ".github/workflows/apply-cost-filter.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Patch app.js
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("js/app.js")
+          text = path.read_text(encoding="utf-8")
+
+          old_els = '  resultsCount: document.getElementById("results-count"),\n  discoverStatus: document.getElementById("discover-status"),'
+          new_els = '  resultsCount: document.getElementById("results-count"),\n  costFilter: document.getElementById("cost-filter"),\n  discoverStatus: document.getElementById("discover-status"),'
+
+          old_render = '''  renderPackageBrowser();
+            renderCards();
+            renderDeck();'''
+          new_render = '''  renderPackageBrowser();
+            renderCostFilter();
+            renderCards();
+            renderDeck();'''
+
+          anchor = '''function renderCards() {
+            const cards = filteredCards();'''
+          insert = '''function renderCostFilter() {
+            if (!els.costFilter) return;
+            const buckets = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10+"];
+            els.costFilter.innerHTML = "";
+
+            for (const bucket of buckets) {
+              const button = document.createElement("button");
+              button.type = "button";
+              button.className = "cost-button";
+              button.textContent = bucket;
+              button.classList.toggle("active", state.filters.costs.has(bucket));
+              button.addEventListener("click", () => {
+                if (state.filters.costs.has(bucket)) state.filters.costs.delete(bucket);
+                else state.filters.costs.add(bucket);
+                renderCostFilter();
+                renderCards();
+              });
+              els.costFilter.appendChild(button);
+            }
+          }
+
+          function renderCards() {
+            const cards = filteredCards();'''
+
+          if old_els not in text:
+              raise SystemExit("els insertion anchor not found")
+          if old_render not in text:
+              raise SystemExit("renderEverything anchor not found")
+          if anchor not in text:
+              raise SystemExit("renderCards anchor not found")
+
+          text = text.replace(old_els, new_els, 1)
+          text = text.replace(old_render, new_render, 1)
+          text = text.replace(anchor, insert, 1)
+          path.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/app.js
+          git commit -m "feat: add interactive cost filter"
+          git push
