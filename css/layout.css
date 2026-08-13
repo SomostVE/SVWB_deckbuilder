@@ -33,18 +33,17 @@
 }
 
 .content-toolbar {
-  position: sticky;
-  top: 0;
-  z-index: 20;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: .8rem;
-  margin: -.7rem -.7rem .65rem;
-  padding: .65rem .7rem;
-  border-bottom: 1px solid rgba(255,255,255,.035);
-  background: rgba(16,18,24,.96);
-  backdrop-filter: blur(8px);
+  padding: .45rem .75rem;
+  border-top: 1px solid rgba(255,255,255,.035);
+  background: rgba(16,18,24,.98);
+}
+
+.header-subtoolbar {
+  min-height: 42px;
 }
 
 .content-toolbar #results-count {
