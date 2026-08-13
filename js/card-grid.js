@@ -2,12 +2,13 @@ let hoverTimer = null;
 let hideTimer = null;
 let hoverCard = null;
 let lastPointer = { x: 0, y: 0 };
-let activeHandlers = null;
 let history = [];
+
+const PREVIEW_DELAY = 1000;
+const PREVIEW_HIDE_DELAY = 2000;
 
 export function renderCardGrid(root, cards, handlers) {
   root.innerHTML = "";
-  activeHandlers = handlers;
 
   for (const card of cards) {
     const article = document.createElement("article");
@@ -27,16 +28,11 @@ export function renderCardGrid(root, cards, handlers) {
       handlers.onRemove(card);
     });
 
-    article.addEventListener("pointermove", event => {
-      lastPointer = { x: event.clientX, y: event.clientY };
-      if (hoverCard && !hoverCard.matches(":hover")) positionHoverCard(hoverCard);
-    });
-
     article.addEventListener("pointerenter", event => {
       lastPointer = { x: event.clientX, y: event.clientY };
       cancelHide();
       clearTimeout(hoverTimer);
-      hoverTimer = setTimeout(() => showHoverCard(card, handlers), 1000);
+      hoverTimer = setTimeout(() => showHoverCard(card, handlers), PREVIEW_DELAY);
     });
 
     article.addEventListener("pointerleave", () => {
@@ -61,11 +57,16 @@ function showHoverCard(card, handlers) {
   document.body.appendChild(preview);
   hoverCard = preview;
   renderPreviewContent(card, handlers);
+
+  // Position once when the preview opens. It deliberately does not follow the cursor
+  // and it stays at the same top/left position when navigating related cards.
   positionHoverCard(preview);
 }
 
 function renderPreviewContent(card, handlers) {
   if (!hoverCard) return;
+
+  cancelHide();
 
   const relatedCards = (card.relatedCards ?? [])
     .map(id => handlers.getCardById?.(id))
@@ -146,7 +147,7 @@ function scheduleHide() {
   clearTimeout(hideTimer);
   hideTimer = setTimeout(() => {
     if (!hoverCard?.matches(":hover")) hideHoverCard();
-  }, 220);
+  }, PREVIEW_HIDE_DELAY);
 }
 
 function cancelHide() {
