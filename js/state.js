@@ -2,6 +2,7 @@ export const state = {
   cards: [],
   metadata: {},
   selectedClass: "Forestcraft",
+  includeNeutral: true,
   search: "",
   filters: {
     sets: new Set(),
