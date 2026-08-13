@@ -1,0 +1,52 @@
+name: Fix header overflow
+
+on:
+  push:
+    paths:
+      - ".github/workflows/fix-header-overflow.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Patch header
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          base = Path('css/base.css')
+          css = base.read_text(encoding='utf-8')
+          old = '''  overflow-x: auto;
+  background: #141820;'''
+          new = '''  overflow-x: hidden;
+  background: #141820;'''
+          if old not in css:
+              raise SystemExit('header overflow anchor missing')
+          css = css.replace(old, new, 1)
+          base.write_text(css, encoding='utf-8')
+
+          app = Path('js/app.js')
+          js = app.read_text(encoding='utf-8')
+          old = 'neutral.append(checkbox, document.createTextNode(" Include Neutral"));'
+          new = 'neutral.append(checkbox, document.createTextNode(" Neutral"));'
+          if old not in js:
+              raise SystemExit('neutral label anchor missing')
+          js = js.replace(old, new, 1)
+          app.write_text(js, encoding='utf-8')
+          PY
+
+      - name: Validate syntax
+        run: node --check js/app.js
+
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add css/base.css js/app.js
+          git commit -m "fix: remove header scrollbar and shorten neutral label"
+          git push
