@@ -14,7 +14,10 @@ export function filteredCards() {
   const q = state.search.trim().toLowerCase();
 
   return state.cards.filter(card => {
-    const classMatch = card.class === state.selectedClass || card.class === "Neutral";
+    const classMatch =
+      card.class === state.selectedClass ||
+      (state.includeNeutral && card.class === "Neutral");
+
     if (!classMatch) return false;
 
     if (q) {
