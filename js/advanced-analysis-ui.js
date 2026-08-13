@@ -21,8 +21,9 @@ function renderAdvanced() {
     deck: mainDeck,
     cardMap: state.cardMap,
     selectedClass: state.selectedClass,
-    format: state.format ?? "Rotation"
+    format: state.format ?? "Unlimited"
   });
+  const sources = buildSources(mainDeck);
 
   const section = document.createElement("div");
   section.className = "analysis-section advanced-analysis";
@@ -44,7 +45,22 @@ function renderAdvanced() {
       ${statCard("Generators", stats.generate)}
     </div>
 
-    <h3 class="advanced-legality-title">Deck legality · ${escapeHtml(state.format ?? "Rotation")}</h3>
+    <details class="utility-sources">
+      <summary>Utility sources</summary>
+      <div class="utility-source-list">
+        ${sources.map(group => `
+          <div class="utility-source-group">
+            <strong>${escapeHtml(group.label)} <small>${group.cards.length} source${group.cards.length === 1 ? "" : "s"}</small></strong>
+            <div>${group.cards.length
+              ? group.cards.map(item => `<span class="utility-source-chip">${item.qty}× ${escapeHtml(item.card.name)}</span>`).join("")
+              : '<span class="utility-source-empty">None</span>'}
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    </details>
+
+    <h3 class="advanced-legality-title">Deck legality · ${escapeHtml(state.format ?? "Unlimited")}</h3>
     <div class="legality-box ${legality.legal ? "legal" : "illegal"}">
       <strong>${legality.legal ? "Legal main deck ✓" : `${legality.errors.length} issue${legality.errors.length === 1 ? "" : "s"}`}</strong>
       ${legality.errors.map(text => `<div>${escapeHtml(text)}</div>`).join("")}
@@ -55,6 +71,28 @@ function renderAdvanced() {
   const crafting = root.querySelector(".crafting-analysis");
   if (crafting) root.insertBefore(section, crafting);
   else root.appendChild(section);
+}
+
+function buildSources(deck) {
+  const definitions = [
+    ["Draw", card => card.roles?.includes("Draw")],
+    ["Removal", card => card.roles?.includes("Removal")],
+    ["Heal", card => card.roles?.includes("Heal")],
+    ["Ward", card => card.keywords?.includes("Ward")],
+    ["Finishers", card => card.roles?.includes("Finisher")],
+    ["Board clear", card => card.roles?.includes("Board Clear")],
+    ["Ramp", card => card.roles?.includes("Ramp")],
+    ["Storm", card => card.keywords?.includes("Storm")],
+    ["Rush", card => card.keywords?.includes("Rush")]
+  ];
+
+  return definitions.map(([label, predicate]) => ({
+    label,
+    cards: [...deck.entries()]
+      .map(([id, qty]) => ({ card: state.cardMap.get(Number(id)), qty: Number(qty) || 0 }))
+      .filter(item => item.card && item.qty > 0 && predicate(item.card))
+      .sort((a, b) => Number(a.card.cost) - Number(b.card.cost) || a.card.name.localeCompare(b.card.name))
+  }));
 }
 
 function getMainDeck() {
