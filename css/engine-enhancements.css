@@ -1,0 +1,34 @@
+.engine-owned-coverage {
+  margin-top: .34rem;
+}
+
+.engine-owned-fill {
+  background: linear-gradient(90deg, #46a86d, #78d79a);
+}
+
+.engine-card-profile .card-text-keyword {
+  color: #f2e1a3;
+  font-weight: 800;
+}
+
+.engine-card-profile .card-text-emphasis {
+  color: #d8dcff;
+}
+
+.engine-card-profile em {
+  color: #f0f2f8;
+  font-style: italic;
+}
+
+.engine-card-profile strong {
+  display: inline;
+  padding-right: 0;
+  font-size: inherit;
+}
+
+.card-text-separator {
+  height: 1px;
+  margin: .45rem 0;
+  border: 0;
+  background: var(--border);
+}
