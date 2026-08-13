@@ -1,0 +1,161 @@
+name: Apply official class icons
+
+on:
+  push:
+    paths:
+      - ".github/workflows/apply-class-icons.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Patch header class controls
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          # index.html: remove CLASS label and put Rarity before Type
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          s = s.replace('''      <div class="header-control header-class-control">\n        <span class="header-control-label">Class</span>\n        <div id="class-filter" class="class-list header-class-list"></div>\n      </div>\n      <div id="type-filter" class="header-filter-root"></div>\n      <div id="rarity-filter" class="header-filter-root"></div>''', '''      <div class="header-control header-class-control">\n        <div id="class-filter" class="class-list header-class-list"></div>\n      </div>\n      <div id="rarity-filter" class="header-filter-root header-rarity-root"></div>\n      <div id="type-filter" class="header-filter-root"></div>''', 1)
+          p.write_text(s, encoding='utf-8')
+
+          # app.js: official class SVGs + icon-only class buttons + icon Neutral toggle
+          p = Path('js/app.js')
+          s = p.read_text(encoding='utf-8')
+          anchor = 'let qol = null;\n\ninit();'
+          icon_map = '''let qol = null;\n\nconst CLASS_ICON_URLS = {\n  Forestcraft: "https://shadowverse-wb.com/assets/images/common/common/class/class_elf.svg",\n  Swordcraft: "https://shadowverse-wb.com/assets/images/common/common/class/class_royal.svg",\n  Runecraft: "https://shadowverse-wb.com/assets/images/common/common/class/class_witch.svg",\n  Dragoncraft: "https://shadowverse-wb.com/assets/images/common/common/class/class_dragon.svg",\n  Abysscraft: "https://shadowverse-wb.com/assets/images/common/common/class/class_nightmare.svg",\n  Havencraft: "https://shadowverse-wb.com/assets/images/common/common/class/class_bishop.svg",\n  Portalcraft: "https://shadowverse-wb.com/assets/images/common/common/class/class_nemesis.svg",\n  Neutral: "https://shadowverse-wb.com/assets/images/common/common/class/class_neutral.svg"\n};\n\ninit();'''
+          if anchor not in s:
+              raise SystemExit('class icon map anchor missing')
+          s = s.replace(anchor, icon_map, 1)
+
+          start = s.index('function renderClassFilter() {')
+          end = s.index('\nfunction renderFilterGroups() {', start)
+          replacement = r'''function renderClassFilter() {
+            els.classFilter.innerHTML = "";
+
+            for (const className of CLASSES) {
+              const button = document.createElement("button");
+              button.type = "button";
+              button.className = "class-button class-icon-button";
+              button.title = className;
+              button.setAttribute("aria-label", className);
+              button.classList.toggle("active", className === state.selectedClass);
+
+              const icon = document.createElement("img");
+              icon.src = CLASS_ICON_URLS[className];
+              icon.alt = "";
+              icon.draggable = false;
+              button.appendChild(icon);
+
+              button.addEventListener("click", () => {
+                state.selectedClass = className;
+                state.discoverCardId = null;
+                persist();
+                renderEverything();
+              });
+              els.classFilter.appendChild(button);
+            }
+
+            const neutral = document.createElement("label");
+            neutral.className = "neutral-toggle neutral-icon-toggle";
+            neutral.title = "Neutral";
+            neutral.setAttribute("aria-label", "Include Neutral cards");
+
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.checked = state.includeNeutral;
+            checkbox.addEventListener("change", () => {
+              state.includeNeutral = checkbox.checked;
+              state.discoverCardId = null;
+              persist();
+              renderEverything();
+            });
+
+            const icon = document.createElement("img");
+            icon.src = CLASS_ICON_URLS.Neutral;
+            icon.alt = "";
+            icon.draggable = false;
+
+            neutral.append(checkbox, icon);
+            els.classFilter.appendChild(neutral);
+          }
+          '''
+          s = s[:start] + replacement + s[end:]
+          p.write_text(s, encoding='utf-8')
+
+          # filters.css: compact official icon controls, hide Rarity group title only
+          p = Path('css/filters.css')
+          s = p.read_text(encoding='utf-8')
+          s += r'''
+
+/* Official Shadowverse class icon controls */
+.header-class-list .class-icon-button {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: .22rem;
+}
+
+.header-class-list .class-icon-button img,
+.header-class-list .neutral-icon-toggle img {
+  display: block;
+  width: 29px;
+  height: 29px;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.header-class-list .neutral-icon-toggle {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: .22rem;
+  cursor: pointer;
+}
+
+.header-class-list .neutral-icon-toggle input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.header-class-list .neutral-icon-toggle:has(input:checked) {
+  border-color: var(--accent);
+  background: rgba(124,140,255,.16);
+}
+
+.header-rarity-root .filter-group-title {
+  display: none;
+}
+
+.header-rarity-root .filter-group {
+  padding-left: 0;
+  border-left: 0;
+}
+'''
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Validate JavaScript
+        run: node --check js/app.js
+
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html js/app.js css/filters.css
+          git commit -m "feat: use official class icons in header"
+          git push
