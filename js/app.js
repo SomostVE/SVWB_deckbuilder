@@ -2,7 +2,6 @@ import { state, resetFilters } from "./state.js";
 import { loadData } from "./data-loader.js";
 import { CLASSES, filteredCards } from "./filters.js";
 import { renderCardGrid } from "./card-grid.js";
-import { showCardDetails } from "./card-details.js";
 import { addCard, removeCard, clearDeck, getDeckSize } from "./deck.js";
 import { loadDeck } from "./storage.js";
 
@@ -20,9 +19,7 @@ const els = {
   deckCount: document.getElementById("deck-count"),
   clearDeck: document.getElementById("clear-deck"),
   resetFilters: document.getElementById("reset-filters"),
-  dialog: document.getElementById("card-dialog"),
-  dialogContent: document.getElementById("card-dialog-content"),
-  dialogClose: document.getElementById("card-dialog-close")
+  toolbar: document.querySelector(".content-toolbar")
 };
 
 init();
@@ -36,6 +33,7 @@ async function init() {
 
     renderClassFilter();
     renderFilterGroups();
+    setupCardSizeControl();
     bindEvents();
     render();
   } catch (error) {
@@ -43,7 +41,7 @@ async function init() {
     els.grid.innerHTML = `
       <div>
         <h2>No card data loaded yet</h2>
-        <p class="muted">Run <code>node scripts/update-cards.mjs</code>, then reload the site.</p>
+        <p class="muted">The generated card database could not be loaded.</p>
       </div>
     `;
   }
@@ -57,7 +55,7 @@ function bindEvents() {
 
   els.clearDeck.addEventListener("click", () => {
     clearDeck();
-    renderDeck();
+    render();
   });
 
   els.resetFilters.addEventListener("click", () => {
@@ -66,8 +64,29 @@ function bindEvents() {
     renderFilterGroups();
     renderCards();
   });
+}
 
-  els.dialogClose.addEventListener("click", () => els.dialog.close());
+function setupCardSizeControl() {
+  if (!els.toolbar || document.getElementById("card-size")) return;
+
+  const saved = Number(localStorage.getItem("svwb-card-size")) || 118;
+  document.documentElement.style.setProperty("--card-width", `${saved}px`);
+
+  const control = document.createElement("label");
+  control.className = "card-size-control";
+  control.innerHTML = `
+    <span>Card size</span>
+    <input id="card-size" type="range" min="78" max="190" step="4" value="${saved}">
+  `;
+
+  const resetButton = els.resetFilters;
+  els.toolbar.insertBefore(control, resetButton);
+
+  control.querySelector("input").addEventListener("input", event => {
+    const value = Number(event.target.value);
+    document.documentElement.style.setProperty("--card-width", `${value}px`);
+    localStorage.setItem("svwb-card-size", String(value));
+  });
 }
 
 function render() {
@@ -92,11 +111,25 @@ function renderClassFilter() {
     });
     els.classFilter.appendChild(button);
   }
+
+  const neutral = document.createElement("label");
+  neutral.className = "neutral-toggle";
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.checked = state.includeNeutral;
+  checkbox.addEventListener("change", () => {
+    state.includeNeutral = checkbox.checked;
+    renderFilterGroups();
+    renderCards();
+  });
+  neutral.append(checkbox, document.createTextNode(" Include Neutral"));
+  els.classFilter.appendChild(neutral);
 }
 
 function renderFilterGroups() {
   const available = state.cards.filter(card =>
-    card.class === state.selectedClass || card.class === "Neutral"
+    card.class === state.selectedClass ||
+    (state.includeNeutral && card.class === "Neutral")
   );
 
   renderCheckboxGroup(els.setFilter, "Set", unique(available.map(x => x.set)), state.filters.sets);
@@ -142,15 +175,16 @@ function renderCards() {
   els.resultsCount.textContent = `${cards.length} card${cards.length === 1 ? "" : "s"}`;
 
   renderCardGrid(els.grid, cards, {
+    getQuantity(card) {
+      return state.deck.get(card.id) ?? 0;
+    },
     onAdd(card) {
       addCard(card);
-      renderDeck();
+      render();
     },
-    onDetails(card) {
-      showCardDetails(els.dialog, els.dialogContent, card, selected => {
-        addCard(selected);
-        renderDeck();
-      });
+    onRemove(card) {
+      removeCard(card);
+      render();
     }
   });
 }
@@ -182,12 +216,12 @@ function renderDeck() {
 
     row.querySelector('[data-action="minus"]').addEventListener("click", () => {
       removeCard(card);
-      renderDeck();
+      render();
     });
 
     row.querySelector('[data-action="plus"]').addEventListener("click", () => {
       addCard(card);
-      renderDeck();
+      render();
     });
 
     els.deckList.appendChild(row);
