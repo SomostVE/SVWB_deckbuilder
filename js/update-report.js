@@ -1,5 +1,12 @@
 import { state } from "./state.js";
 
+if (!document.querySelector('link[href$="update-report.css"]')) {
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = "./css/update-report.css";
+  document.head.appendChild(link);
+}
+
 const SEEN_KEY = "shadowverse-deck-assistant:seen-new-cards:v1";
 const seen = loadSeen();
 waitForReady();
