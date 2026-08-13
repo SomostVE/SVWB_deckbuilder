@@ -10,6 +10,7 @@ export const state = {
   includeNeutral: true,
   showGenerated: false,
   showExcluded: false,
+  showUnavailableFilters: false,
   favoritesOnly: false,
   discoverCardId: null,
   search: "",
