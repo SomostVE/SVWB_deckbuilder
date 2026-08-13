@@ -59,6 +59,10 @@
   font-size: .76rem;
 }
 
+.discover-status[hidden] {
+  display: none !important;
+}
+
 .discover-status button {
   border: 0;
   background: transparent;
