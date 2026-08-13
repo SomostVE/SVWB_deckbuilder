@@ -28,7 +28,15 @@
         <button id="open-collection" class="button" type="button">Collection</button>
         <button id="undo-deck" class="button" type="button">Undo</button>
         <button id="redo-deck" class="button" type="button">Redo</button>
-        <button id="open-io" class="button" type="button">Import / Export</button>
+        <div class="io-scope-menu">
+          <button id="io-menu-trigger" class="button" type="button" aria-haspopup="menu" aria-expanded="false">Import / Export ▾</button>
+          <div id="io-scope-dropdown" class="io-scope-dropdown" role="menu" hidden>
+            <button type="button" role="menuitem" data-io-scope="deck"><strong>Deck</strong><span>Current deck and deck marks</span></button>
+            <button type="button" role="menuitem" data-io-scope="collection"><strong>Collection</strong><span>Owned card quantities</span></button>
+            <button type="button" role="menuitem" data-io-scope="all"><strong>Everything</strong><span>Full local backup</span></button>
+          </div>
+          <button id="open-io" type="button" hidden aria-hidden="true" tabindex="-1">Deck import / export</button>
+        </div>
         <button id="clear-deck" class="button button-danger" type="button">Clear deck</button>
       </div>
     </div>
@@ -122,21 +130,21 @@
 
   <dialog id="io-dialog" class="assistant-dialog">
     <div class="dialog-header">
-      <h2>Import / Export</h2>
+      <h2>Deck import / export</h2>
       <button data-close-dialog="io-dialog" type="button">×</button>
     </div>
     <p class="muted">Export the current deck as JSON, import another deck, or copy a shareable URL.</p>
     <textarea id="io-text" rows="14" spellcheck="false"></textarea>
     <div class="dialog-actions">
-      <button id="export-deck" class="button" type="button">Export JSON</button>
-      <button id="import-deck" class="button" type="button">Import JSON</button>
+      <button id="export-deck" class="button" type="button">Export deck</button>
+      <button id="import-deck" class="button" type="button">Import deck</button>
       <button id="copy-share-link" class="button" type="button">Copy share link</button>
     </div>
   </dialog>
 
   <dialog id="collection-dialog" class="assistant-dialog">
     <div class="dialog-header">
-      <h2>Collection</h2>
+      <h2>Collection import / export</h2>
       <button id="collection-dialog-close" type="button">×</button>
     </div>
     <div id="collection-summary" class="collection-summary"></div>
@@ -150,6 +158,20 @@
       <button id="import-collection-replace" class="button button-danger" type="button">Import & replace</button>
     </div>
     <div id="collection-status" class="collection-status" data-type="info"></div>
+  </dialog>
+
+  <dialog id="backup-dialog" class="assistant-dialog">
+    <div class="dialog-header">
+      <h2>Everything import / export</h2>
+      <button id="backup-dialog-close" type="button">×</button>
+    </div>
+    <p class="muted">Full local backup: current deck, saved decks, collection, favorites, exclusions, preferences, Deck Lab notes and app view settings.</p>
+    <textarea id="backup-text" rows="14" spellcheck="false" placeholder="Export everything or paste a full backup JSON here..."></textarea>
+    <div class="dialog-actions">
+      <button id="export-everything" class="button" type="button">Export everything</button>
+      <button id="import-everything" class="button button-danger" type="button">Import & replace everything</button>
+    </div>
+    <div id="backup-status" class="collection-status" data-type="info"></div>
   </dialog>
 
   <dialog id="compare-dialog" class="assistant-dialog">
@@ -180,6 +202,7 @@
 
   <script type="module" src="./js/sidebar-collapse.js"></script>
   <script type="module" src="./js/app.js"></script>
+  <script type="module" src="./js/io-menu.js"></script>
   <script type="module" src="./js/format-control.js"></script>
   <script type="module" src="./js/advanced-analysis-ui.js"></script>
 </body>
