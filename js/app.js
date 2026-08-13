@@ -97,6 +97,7 @@ async function init() {
     sanitizeDeck();
 
     setupCardSizeControl();
+    qol = setupQol({ state, renderEverything, renderCards, undoDeck, redoDeck });
     bindEvents();
     renderEverything();
   } catch (error) {
@@ -451,49 +452,68 @@ function renderCards() {
   if (discoverCard) els.discoverLabel.textContent = `Discover: ${discoverCard.name}`;
 
   renderCardGrid(els.grid, cards, {
-    getQuantity: card => state.deck.get(card.id) ?? 0,
-    getOwned: card => state.owned.get(card.id) ?? 0,
-    isFavorite: card => state.favorites.has(card.id),
-    isExcluded: card => state.excluded.has(card.id) || state.globalExclusions.has(card.id),
-    getCardById: id => state.cardMap.get(Number(id)) ?? null,
-    getRelatedGroups,
-    getPackagesForCard,
-    onAdd: handleCardAdd,
-    onRemove(card) {
-      if (removeCard(card)) renderEverything();
-    },
-    onToggleFavorite(card) {
-      if (state.favorites.has(card.id)) state.favorites.delete(card.id);
-      else state.favorites.add(card.id);
-      persist();
-      renderCards();
-    },
-    onToggleExclude(card) {
-      if (state.excluded.has(card.id)) state.excluded.delete(card.id);
-      else state.excluded.add(card.id);
-      persist();
-      renderCards();
-    },
-    onOwnedChange(card, delta) {
-      const next = Math.max(0, (state.owned.get(card.id) ?? 0) + Number(delta));
-      if (next === 0) state.owned.delete(card.id);
-      else state.owned.set(card.id, next);
-      persist();
-      renderCards();
-      renderDeck();
-    },
-    onDiscover(card) {
-      state.discoverCardId = card.id;
-      renderCards();
-    },
-    onFindLinked(card) {
-      state.discoverCardId = null;
-      state.search = `related:"${card.name}"`;
-      els.search.value = state.search;
-      renderCards();
-    },
-    onAddPackage: openPackageDialog
-  });
+  getQuantity: card => state.deck.get(card.id) ?? 0,
+  getOwned: card => state.owned.get(card.id) ?? 0,
+  getDeckMark: card => state.deckMarks.get(card.id) ?? "",
+  isFavorite: card => state.favorites.has(card.id),
+  isExcluded: card => state.excluded.has(card.id) || state.globalExclusions.has(card.id),
+  getCardById: id => state.cardMap.get(Number(id)) ?? null,
+  getRelatedGroups,
+  getPackagesForCard,
+  onAdd: handleCardAdd,
+  onRemove(card, quantity = 1) {
+    if (removeCard(card, quantity)) renderEverything();
+  },
+  onPreviewOpen(card) {
+    qol?.recordRecent(card);
+  },
+  onFilterTrait(value) {
+    state.filters.traits.add(value);
+    qol?.saveCurrentClassFilters();
+    renderEverything();
+  },
+  onFilterKeyword(value) {
+    state.filters.keywords.add(value);
+    qol?.saveCurrentClassFilters();
+    renderEverything();
+  },
+  onFilterSet(value) {
+    state.filters.sets.add(value);
+    qol?.saveCurrentClassFilters();
+    renderEverything();
+  },
+  onToggleFavorite(card) {
+    if (state.favorites.has(card.id)) state.favorites.delete(card.id);
+    else state.favorites.add(card.id);
+    persist();
+    renderCards();
+  },
+  onToggleExclude(card) {
+    if (state.excluded.has(card.id)) state.excluded.delete(card.id);
+    else state.excluded.add(card.id);
+    persist();
+    renderCards();
+  },
+  onOwnedChange(card, delta) {
+    const next = Math.max(0, (state.owned.get(card.id) ?? 0) + Number(delta));
+    if (next === 0) state.owned.delete(card.id);
+    else state.owned.set(card.id, next);
+    persist();
+    renderCards();
+    renderDeck();
+  },
+  onDiscover(card) {
+    state.discoverCardId = card.id;
+    renderCards();
+  },
+  onFindLinked(card) {
+    state.discoverCardId = null;
+    state.search = `related:"${card.name}"`;
+    els.search.value = state.search;
+    renderCards();
+  },
+  onAddPackage: openPackageDialog
+});
   qol?.render();
 }
 
@@ -727,8 +747,20 @@ function sortDeckRows(rows, mode) {
   });
 }
 
+function getMainDeckMap() {
+  const main = new Map();
+  let remaining = 40;
+  for (const [id, qty] of state.deck.entries()) {
+    if (remaining <= 0) break;
+    const count = Math.min(Number(qty) || 0, remaining);
+    if (count > 0) main.set(Number(id), count);
+    remaining -= count;
+  }
+  return main;
+}
+
 function renderAnalysis() {
-  const analysis = analyzeDeck(state.cards, state.deck, state.cardMap);
+  const analysis = analyzeDeck(state.cards, getMainDeckMap(), state.cardMap);
   const maxCurve = Math.max(1, ...analysis.curve);
 
   const types = Object.fromEntries(analysis.types);
