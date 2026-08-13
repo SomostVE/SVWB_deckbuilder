@@ -7,3 +7,6 @@ if(document.querySelector('.engines-page')){
   import('./engines-shared.js');
   import('./engines-impact.js');
 }
+if(document.querySelector('.sidebar')){
+  import('./deck-only-view.js');
+}
