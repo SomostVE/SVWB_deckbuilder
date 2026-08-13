@@ -7,28 +7,32 @@
 .deck-list {
   display: flex;
   flex-direction: column;
-  gap: .45rem;
+  gap: .35rem;
 }
 
 .deck-row {
   display: grid;
-  grid-template-columns: 34px 1fr auto;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
   align-items: center;
-  gap: .5rem;
+  gap: .4rem;
   border: 1px solid var(--border);
-  border-radius: .55rem;
-  padding: .45rem;
+  border-radius: .5rem;
+  padding: .38rem;
   background: var(--panel-2);
 }
 
 .deck-row img {
-  width: 34px;
-  height: 46px;
+  width: 32px;
+  height: 44px;
   object-fit: cover;
   border-radius: .25rem;
 }
 
-.deck-row-title { min-width: 0; font-size: .85rem; }
+.deck-row-title {
+  min-width: 0;
+  font-size: .76rem;
+}
+
 .deck-row-title strong {
   display: block;
   white-space: nowrap;
@@ -36,12 +40,22 @@
   text-overflow: ellipsis;
 }
 
-.deck-controls { display: flex; align-items: center; gap: .25rem; }
+.deck-controls {
+  display: flex;
+  align-items: center;
+  gap: .2rem;
+  font-size: .72rem;
+}
+
 .deck-controls button {
-  width: 28px;
-  height: 28px;
+  width: 25px;
+  height: 25px;
   border: 1px solid var(--border);
-  border-radius: .4rem;
+  border-radius: .35rem;
   background: var(--panel);
   color: var(--text);
+}
+
+.deck-controls button:hover {
+  border-color: var(--accent);
 }
