@@ -3,6 +3,7 @@ import { getCraftCost } from "./tools-common.js";
 
 let engineIndex = new Map();
 let allEngines = [];
+let enhanceQueued = false;
 waitForReady();
 
 function waitForReady() {
@@ -14,8 +15,17 @@ function waitForReady() {
   enhance();
   const page = document.querySelector(".engines-page");
   const dialog = document.getElementById("engine-dialog");
-  if (page) new MutationObserver(enhance).observe(page, { childList: true, subtree: true });
+  if (page) new MutationObserver(scheduleEnhance).observe(page, { childList: true, subtree: true });
   if (dialog) new MutationObserver(enhanceDialog).observe(dialog, { childList: true, subtree: true, attributes: true });
+}
+
+function scheduleEnhance() {
+  if (enhanceQueued) return;
+  enhanceQueued = true;
+  requestAnimationFrame(() => {
+    enhanceQueued = false;
+    enhance();
+  });
 }
 
 function rebuildIndex() {
@@ -122,15 +132,23 @@ function enhance() {
     const name = element.querySelector(".engine-card-copy > strong")?.textContent?.trim();
     const item = engineIndex.get(name);
     if (!item) continue;
-    element.querySelector(".engine-extra-row")?.remove();
+
     const metrics = completion(item);
-    const row = document.createElement("div");
-    row.className = "engine-extra-row";
+    const signature = `${metrics.missingCopies}|${metrics.missingVials}|${metrics.newCards}`;
+    let row = element.querySelector(".engine-extra-row");
+
+    if (!row) {
+      row = document.createElement("div");
+      row.className = "engine-extra-row";
+      element.querySelector(".engine-card-copy")?.appendChild(row);
+    }
+
+    if (row.dataset.metrics === signature) continue;
+    row.dataset.metrics = signature;
     row.innerHTML = `
       <span>Missing <strong>${metrics.missingCopies}</strong> copies · <strong>${formatNumber(metrics.missingVials)}</strong> vials</span>
       ${metrics.newCards ? `<span class="engine-new-count">NEW ${metrics.newCards}</span>` : ""}
     `;
-    element.querySelector(".engine-card-copy")?.appendChild(row);
   }
 }
 
