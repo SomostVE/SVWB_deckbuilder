@@ -39,6 +39,7 @@ const els = {
   favoritesOnly: document.getElementById("favorites-only"),
   showGenerated: document.getElementById("show-generated"),
   showExcluded: document.getElementById("show-excluded"),
+  showUnavailable: document.getElementById("show-unavailable"),
   archetypes: document.getElementById("archetype-browser"),
   packages: document.getElementById("package-browser"),
   grid: document.getElementById("card-grid"),
@@ -135,6 +136,12 @@ function bindEvents() {
     persist();
     renderCards();
   });
+
+  els.showUnavailable.addEventListener("change", () => {
+  state.showUnavailableFilters = els.showUnavailable.checked;
+  persist();
+  renderEverything();
+});
 
   els.clearDeck.addEventListener("click", () => {
     clearDeck();
@@ -260,6 +267,7 @@ function syncControls() {
   els.favoritesOnly.checked = state.favoritesOnly;
   els.showGenerated.checked = state.showGenerated;
   els.showExcluded.checked = state.showExcluded;
+  els.showUnavailable.checked = state.showUnavailableFilters;
 }
 
 function renderClassFilter() {
@@ -352,14 +360,8 @@ function renderCheckboxGroup(root, title, values, targetSet) {
       renderArchetypes();
     });
 
-    const count = classPool.filter(card => {
-      if (title === "Set") return card.set === value;
-      if (title === "Type") return card.type === value;
-      if (title === "Rarity") return card.rarity === value;
-      if (title === "Trait") return (card.traits ?? []).includes(value);
-      if (title === "Keyword") return (card.keywords ?? []).includes(value);
-      return true;
-    }).length;
+    const count = getFilterOptionResultCount(title, value, targetSet);
+    if (!state.showUnavailableFilters && count === 0 && !targetSet.has(value)) continue;
 
     label.append(input, document.createTextNode(value));
     const countSpan = document.createElement("span");
@@ -371,6 +373,24 @@ function renderCheckboxGroup(root, title, values, targetSet) {
 
   wrapper.appendChild(options);
   root.appendChild(wrapper);
+}
+
+function getFilterOptionResultCount(title, value, targetSet) {
+  const original = [...targetSet];
+  const andGroup = title === "Trait" || title === "Keyword";
+  targetSet.clear();
+
+  if (andGroup) {
+    for (const selected of original) targetSet.add(selected);
+    targetSet.add(value);
+  } else {
+    targetSet.add(value);
+  }
+
+  const count = filteredCards().length;
+  targetSet.clear();
+  for (const selected of original) targetSet.add(selected);
+  return count;
 }
 
 function renderArchetypes() {
@@ -829,7 +849,7 @@ function renderSavedDecks() {
     item.className = "saved-deck-item";
     item.innerHTML = `
       <strong>${escapeHtml(name)}</strong>
-      <div class="muted">${escapeHtml(variant.class ?? "Unknown")} · ${size}/40</div>
+      <div class="muted">${escapeHtml(variant.class ?? "Unknown")} · ${size > 40 ? `40 (+${size - 40})` : `${size}/40`}</div>
       <div class="saved-deck-actions">
         <button data-action="load" type="button">Load</button>
         <button data-action="delete" type="button">Delete</button>
