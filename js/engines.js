@@ -3,6 +3,7 @@ import { state } from "./state.js";
 import { CLASSES } from "./filters.js";
 import { loadWorkspace, applyWorkspace, saveWorkspace } from "./storage.js";
 import { addCards } from "./deck.js";
+import { formatCardText } from "./card-text.js";
 
 const CLASS_ICON_URLS = {
   Forestcraft: "https://shadowverse-wb.com/assets/images/common/common/class/class_elf.svg",
@@ -322,6 +323,8 @@ function withMetrics(item) {
   const deckCards = item.cards ?? [];
   const inDeck = deckCards.filter(card => Number(state.deck.get(card.id) ?? 0) > 0);
   const deckCopies = deckCards.reduce((sum, card) => sum + Number(state.deck.get(card.id) ?? 0), 0);
+  const ownedCards = deckCards.filter(card => Number(state.owned.get(card.id) ?? 0) > 0);
+  const ownedCopies = deckCards.reduce((sum, card) => sum + Math.max(0, Number(state.owned.get(card.id) ?? 0)), 0);
   const averageCost = deckCards.length
     ? deckCards.reduce((sum, card) => sum + Number(card.cost || 0), 0) / deckCards.length
     : 0;
@@ -329,6 +332,9 @@ function withMetrics(item) {
   item.inDeckCards = inDeck.length;
   item.deckCopies = deckCopies;
   item.coverage = deckCards.length ? inDeck.length / deckCards.length : 0;
+  item.ownedCards = ownedCards.length;
+  item.ownedCopies = ownedCopies;
+  item.ownedCoverage = deckCards.length ? ownedCards.length / deckCards.length : 0;
   item.averageCost = averageCost;
   item.typeCounts = countValues(deckCards.map(card => card.type));
   item.roleCounts = countValues(deckCards.flatMap(card => card.roles ?? []));
@@ -429,6 +435,7 @@ function renderEngineGrid(root, items, emptyText) {
 
     const confidenceClass = String(item.confidence ?? "").toLowerCase() === "strong" ? "strong" : "medium";
     const coveragePercent = Math.round(item.coverage * 100);
+    const ownedPercent = Math.round((item.ownedCoverage ?? 0) * 100);
     button.innerHTML = `
       <div class="engine-card-thumbs">${thumbnails}</div>
       <div class="engine-card-copy">
@@ -441,6 +448,10 @@ function renderEngineGrid(root, items, emptyText) {
         <div class="engine-coverage">
           <div class="engine-coverage-row"><span>Deck coverage</span><span>${item.inDeckCards}/${item.cards.length} cards · ${item.deckCopies} copies</span></div>
           <div class="engine-coverage-track"><div class="engine-coverage-fill" style="width:${coveragePercent}%"></div></div>
+        </div>
+        <div class="engine-coverage engine-owned-coverage">
+          <div class="engine-coverage-row"><span>Owned</span><span>${item.ownedCards ?? 0}/${item.cards.length} cards · ${item.ownedCopies ?? 0} copies</span></div>
+          <div class="engine-coverage-track"><div class="engine-coverage-fill engine-owned-fill" style="width:${ownedPercent}%"></div></div>
         </div>
       </div>
     `;
@@ -541,7 +552,7 @@ function openDetails(item) {
             ${(card.traits ?? []).filter(value => value && value !== "-").map(value => `<span class="engine-badge">Trait: ${escapeHtml(value)}</span>`).join("")}
             ${(card.keywords ?? []).map(value => `<span class="engine-badge">${escapeHtml(value)}</span>`).join("")}
           </div>
-          <p>${escapeHtml(card.text || "No effect text.")}</p>
+          <p>${formatCardText(card.rawSkillText || card.text || "No effect text.")}</p>
         </div>
       `;
 
@@ -572,6 +583,8 @@ function renderDialogStats(item) {
     <div class="engine-stat"><strong>${item.cards.length}</strong><span>Deck cards</span></div>
     <div class="engine-stat"><strong>${item.inDeckCards}/${item.cards.length}</strong><span>Present in deck</span></div>
     <div class="engine-stat"><strong>${item.deckCopies}</strong><span>Copies in deck</span></div>
+    <div class="engine-stat"><strong>${item.ownedCards ?? 0}/${item.cards.length}</strong><span>Owned cards</span></div>
+    <div class="engine-stat"><strong>${item.ownedCopies ?? 0}</strong><span>Owned copies</span></div>
     <div class="engine-stat"><strong>${item.averageCost.toFixed(1)}</strong><span>Average cost</span></div>
     <div class="engine-stat wide"><strong>${escapeHtml(types)}</strong><span>Card types</span></div>
     ${topRoles.length ? `<div class="engine-stat wide"><span>Roles</span><div class="engine-stat-chips">${topRoles.map(([name, count]) => `<span class="engine-badge">${escapeHtml(name)} ${count}</span>`).join("")}</div></div>` : ""}
