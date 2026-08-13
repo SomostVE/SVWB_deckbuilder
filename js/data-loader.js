@@ -47,6 +47,8 @@ function enrichCards(cards, packages, customTags) {
     card.roles = [...new Set([...inferRoles(card), ...customRoleList.map(String)])];
   }
 
+  // Official related_card_ids are treated as the strongest relationship signal.
+  // If the target is not deck-selectable, it is considered a generated/token card.
   for (const card of cards) {
     for (const relatedId of card.relatedCards ?? []) {
       const target = cardMap.get(Number(relatedId));
@@ -61,9 +63,10 @@ function enrichCards(cards, packages, customTags) {
     }
   }
 
-  // Some generated cards are named directly in rules text even when the portal's
-  // related_card_ids list is incomplete. Only generated/token cards are scanned here
-  // to avoid false relations between ordinary cards with common words in their names.
+  // Rules text can mention token/generated cards for many reasons: creating them,
+  // consuming them, checking for them, etc. These fallback links are intentionally
+  // labelled as references rather than "Generates" so the app does not invent a
+  // production relationship when the official relation list is missing.
   const generatedMatchers = cards
     .filter(card => !card.deckSelectable && card.name?.length >= 3)
     .map(card => ({ card, pattern: buildCardNamePattern(card.name) }))
@@ -77,8 +80,7 @@ function enrichCards(cards, packages, customTags) {
       const target = entry.card;
       if (source.id === target.id || hasRelation(source, target.id)) continue;
       if (entry.pattern.test(text)) {
-        addRelation(source, target.id, "Generates");
-        if (!target.generatedBy.includes(source.id)) target.generatedBy.push(source.id);
+        addRelation(source, target.id, "References");
       }
     }
   }
