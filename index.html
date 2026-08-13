@@ -13,11 +13,14 @@
 </head>
 <body>
   <header class="app-header">
-    <div class="header-top">
-      <div>
-        <h1>Shadowverse Deck Assistant</h1>
-        <p>Explore cards, build decks, discover packages and analyze your list.</p>
+    <div class="header-toolbar">
+      <div class="header-control header-class-control">
+        <span class="header-control-label">Class</span>
+        <div id="class-filter" class="class-list header-class-list"></div>
       </div>
+      <div id="type-filter" class="header-filter-root"></div>
+      <div id="rarity-filter" class="header-filter-root"></div>
+
       <div class="header-actions">
         <button id="undo-deck" class="button" type="button">Undo</button>
         <button id="redo-deck" class="button" type="button">Redo</button>
@@ -26,13 +29,13 @@
       </div>
     </div>
 
-    <div class="header-toolbar">
-      <div class="header-control header-class-control">
-        <span class="header-control-label">Class</span>
-        <div id="class-filter" class="class-list header-class-list"></div>
+    <div class="content-toolbar header-subtoolbar">
+      <strong id="results-count">0 cards</strong>
+      <div id="discover-status" class="discover-status" hidden>
+        <span id="discover-label"></span>
+        <button id="clear-discover" type="button">×</button>
       </div>
-      <div id="type-filter" class="header-filter-root"></div>
-      <div id="rarity-filter" class="header-filter-root"></div>
+      <button id="reset-filters" class="button" type="button">Reset filters</button>
     </div>
   </header>
 
@@ -69,14 +72,6 @@
     </aside>
 
     <section class="content">
-      <div class="content-toolbar">
-        <strong id="results-count">0 cards</strong>
-        <div id="discover-status" class="discover-status" hidden>
-          <span id="discover-label"></span>
-          <button id="clear-discover" type="button">×</button>
-        </div>
-        <button id="reset-filters" class="button" type="button">Reset filters</button>
-      </div>
       <div id="card-grid" class="card-grid"></div>
     </section>
 
