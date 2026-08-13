@@ -22,109 +22,56 @@ jobs:
           p = Path('js/engines.js')
           s = p.read_text(encoding='utf-8')
 
-          anchor = '  const deckCopies = deckCards.reduce((sum, card) => sum + Number(state.deck.get(card.id) ?? 0), 0);\n'
+          if 'import { formatCardText } from "./card-text.js";' not in s:
+              anchor = 'import { addCards } from "./deck.js";\n'
+              if anchor not in s: raise SystemExit('import anchor missing')
+              s = s.replace(anchor, anchor + 'import { formatCardText } from "./card-text.js";\n', 1)
+
           if 'const ownedCards = deckCards.filter' not in s:
+              anchor = '  const deckCopies = deckCards.reduce((sum, card) => sum + Number(state.deck.get(card.id) ?? 0), 0);\n'
               if anchor not in s: raise SystemExit('metrics anchor missing')
               s = s.replace(anchor, anchor + '  const ownedCards = deckCards.filter(card => Number(state.owned.get(card.id) ?? 0) > 0);\n  const ownedCopies = deckCards.reduce((sum, card) => sum + Math.max(0, Number(state.owned.get(card.id) ?? 0)), 0);\n', 1)
 
-          anchor = '  item.coverage = deckCards.length ? inDeck.length / deckCards.length : 0;\n'
           if 'item.ownedCoverage =' not in s:
+              anchor = '  item.coverage = deckCards.length ? inDeck.length / deckCards.length : 0;\n'
               if anchor not in s: raise SystemExit('metric assignment anchor missing')
               s = s.replace(anchor, anchor + '  item.ownedCards = ownedCards.length;\n  item.ownedCopies = ownedCopies;\n  item.ownedCoverage = deckCards.length ? ownedCards.length / deckCards.length : 0;\n', 1)
 
-          anchor = '    const coveragePercent = Math.round(item.coverage * 100);\n'
           if 'const ownedPercent =' not in s:
+              anchor = '    const coveragePercent = Math.round(item.coverage * 100);\n'
               if anchor not in s: raise SystemExit('coverage percent anchor missing')
               s = s.replace(anchor, anchor + '    const ownedPercent = Math.round((item.ownedCoverage ?? 0) * 100);\n', 1)
 
-          anchor = '''        <div class="engine-coverage">
-          <div class="engine-coverage-row"><span>Deck coverage</span><span>${item.inDeckCards}/${item.cards.length} cards · ${item.deckCopies} copies</span></div>
-          <div class="engine-coverage-track"><div class="engine-coverage-fill" style="width:${coveragePercent}%"></div></div>
-        </div>'''
           if 'engine-owned-coverage' not in s:
-              if anchor not in s: raise SystemExit('grid coverage anchor missing')
-              addition = anchor + '''
-        <div class="engine-coverage engine-owned-coverage">
-          <div class="engine-coverage-row"><span>Owned</span><span>${item.ownedCards ?? 0}/${item.cards.length} cards · ${item.ownedCopies ?? 0} copies</span></div>
-          <div class="engine-coverage-track"><div class="engine-coverage-fill engine-owned-fill" style="width:${ownedPercent}%"></div></div>
-        </div>'''
-              s = s.replace(anchor, addition, 1)
+              old = '<div class="engine-coverage">\n          <div class="engine-coverage-row"><span>Deck coverage</span><span>${item.inDeckCards}/${item.cards.length} cards · ${item.deckCopies} copies</span></div>\n          <div class="engine-coverage-track"><div class="engine-coverage-fill" style="width:${coveragePercent}%"></div></div>\n        </div>'
+              new = old + '\n        <div class="engine-coverage engine-owned-coverage">\n          <div class="engine-coverage-row"><span>Owned</span><span>${item.ownedCards ?? 0}/${item.cards.length} cards · ${item.ownedCopies ?? 0} copies</span></div>\n          <div class="engine-coverage-track"><div class="engine-coverage-fill engine-owned-fill" style="width:${ownedPercent}%"></div></div>\n        </div>'
+              if old not in s: raise SystemExit('grid coverage anchor missing')
+              s = s.replace(old, new, 1)
 
-          anchor = '<p>${escapeHtml(card.text || "No effect text.")}</p>'
-          if 'renderCardText(card.rawSkillText' not in s:
-              if anchor not in s: raise SystemExit('card text anchor missing')
-              s = s.replace(anchor, '<p>${renderCardText(card.rawSkillText || card.text || "No effect text.")}</p>', 1)
+          if 'formatCardText(card.rawSkillText' not in s:
+              old = '<p>${escapeHtml(card.text || "No effect text.")}</p>'
+              if old not in s: raise SystemExit('card text anchor missing')
+              s = s.replace(old, '<p>${formatCardText(card.rawSkillText || card.text || "No effect text.")}</p>', 1)
 
-          anchor = '    <div class="engine-stat"><strong>${item.deckCopies}</strong><span>Copies in deck</span></div>\n'
           if '<span>Owned cards</span>' not in s:
+              anchor = '    <div class="engine-stat"><strong>${item.deckCopies}</strong><span>Copies in deck</span></div>\n'
               if anchor not in s: raise SystemExit('dialog stats anchor missing')
               s = s.replace(anchor, anchor + '    <div class="engine-stat"><strong>${item.ownedCards ?? 0}/${item.cards.length}</strong><span>Owned cards</span></div>\n    <div class="engine-stat"><strong>${item.ownedCopies ?? 0}</strong><span>Owned copies</span></div>\n', 1)
-
-          helper_anchor = 'function escapeHtml(value) {'
-          if 'function renderCardText(value)' not in s:
-              if helper_anchor not in s: raise SystemExit('escape helper anchor missing')
-              helper = r'''function renderCardText(value) {
-  let source = decodeCardEntities(String(value ?? ""));
-  if (!source.trim()) return "No effect text.";
-
-  const tokens = [];
-  const keep = html => {
-    const token = `@@SVWB_FORMAT_${tokens.length}@@`;
-    tokens.push([token, html]);
-    return token;
-  };
-
-  source = source
-    .replace(/<hr\s*\/?\s*>/gi, () => keep('<hr class="engine-text-separator">'))
-    .replace(/<br\s*\/?\s*>/gi, () => keep('<br>'))
-    .replace(/<b\s*>/gi, () => keep('<strong>'))
-    .replace(/<\/b\s*>/gi, () => keep('</strong>'))
-    .replace(/<i\s*>/gi, () => keep('<em>'))
-    .replace(/<\/i\s*>/gi, () => keep('</em>'))
-    .replace(/<color\s*=\s*Keyword\s*>/gi, () => keep('<span class="engine-text-keyword">'))
-    .replace(/<color\s*=\s*[^>]+>/gi, () => keep('<span class="engine-text-emphasis">'))
-    .replace(/<\/color\s*>/gi, () => keep('</span>'))
-    .replace(/<[^>]+>/g, "");
-
-  let html = escapeHtml(source).replace(/\r?\n/g, '<br>');
-  for (const [token, replacement] of tokens) html = html.replaceAll(token, replacement);
-  return html;
-}
-
-function decodeCardEntities(value) {
-  return String(value ?? "")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;|&#x27;/gi, "'")
-    .replace(/&amp;/gi, "&");
-}
-
-'''
-              s = s.replace(helper_anchor, helper + helper_anchor, 1)
 
           p.write_text(s, encoding='utf-8')
 
           p = Path('css/engines.css')
           css = p.read_text(encoding='utf-8')
-          marker = '/* Owned collection + official card text formatting */'
-          if marker not in css:
-              css += r'''
-
-/* Owned collection + official card text formatting */
-.engine-owned-coverage { margin-top: .34rem; }
-.engine-owned-fill { background: linear-gradient(90deg, #46a86d, #78d79a); }
-.engine-card-profile .engine-text-keyword { color: #f2e1a3; font-weight: 800; }
-.engine-card-profile .engine-text-emphasis { color: #d8dcff; }
-.engine-card-profile em { color: #f0f2f8; font-style: italic; }
-.engine-card-profile strong { display: inline; padding-right: 0; font-size: inherit; }
-.engine-text-separator { height: 1px; margin: .45rem 0; border: 0; background: var(--border); }
-'''
-          p.write_text(css, encoding='utf-8')
+          imp = '@import url("./engine-enhancements.css");\n'
+          if imp not in css:
+              css = imp + css
+              p.write_text(css, encoding='utf-8')
           PY
 
       - name: Validate JavaScript
-        run: node --check js/engines.js
+        run: |
+          node --check js/engines.js
+          node --check js/card-text.js
 
       - name: Commit changes
         run: |
