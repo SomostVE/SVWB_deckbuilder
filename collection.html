@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Collection · Shadowverse Deck Assistant</title>
+  <link rel="stylesheet" href="./css/base.css">
+  <link rel="stylesheet" href="./css/tools.css">
+</head>
+<body class="tools-body">
+  <header class="tools-header">
+    <a class="button" href="./index.html">← Cards</a>
+    <a class="button" href="./engines.html">Engines</a>
+    <a class="button" href="./lab.html">Deck Lab</a>
+    <span class="tools-title">Collection</span>
+    <button id="collection-export" class="button" type="button">Export</button>
+    <button id="collection-import" class="button" type="button">Import</button>
+  </header>
+
+  <main class="tools-page">
+    <div id="collection-stats" class="tools-stats"></div>
+
+    <section class="tools-panel">
+      <h2>Set completion</h2>
+      <div id="set-progress" class="collection-set-grid"></div>
+    </section>
+
+    <section class="tools-panel">
+      <h2>Collection browser</h2>
+      <div class="tools-toolbar">
+        <input id="collection-search" class="input" type="search" placeholder="Search cards...">
+        <select id="collection-class"><option value="">All classes</option></select>
+        <select id="collection-set"><option value="">All sets</option></select>
+        <select id="collection-rarity"><option value="">All rarities</option></select>
+        <label><input id="collection-missing-only" type="checkbox"> Missing playset only</label>
+        <label><input id="collection-owned-only" type="checkbox"> Owned only</label>
+      </div>
+      <div id="collection-cards" class="collection-card-grid"></div>
+    </section>
+
+    <section class="tools-panel">
+      <h2>Craft planner</h2>
+      <p class="tools-muted">Select saved decks. Shared cards are counted once at the highest quantity required by any selected deck.</p>
+      <div id="planner-decks" class="planner-decks"></div>
+      <div id="planner-summary" class="tools-stats" style="margin-top:.7rem"></div>
+      <div id="planner-missing"></div>
+    </section>
+  </main>
+
+  <dialog id="collection-io" class="assistant-dialog">
+    <div class="dialog-header">
+      <h2>Collection import / export</h2>
+      <button id="collection-io-close" type="button">×</button>
+    </div>
+    <textarea id="collection-io-text" rows="16" spellcheck="false"></textarea>
+    <div class="dialog-actions">
+      <button id="collection-io-refresh" class="button" type="button">Refresh export</button>
+      <button id="collection-io-merge" class="button" type="button">Import & merge</button>
+      <button id="collection-io-replace" class="button button-danger" type="button">Import & replace</button>
+    </div>
+    <div id="collection-io-status" class="tools-muted"></div>
+  </dialog>
+
+  <script type="module" src="./js/collection-page.js"></script>
+</body>
+</html>
