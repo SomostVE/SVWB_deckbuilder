@@ -1,9 +1,13 @@
 let hoverTimer = null;
+let hideTimer = null;
 let hoverCard = null;
 let lastPointer = { x: 0, y: 0 };
+let activeHandlers = null;
+let history = [];
 
 export function renderCardGrid(root, cards, handlers) {
   root.innerHTML = "";
+  activeHandlers = handlers;
 
   for (const card of cards) {
     const article = document.createElement("article");
@@ -25,43 +29,94 @@ export function renderCardGrid(root, cards, handlers) {
 
     article.addEventListener("pointermove", event => {
       lastPointer = { x: event.clientX, y: event.clientY };
-      if (hoverCard) positionHoverCard(hoverCard);
+      if (hoverCard && !hoverCard.matches(":hover")) positionHoverCard(hoverCard);
     });
 
     article.addEventListener("pointerenter", event => {
       lastPointer = { x: event.clientX, y: event.clientY };
+      cancelHide();
       clearTimeout(hoverTimer);
-      hoverTimer = setTimeout(() => showHoverCard(card), 1000);
+      hoverTimer = setTimeout(() => showHoverCard(card, handlers), 1000);
     });
 
     article.addEventListener("pointerleave", () => {
       clearTimeout(hoverTimer);
-      hideHoverCard();
+      scheduleHide();
     });
 
     root.appendChild(article);
   }
 }
 
-function showHoverCard(card) {
+function showHoverCard(card, handlers) {
   hideHoverCard();
+  history = [];
 
   const preview = document.createElement("div");
   preview.className = "card-hover-preview";
-  preview.innerHTML = `
-    <img src="${escapeAttr(card.image)}" alt="">
-    <div class="card-hover-content">
-      <h3>${escapeHtml(card.name)}</h3>
-      <div class="card-hover-meta">${escapeHtml(card.class)} · ${escapeHtml(card.rarity)} · ${escapeHtml(card.set)}</div>
-      ${card.traits?.length ? `<div class="card-hover-line"><strong>Traits:</strong> ${card.traits.map(escapeHtml).join(", ")}</div>` : ""}
-      ${card.keywords?.length ? `<div class="keyword-chips">${card.keywords.map(k => `<span class="keyword-chip">${escapeHtml(k)}</span>`).join("")}</div>` : ""}
-      <div class="card-hover-effect">${escapeHtml(cleanPreviewText(card.text)).replaceAll("\n", "<br>")}</div>
-    </div>
-  `;
+
+  preview.addEventListener("pointerenter", cancelHide);
+  preview.addEventListener("pointerleave", scheduleHide);
 
   document.body.appendChild(preview);
   hoverCard = preview;
+  renderPreviewContent(card, handlers);
   positionHoverCard(preview);
+}
+
+function renderPreviewContent(card, handlers) {
+  if (!hoverCard) return;
+
+  const relatedCards = (card.relatedCards ?? [])
+    .map(id => handlers.getCardById?.(id))
+    .filter(Boolean);
+
+  hoverCard.innerHTML = `
+    <div class="card-hover-main">
+      <img class="card-hover-main-image" src="${escapeAttr(card.image)}" alt="${escapeAttr(card.name)}">
+      <div class="card-hover-content">
+        <div class="card-hover-title-row">
+          <h3>${escapeHtml(card.name)}</h3>
+          ${history.length ? `<button class="card-hover-back" type="button">← Back</button>` : ""}
+        </div>
+        <div class="card-hover-meta">${escapeHtml(card.class)} · ${escapeHtml(card.rarity)} · ${escapeHtml(card.set)}</div>
+        ${card.traits?.length ? `<div class="card-hover-line"><strong>Traits:</strong> ${card.traits.map(escapeHtml).join(", ")}</div>` : ""}
+        ${card.keywords?.length ? `<div class="keyword-chips">${card.keywords.map(k => `<span class="keyword-chip">${escapeHtml(k)}</span>`).join("")}</div>` : ""}
+        <div class="card-hover-effect">${escapeHtml(cleanPreviewText(card.text)).replaceAll("\n", "<br>")}</div>
+      </div>
+    </div>
+
+    ${relatedCards.length ? `
+      <div class="card-hover-related">
+        <div class="card-hover-related-title">Related cards</div>
+        <div class="card-hover-related-grid">
+          ${relatedCards.map(related => `
+            <button class="card-hover-related-card" type="button" data-related-id="${related.id}">
+              <img src="${escapeAttr(related.image)}" alt="${escapeAttr(related.name)}">
+              <span>${escapeHtml(related.name)}</span>
+            </button>
+          `).join("")}
+        </div>
+      </div>
+    ` : ""}
+  `;
+
+  const backButton = hoverCard.querySelector(".card-hover-back");
+  backButton?.addEventListener("click", event => {
+    event.stopPropagation();
+    const previous = history.pop();
+    if (previous) renderPreviewContent(previous, handlers);
+  });
+
+  hoverCard.querySelectorAll("[data-related-id]").forEach(button => {
+    button.addEventListener("click", event => {
+      event.stopPropagation();
+      const related = handlers.getCardById?.(button.dataset.relatedId);
+      if (!related) return;
+      history.push(card);
+      renderPreviewContent(related, handlers);
+    });
+  });
 }
 
 function cleanPreviewText(value) {
@@ -73,7 +128,7 @@ function cleanPreviewText(value) {
 }
 
 function positionHoverCard(preview) {
-  const gap = 18;
+  const gap = 14;
   const rect = preview.getBoundingClientRect();
   let left = lastPointer.x + gap;
   let top = lastPointer.y + gap;
@@ -87,9 +142,22 @@ function positionHoverCard(preview) {
   preview.style.top = `${top}px`;
 }
 
+function scheduleHide() {
+  clearTimeout(hideTimer);
+  hideTimer = setTimeout(() => {
+    if (!hoverCard?.matches(":hover")) hideHoverCard();
+  }, 220);
+}
+
+function cancelHide() {
+  clearTimeout(hideTimer);
+}
+
 function hideHoverCard() {
+  clearTimeout(hideTimer);
   hoverCard?.remove();
   hoverCard = null;
+  history = [];
 }
 
 function escapeHtml(value) {
