@@ -64,14 +64,19 @@ function enrichCards(cards, packages, customTags) {
   // Some generated cards are named directly in rules text even when the portal's
   // related_card_ids list is incomplete. Only generated/token cards are scanned here
   // to avoid false relations between ordinary cards with common words in their names.
-  const generatedCards = cards.filter(card => !card.deckSelectable && card.name?.length >= 3);
+  const generatedMatchers = cards
+    .filter(card => !card.deckSelectable && card.name?.length >= 3)
+    .map(card => ({ card, pattern: buildCardNamePattern(card.name) }))
+    .filter(entry => entry.pattern);
+
   for (const source of cards) {
     const text = normalizeText(source.text);
     if (!text) continue;
 
-    for (const target of generatedCards) {
+    for (const entry of generatedMatchers) {
+      const target = entry.card;
       if (source.id === target.id || hasRelation(source, target.id)) continue;
-      if (mentionsCardName(text, target.name)) {
+      if (entry.pattern.test(text)) {
         addRelation(source, target.id, "Generates");
         if (!target.generatedBy.includes(source.id)) target.generatedBy.push(source.id);
       }
@@ -150,11 +155,11 @@ function normalizePackageCards(cards) {
   }).filter(entry => Number.isFinite(entry.id));
 }
 
-function mentionsCardName(normalizedText, name) {
+function buildCardNamePattern(name) {
   const normalizedName = normalizeText(name);
-  if (!normalizedName) return false;
+  if (!normalizedName) return null;
   const escaped = normalizedName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, "i").test(normalizedText);
+  return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, "i");
 }
 
 function normalizeText(value) {
