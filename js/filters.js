@@ -26,6 +26,8 @@ export function filteredCards() {
     const isExcluded = state.excluded.has(card.id) || state.globalExclusions.has(card.id);
     if (!state.showExcluded && isExcluded) return false;
     if (state.favoritesOnly && !state.favorites.has(card.id)) return false;
+    if (state.ownedOnly && card.deckSelectable && card.set !== "Basic" && Number(card.setId) !== 10000 && Number(state.owned.get(card.id) ?? 0) <= 0) return false;
+    if (state.missingOnly && !isMissingFromCurrentDeck(card)) return false;
 
     if (!matchesAdvancedSearch(card, query)) return false;
 
@@ -63,9 +65,16 @@ export function filteredCards() {
 export function matchesFormat(card, format = state.format) {
   if (!card) return false;
   if (format === "Rotation") return Boolean(card.rotation) || card.set === "Basic" || Number(card.setId) === 10000;
-  // The official imported dataset currently has no Unlimited banned/restricted list.
-  // Unlimited and Boundless therefore expose the same pool; legality reports explain this distinction.
+  // The imported CardList dataset does not currently include Unlimited ban/restriction status.
   return true;
+}
+
+function isMissingFromCurrentDeck(card) {
+  if (!card?.deckSelectable) return false;
+  const required = Math.min(3, Number(state.deck.get(card.id) ?? 0));
+  if (required <= 0) return false;
+  if (card.set === "Basic" || Number(card.setId) === 10000) return false;
+  return Number(state.owned.get(card.id) ?? 0) < required;
 }
 
 function matchesCostFilter(costValue) {
