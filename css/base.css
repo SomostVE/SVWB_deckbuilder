@@ -12,32 +12,75 @@
 
 * { box-sizing: border-box; }
 
+html,
+body {
+  height: 100%;
+}
+
 body {
   margin: 0;
-  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background: var(--bg);
   color: var(--text);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 button, input, select { font: inherit; }
-
 button { cursor: pointer; }
-
 h1, h2, h3, p { margin-top: 0; }
 
 .app-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1rem 1.25rem;
+  flex: 0 0 auto;
   border-bottom: 1px solid var(--border);
   background: var(--panel);
 }
 
-.app-header h1 { margin-bottom: .2rem; font-size: 1.35rem; }
-.app-header p { margin-bottom: 0; color: var(--muted); font-size: .9rem; }
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: .65rem .9rem .55rem;
+}
+
+.app-header h1 {
+  margin-bottom: .12rem;
+  font-size: 1.12rem;
+}
+
+.app-header p {
+  margin-bottom: 0;
+  color: var(--muted);
+  font-size: .75rem;
+}
+
+.header-toolbar {
+  display: flex;
+  align-items: center;
+  gap: .8rem;
+  min-height: 46px;
+  padding: .45rem .9rem;
+  overflow-x: auto;
+  border-top: 1px solid rgba(255,255,255,.035);
+  background: #141820;
+}
+
+.header-control {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  flex: 0 0 auto;
+}
+
+.header-control-label {
+  color: var(--muted);
+  font-size: .74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
 
 .button {
   border: 1px solid var(--border);
