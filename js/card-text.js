@@ -19,9 +19,13 @@ export function formatCardText(value) {
     .replace(/<color\s*=\s*Keyword\s*>/gi, () => keep('<span class="card-text-keyword">'))
     .replace(/<color\s*=\s*[^>]+>/gi, () => keep('<span class="card-text-emphasis">'))
     .replace(/<\/color\s*>/gi, () => keep('</span>'))
-    .replace(/<[^>]+>/g, "");
+    .replace(/<[^>]+>/g, "")
+    // The official payload contains formatting newlines around markup. They are
+    // not visual line breaks. Only explicit <br> and <hr> tags should break text.
+    .replace(/\s+/g, " ")
+    .trim();
 
-  let html = escapeHtml(source).replace(/\r?\n/g, "<br>");
+  let html = escapeHtml(source);
   for (const [token, replacement] of tokens) html = html.replaceAll(token, replacement);
   return html;
 }
