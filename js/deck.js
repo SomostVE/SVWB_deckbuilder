@@ -1,7 +1,8 @@
 import { state } from "./state.js";
 import { saveWorkspace } from "./storage.js";
 
-export const MAX_DECK_SIZE = 40;
+export const LEGAL_DECK_SIZE = 40;
+export const MAX_DECK_SIZE = 80;
 const HISTORY_LIMIT = 60;
 
 export function getDeckSize() {
