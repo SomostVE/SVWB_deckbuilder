@@ -1,0 +1,416 @@
+/* Mobile-only responsive layer. Desktop rules remain untouched. */
+.mobile-section-nav { display: none; }
+
+@media (max-width: 760px) {
+  html,
+  body {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  body:not(.tools-body):not(.engines-body) {
+    overflow: hidden;
+  }
+
+  /* Main card browser: keep the desktop header structure, but make both rows swipeable. */
+  .app-header {
+    min-width: 0;
+  }
+
+  .header-toolbar,
+  .content-toolbar {
+    flex-wrap: nowrap !important;
+    justify-content: flex-start;
+    gap: .45rem;
+    overflow-x: auto !important;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .header-toolbar::-webkit-scrollbar,
+  .content-toolbar::-webkit-scrollbar,
+  .tools-header::-webkit-scrollbar,
+  .engines-header::-webkit-scrollbar {
+    display: none;
+  }
+
+  .header-toolbar .header-actions {
+    margin-left: 0;
+  }
+
+  .header-toolbar .header-actions,
+  .header-class-list,
+  .header-filter-root,
+  .cost-filter,
+  .card-size-control,
+  .active-filters {
+    flex: 0 0 auto;
+  }
+
+  .content-toolbar #results-count {
+    margin-right: .2rem;
+    white-space: nowrap;
+  }
+
+  .card-size-control {
+    order: initial !important;
+    width: auto !important;
+  }
+
+  .card-size-control input {
+    width: 92px;
+    flex: 0 0 auto !important;
+  }
+
+  /* The three desktop panes become three mobile views. */
+  .app-shell {
+    position: relative;
+    display: block !important;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden !important;
+  }
+
+  .app-shell > .sidebar,
+  .app-shell > .content,
+  .app-shell > .deck-panel {
+    position: absolute;
+    inset: 0 0 56px 0;
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    border: 0;
+  }
+
+  .app-shell > .sidebar,
+  .app-shell > .deck-panel {
+    display: none;
+    padding: .7rem .75rem 1rem;
+  }
+
+  .app-shell > .content {
+    display: none;
+    padding: .4rem;
+  }
+
+  body[data-mobile-view="cards"] .app-shell > .content,
+  body:not([data-mobile-view]) .app-shell > .content {
+    display: block;
+  }
+
+  body[data-mobile-view="filters"] .app-shell > .sidebar {
+    display: block;
+  }
+
+  body[data-mobile-view="deck"] .app-shell > .deck-panel {
+    display: block !important;
+  }
+
+  .deck-resizer {
+    display: none !important;
+  }
+
+  .mobile-section-nav {
+    position: fixed;
+    z-index: 12000;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    height: 56px;
+    padding: 4px;
+    border-top: 1px solid var(--border);
+    background: rgba(15, 18, 24, .985);
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, .35);
+    padding-bottom: max(4px, env(safe-area-inset-bottom));
+  }
+
+  .mobile-section-nav button {
+    min-width: 0;
+    border: 1px solid transparent;
+    border-radius: .5rem;
+    background: transparent;
+    color: var(--muted);
+    font-size: .74rem;
+    font-weight: 700;
+  }
+
+  .mobile-section-nav button.active {
+    border-color: rgba(124, 140, 255, .65);
+    background: rgba(124, 140, 255, .15);
+    color: var(--text);
+  }
+
+  .mobile-section-nav .mobile-deck-count {
+    display: inline-block;
+    margin-left: .2rem;
+    color: #8ee2a4;
+    font-size: .66rem;
+  }
+
+  /* Card grid keeps the desktop size slider, but never lets one card overflow the phone. */
+  .card-grid {
+    --mobile-card-width: min(var(--card-width), calc((100vw - 1.15rem) / 2));
+    grid-template-columns: repeat(auto-fill, var(--mobile-card-width));
+    justify-content: space-around;
+    column-gap: .25rem;
+    row-gap: .35rem;
+  }
+
+  .card-tile {
+    width: var(--mobile-card-width);
+  }
+
+  .card-tile:hover {
+    transform: none;
+  }
+
+  /* Hover/profile becomes a bottom sheet when it is opened on touch devices. */
+  .card-hover-preview {
+    left: 8px !important;
+    right: 8px !important;
+    top: auto !important;
+    bottom: 62px !important;
+    width: auto !important;
+    max-height: min(74vh, 680px);
+    border-radius: .8rem .8rem .45rem .45rem;
+  }
+
+  .card-hover-main {
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: .65rem;
+  }
+
+  .card-hover-main-image {
+    width: 96px;
+  }
+
+  .card-hover-title-row {
+    gap: .35rem;
+  }
+
+  .card-hover-title-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .card-hover-actions {
+    gap: .4rem;
+  }
+
+  .owned-control {
+    margin-left: 0;
+  }
+
+  /* Dialogs: usable without horizontal overflow. */
+  dialog,
+  .assistant-dialog,
+  .engine-dialog {
+    max-width: calc(100vw - 12px) !important;
+    max-height: calc(100dvh - 18px) !important;
+  }
+
+  /* Collection + Deck Lab pages. */
+  body.tools-body {
+    overflow-x: hidden;
+  }
+
+  .tools-header {
+    flex-wrap: nowrap !important;
+    gap: .35rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: .45rem;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tools-header > * {
+    flex: 0 0 auto;
+  }
+
+  .tools-header .tools-title {
+    margin-right: 0;
+  }
+
+  .tools-page {
+    width: calc(100% - .6rem) !important;
+    padding: .4rem 0 2rem;
+  }
+
+  .tools-panel {
+    margin-top: .6rem;
+    padding: .65rem;
+  }
+
+  .tools-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: .45rem;
+  }
+
+  .tools-toolbar .input,
+  .tools-toolbar select,
+  .tools-toolbar label,
+  .tools-panel select,
+  .tools-panel input[type="number"] {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .tools-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .4rem;
+  }
+
+  .collection-set-grid,
+  .collection-card-grid,
+  .lab-compare-grid,
+  .lab-two-col {
+    grid-template-columns: 1fr !important;
+  }
+
+  .collection-card-row {
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+    gap: .4rem;
+  }
+
+  .collection-card-row img {
+    width: 48px;
+    height: auto;
+  }
+
+  .lab-compare-card img {
+    width: 82px;
+  }
+
+  /* Deck Engines page. */
+  body.engines-body {
+    overflow-x: hidden;
+  }
+
+  .engines-header {
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .4rem;
+    padding: .45rem;
+  }
+
+  .engines-header .header-class-list {
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .engines-search {
+    order: 10;
+    width: 100% !important;
+  }
+
+  .engines-page {
+    width: calc(100% - .6rem) !important;
+    padding: .55rem 0 2rem;
+  }
+
+  .engines-title-row {
+    margin-bottom: .65rem;
+  }
+
+  .engines-title-row h1 {
+    font-size: 1.25rem;
+  }
+
+  .engine-toolbar {
+    gap: .55rem;
+    padding: .5rem;
+  }
+
+  .engine-kind-tabs {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .engine-kind-tab {
+    width: 100%;
+  }
+
+  .engine-grid,
+  .engine-detail-cards {
+    grid-template-columns: 1fr !important;
+  }
+
+  .engine-card {
+    grid-template-columns: 84px minmax(0, 1fr);
+    min-height: 104px;
+    gap: .55rem;
+  }
+
+  .engine-card-thumbs img {
+    height: 44px;
+  }
+
+  .engine-card-thumbs img:only-child {
+    height: 92px;
+  }
+
+  .engine-dialog {
+    width: calc(100vw - 12px) !important;
+  }
+
+  .engine-dialog-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: .55rem;
+  }
+
+  #engine-dialog-content {
+    padding: .6rem;
+  }
+
+  .engine-dialog-actions {
+    padding: .55rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .header-toolbar,
+  .content-toolbar {
+    padding-left: .4rem;
+    padding-right: .4rem;
+  }
+
+  .header-toolbar .header-actions .button,
+  .button {
+    padding: .42rem .58rem;
+  }
+
+  .card-hover-main {
+    grid-template-columns: 78px minmax(0, 1fr);
+  }
+
+  .card-hover-main-image {
+    width: 78px;
+  }
+
+  .card-hover-content {
+    font-size: .8rem;
+  }
+
+  .tools-stats,
+  .engine-dialog-stats {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .engine-card {
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+}
