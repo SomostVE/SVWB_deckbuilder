@@ -81,6 +81,17 @@ let pendingPackage = null;
 let pendingPackageTrigger = null;
 let qol = null;
 
+const CLASS_ICON_URLS = {
+  Forestcraft: "https://shadowverse-wb.com/assets/images/common/common/class/class_elf.svg",
+  Swordcraft: "https://shadowverse-wb.com/assets/images/common/common/class/class_royal.svg",
+  Runecraft: "https://shadowverse-wb.com/assets/images/common/common/class/class_witch.svg",
+  Dragoncraft: "https://shadowverse-wb.com/assets/images/common/common/class/class_dragon.svg",
+  Abysscraft: "https://shadowverse-wb.com/assets/images/common/common/class/class_nightmare.svg",
+  Havencraft: "https://shadowverse-wb.com/assets/images/common/common/class/class_bishop.svg",
+  Portalcraft: "https://shadowverse-wb.com/assets/images/common/common/class/class_nemesis.svg",
+  Neutral: "https://shadowverse-wb.com/assets/images/common/common/class/class_neutral.svg"
+};
+
 init();
 
 async function init() {
@@ -276,9 +287,17 @@ function renderClassFilter() {
   for (const className of CLASSES) {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "class-button";
-    button.textContent = className;
+    button.className = "class-button class-icon-button";
+    button.title = className;
+    button.setAttribute("aria-label", className);
     button.classList.toggle("active", className === state.selectedClass);
+
+    const icon = document.createElement("img");
+    icon.src = CLASS_ICON_URLS[className];
+    icon.alt = "";
+    icon.draggable = false;
+    button.appendChild(icon);
+
     button.addEventListener("click", () => {
       state.selectedClass = className;
       state.discoverCardId = null;
@@ -289,7 +308,10 @@ function renderClassFilter() {
   }
 
   const neutral = document.createElement("label");
-  neutral.className = "neutral-toggle";
+  neutral.className = "neutral-toggle neutral-icon-toggle";
+  neutral.title = "Neutral";
+  neutral.setAttribute("aria-label", "Include Neutral cards");
+
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
   checkbox.checked = state.includeNeutral;
@@ -299,10 +321,15 @@ function renderClassFilter() {
     persist();
     renderEverything();
   });
-  neutral.append(checkbox, document.createTextNode(" Neutral"));
+
+  const icon = document.createElement("img");
+  icon.src = CLASS_ICON_URLS.Neutral;
+  icon.alt = "";
+  icon.draggable = false;
+
+  neutral.append(checkbox, icon);
   els.classFilter.appendChild(neutral);
 }
-
 function renderFilterGroups() {
   const available = state.cards.filter(card =>
     card.class === state.selectedClass ||
