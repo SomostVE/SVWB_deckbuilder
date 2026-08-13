@@ -13,15 +13,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "24"
 
       - name: Update card data
         run: node scripts/update-cards.mjs
+
+      - name: Validate card data
+        run: |
+          node -e "const fs=require('fs');const cards=JSON.parse(fs.readFileSync('data/official/cards.json','utf8'));if(!Array.isArray(cards)||cards.length<100)throw new Error('Card update returned an invalid or suspiciously small database');console.log(cards.length+' cards validated')"
 
       - name: Commit changes
         run: |
