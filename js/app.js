@@ -42,6 +42,7 @@ const els = {
   packages: document.getElementById("package-browser"),
   grid: document.getElementById("card-grid"),
   resultsCount: document.getElementById("results-count"),
+  costFilter: document.getElementById("cost-filter"),
   discoverStatus: document.getElementById("discover-status"),
   discoverLabel: document.getElementById("discover-label"),
   clearDiscover: document.getElementById("clear-discover"),
@@ -242,6 +243,7 @@ function renderEverything() {
   renderFilterGroups();
   renderArchetypes();
   renderPackageBrowser();
+  renderCostFilter();
   renderCards();
   renderDeck();
   renderAnalysis();
@@ -380,6 +382,27 @@ function renderPackageBrowser() {
     button.innerHTML = `${escapeHtml(packageDef.name ?? packageDef.id)} <small>${count} cards</small>`;
     button.addEventListener("click", () => openPackageDialog(packageDef, null));
     els.packages.appendChild(button);
+  }
+}
+
+function renderCostFilter() {
+  if (!els.costFilter) return;
+  const buckets = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10+"];
+  els.costFilter.innerHTML = "";
+
+  for (const bucket of buckets) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "cost-button";
+    button.textContent = bucket;
+    button.classList.toggle("active", state.filters.costs.has(bucket));
+    button.addEventListener("click", () => {
+      if (state.filters.costs.has(bucket)) state.filters.costs.delete(bucket);
+      else state.filters.costs.add(bucket);
+      renderCostFilter();
+      renderCards();
+    });
+    els.costFilter.appendChild(button);
   }
 }
 
