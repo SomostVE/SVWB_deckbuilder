@@ -64,9 +64,8 @@ function enrichCards(cards, packages, customTags) {
   }
 
   // Rules text can mention token/generated cards for many reasons: creating them,
-  // consuming them, checking for them, etc. These fallback links are intentionally
-  // labelled as references rather than "Generates" so the app does not invent a
-  // production relationship when the official relation list is missing.
+  // consuming them, checking for them, etc. These fallback links are shown as direct
+  // profile relations, but are intentionally not labelled as generation relationships.
   const generatedMatchers = cards
     .filter(card => !card.deckSelectable && card.name?.length >= 3)
     .map(card => ({ card, pattern: buildCardNamePattern(card.name) }))
@@ -80,7 +79,7 @@ function enrichCards(cards, packages, customTags) {
       const target = entry.card;
       if (source.id === target.id || hasRelation(source, target.id)) continue;
       if (entry.pattern.test(text)) {
-        addRelation(source, target.id, "References");
+        addRelation(source, target.id, "Direct relation");
       }
     }
   }
