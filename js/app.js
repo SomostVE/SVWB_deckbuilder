@@ -451,16 +451,42 @@ function renderCostFilter() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "cost-button";
-    button.textContent = bucket;
+    const count = getCostResultCount(bucket);
+    button.innerHTML = `<span>${bucket}</span><small>${count}</small>`;
     button.classList.toggle("active", state.filters.costs.has(bucket));
+    button.disabled = count === 0 && !state.filters.costs.has(bucket) && !state.showUnavailableFilters;
+    if (button.disabled) button.hidden = true;
     button.addEventListener("click", () => {
       if (state.filters.costs.has(bucket)) state.filters.costs.delete(bucket);
       else state.filters.costs.add(bucket);
-      renderCostFilter();
-      renderCards();
+      qol?.saveCurrentClassFilters();
+      renderEverything();
     });
     els.costFilter.appendChild(button);
   }
+
+  if (state.filters.costs.size) {
+    const clear = document.createElement("button");
+    clear.type = "button";
+    clear.className = "cost-clear";
+    clear.textContent = "Clear ×";
+    clear.addEventListener("click", () => {
+      state.filters.costs.clear();
+      qol?.saveCurrentClassFilters();
+      renderEverything();
+    });
+    els.costFilter.appendChild(clear);
+  }
+}
+
+function getCostResultCount(bucket) {
+  const original = [...state.filters.costs];
+  state.filters.costs.clear();
+  state.filters.costs.add(bucket);
+  const count = filteredCards().length;
+  state.filters.costs.clear();
+  for (const selected of original) state.filters.costs.add(selected);
+  return count;
 }
 
 function renderCards() {

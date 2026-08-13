@@ -33,6 +33,7 @@ export function renderCardGrid(root, cards, handlers) {
       ${quantity > 0 ? `<span class="card-quantity">${quantity}</span>` : ""}
       ${owned > 0 ? `<span class="card-owned">O${owned}</span>` : ""}
       ${handlers.isFavorite?.(card) ? `<span class="card-favorite">★</span>` : ""}
+      ${handlers.isExcluded?.(card) ? `<span class="card-excluded">Excluded</span>` : ""}
       ${deckMark ? `<span class="card-mark card-mark-${escapeAttr(deckMark.toLowerCase())}">${escapeHtml(deckMark)}</span>` : ""}
       ${!card.deckSelectable ? `<span class="card-generated-label">Generated</span>` : ""}
     `;

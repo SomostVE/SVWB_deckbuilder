@@ -318,3 +318,47 @@
   .active-filters { width: 100%; }
   .qol-hint { width: calc(100vw - 20px); }
 }
+
+
+.cost-button {
+  min-width: 34px;
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  gap: .22rem;
+}
+
+.cost-button small {
+  color: var(--muted);
+  font-size: .58rem;
+}
+
+.cost-button.active small {
+  color: var(--text);
+}
+
+.cost-clear {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: .2rem .3rem;
+  font-size: .66rem;
+}
+
+.cost-clear:hover { color: var(--text); }
+
+.card-excluded {
+  position: absolute;
+  z-index: 5;
+  left: 50%;
+  top: 4px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(214,88,88,.85);
+  border-radius: .3rem;
+  padding: .14rem .3rem;
+  background: rgba(70,20,24,.92);
+  color: #ffd8d8;
+  font-size: .55rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
