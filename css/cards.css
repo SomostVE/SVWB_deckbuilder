@@ -59,22 +59,25 @@
 .card-hover-preview {
   position: fixed;
   z-index: 10000;
-  width: min(520px, calc(100vw - 20px));
-  max-height: min(520px, calc(100vh - 20px));
+  width: min(620px, calc(100vw - 20px));
+  max-height: min(650px, calc(100vh - 20px));
+  padding: .8rem;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: .75rem;
+  background: rgba(20,23,31,.985);
+  color: var(--text);
+  box-shadow: 0 14px 40px rgba(0,0,0,.55);
+  pointer-events: auto;
+}
+
+.card-hover-main {
   display: grid;
   grid-template-columns: 170px 1fr;
   gap: .9rem;
-  padding: .8rem;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: .75rem;
-  background: rgba(20,23,31,.98);
-  color: var(--text);
-  box-shadow: 0 14px 40px rgba(0,0,0,.55);
-  pointer-events: none;
 }
 
-.card-hover-preview > img {
+.card-hover-main-image {
   width: 170px;
   height: auto;
   border-radius: .45rem;
@@ -82,14 +85,34 @@
 
 .card-hover-content {
   min-width: 0;
-  overflow: auto;
   font-size: .86rem;
   line-height: 1.45;
+}
+
+.card-hover-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .6rem;
 }
 
 .card-hover-content h3 {
   margin: 0 0 .35rem;
   font-size: 1rem;
+}
+
+.card-hover-back {
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: .4rem;
+  padding: .25rem .45rem;
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: .72rem;
+}
+
+.card-hover-back:hover {
+  border-color: var(--accent);
 }
 
 .card-hover-meta,
@@ -117,6 +140,59 @@
   font-size: .72rem;
 }
 
+.card-hover-related {
+  margin-top: .8rem;
+  padding-top: .7rem;
+  border-top: 1px solid var(--border);
+}
+
+.card-hover-related-title {
+  margin-bottom: .5rem;
+  font-size: .78rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.card-hover-related-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: .45rem;
+}
+
+.card-hover-related-card {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: .5rem;
+  padding: .35rem;
+  background: var(--panel-2);
+  color: var(--text);
+  text-align: left;
+}
+
+.card-hover-related-card:hover {
+  border-color: var(--accent);
+  background: rgba(124,140,255,.12);
+}
+
+.card-hover-related-card img {
+  display: block;
+  width: 100%;
+  aspect-ratio: .715;
+  object-fit: cover;
+  border-radius: .3rem;
+  margin-bottom: .3rem;
+}
+
+.card-hover-related-card span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: .7rem;
+}
+
 .card-dialog {
   width: min(950px, 92vw);
   max-height: 90vh;
@@ -138,9 +214,20 @@
 
 @media (max-width: 680px) {
   :root { --card-width: 105px; }
+
   .card-hover-preview {
-    grid-template-columns: 110px 1fr;
     width: calc(100vw - 16px);
   }
-  .card-hover-preview > img { width: 110px; }
+
+  .card-hover-main {
+    grid-template-columns: 110px 1fr;
+  }
+
+  .card-hover-main-image {
+    width: 110px;
+  }
+
+  .card-hover-related-grid {
+    grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  }
 }
