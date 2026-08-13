@@ -1,6 +1,13 @@
 import { state } from "./state.js";
 import { calculateAdvancedStats, checkLegality } from "./tools-common.js";
 
+if (!document.querySelector('link[href$="advanced-analysis.css"]')) {
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = "./css/advanced-analysis.css";
+  document.head.appendChild(link);
+}
+
 const root = document.getElementById("deck-analysis");
 if (root) {
   const observer = new MutationObserver(() => renderAdvanced());
