@@ -38,7 +38,7 @@ async function fetchPage(offset) {
   const url = new URL(API);
   url.searchParams.set("offset", String(offset));
   url.searchParams.set("class", "0,1,2,3,4,5,6,7");
-  url.searchParams.set("cost", "0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18");
+  url.searchParams.set("cost", "0,1,2,3,4,5,6,7,8,9,10");
   url.searchParams.set("include_token", "1");
 
   const response = await fetch(url, {
