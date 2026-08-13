@@ -299,7 +299,7 @@ function renderClassFilter() {
     persist();
     renderEverything();
   });
-  neutral.append(checkbox, document.createTextNode(" Include Neutral"));
+  neutral.append(checkbox, document.createTextNode(" Neutral"));
   els.classFilter.appendChild(neutral);
 }
 
