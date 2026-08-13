@@ -19,9 +19,8 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
-          js = Path('js/card-grid.js')
-          s = js.read_text(encoding='utf-8')
-
+          js = Path("js/card-grid.js")
+          s = js.read_text(encoding="utf-8")
           imp = 'import { formatCardText } from "./card-text.js";\n\n'
           if not s.startswith('import { formatCardText } from "./card-text.js";'):
               s = imp + s
@@ -29,45 +28,17 @@ jobs:
           old = '        <div class="card-hover-effect">${escapeHtml(cleanPreviewText(card.text)).replaceAll("\\n", "<br>")}</div>'
           new = '        <div class="card-hover-effect">${formatCardText(card.rawSkillText || card.text || "No effect text.")}</div>'
           if old not in s:
-              raise SystemExit('preview effect anchor missing')
+              raise SystemExit("preview effect anchor missing")
           s = s.replace(old, new, 1)
-          js.write_text(s, encoding='utf-8')
+          js.write_text(s, encoding="utf-8")
 
-          css = Path('css/cards.css')
-          c = css.read_text(encoding='utf-8')
-          marker = '/* Official card text formatting in hover preview */'
+          css = Path("css/cards.css")
+          c = css.read_text(encoding="utf-8")
+          marker = "/* Official card text formatting in hover preview */"
           if marker not in c:
-              c += r'''
-
-/* Official card text formatting in hover preview */
-.card-hover-effect .card-text-keyword {
-  color: #f2e1a3;
-  font-weight: 800;
-}
-
-.card-hover-effect .card-text-emphasis {
-  color: #d8dcff;
-}
-
-.card-hover-effect strong,
-.card-hover-effect span,
-.card-hover-effect em {
-  display: inline;
-}
-
-.card-hover-effect em {
-  color: #f0f2f8;
-  font-style: italic;
-}
-
-.card-hover-effect .card-text-separator {
-  height: 1px;
-  margin: .45rem 0;
-  border: 0;
-  background: var(--border);
-}
-'''
-          css.write_text(c, encoding='utf-8')
+              addition = "\n\n/* Official card text formatting in hover preview */\n.card-hover-effect .card-text-keyword { color: #f2e1a3; font-weight: 800; }\n.card-hover-effect .card-text-emphasis { color: #d8dcff; }\n.card-hover-effect strong, .card-hover-effect span, .card-hover-effect em { display: inline; }\n.card-hover-effect em { color: #f0f2f8; font-style: italic; }\n.card-hover-effect .card-text-separator { height: 1px; margin: .45rem 0; border: 0; background: var(--border); }\n"
+              c += addition
+          css.write_text(c, encoding="utf-8")
           PY
 
       - name: Validate JavaScript
