@@ -8,7 +8,7 @@ export const state = {
 
   selectedClass: "Forestcraft",
   includeNeutral: true,
-  format: "Rotation",
+  format: "Unlimited",
   showGenerated: false,
   showExcluded: false,
   showUnavailableFilters: false,
