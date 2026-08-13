@@ -20,6 +20,7 @@ export function filteredCards() {
       (state.includeNeutral && card.class === "Neutral");
 
     if (!classMatch) return false;
+    if (!matchesFormat(card, state.format)) return false;
     if (!state.showGenerated && !card.deckSelectable) return false;
 
     const isExcluded = state.excluded.has(card.id) || state.globalExclusions.has(card.id);
@@ -57,6 +58,14 @@ export function filteredCards() {
   }
 
   return cards;
+}
+
+export function matchesFormat(card, format = state.format) {
+  if (!card) return false;
+  if (format === "Rotation") return Boolean(card.rotation) || card.set === "Basic" || Number(card.setId) === 10000;
+  // The official imported dataset currently has no Unlimited banned/restricted list.
+  // Unlimited and Boundless therefore expose the same pool; legality reports explain this distinction.
+  return true;
 }
 
 function matchesCostFilter(costValue) {
