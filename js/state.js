@@ -13,6 +13,8 @@ export const state = {
   showExcluded: false,
   showUnavailableFilters: false,
   favoritesOnly: false,
+  ownedOnly: false,
+  missingOnly: false,
   discoverCardId: null,
   search: "",
 
@@ -40,6 +42,8 @@ export function resetFilters() {
   state.search = "";
   state.discoverCardId = null;
   state.favoritesOnly = false;
+  state.ownedOnly = false;
+  state.missingOnly = false;
   for (const key of Object.keys(state.filters)) {
     state.filters[key].clear();
   }
