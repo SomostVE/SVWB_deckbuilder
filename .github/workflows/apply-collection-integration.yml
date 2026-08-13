@@ -24,102 +24,94 @@ jobs:
           p = Path('js/app.js')
           s = p.read_text(encoding='utf-8')
 
-          old = 'import { setupQol } from "./qol.js";\n'
-          new = old + 'import { setupCollectionUI } from "./collection.js";\n'
-          if 'setupCollectionUI' not in s:
-              if old not in s:
+          if 'import { setupCollectionUI } from "./collection.js";' not in s:
+              anchor = 'import { setupQol } from "./qol.js";\n'
+              if anchor not in s:
                   raise SystemExit('app import anchor missing')
-              s = s.replace(old, new, 1)
+              s = s.replace(anchor, anchor + 'import { setupCollectionUI } from "./collection.js";\n', 1)
 
-          old = 'let qol = null;\n'
-          new = 'let qol = null;\nlet collectionUi = null;\n'
           if 'let collectionUi = null;' not in s:
-              if old not in s:
+              anchor = 'let qol = null;\n'
+              if anchor not in s:
                   raise SystemExit('collection variable anchor missing')
-              s = s.replace(old, new, 1)
+              s = s.replace(anchor, anchor + 'let collectionUi = null;\n', 1)
 
-          old = '    qol = setupQol({ state, renderEverything, renderCards, undoDeck, redoDeck });\n    bindEvents();'
-          new = '    qol = setupQol({ state, renderEverything, renderCards, undoDeck, redoDeck });\n    collectionUi = setupCollectionUI({ state, renderEverything });\n    bindEvents();'
           if 'collectionUi = setupCollectionUI' not in s:
-              if old not in s:
+              anchor = '    qol = setupQol({ state, renderEverything, renderCards, undoDeck, redoDeck });\n'
+              if anchor not in s:
                   raise SystemExit('collection setup anchor missing')
-              s = s.replace(old, new, 1)
+              s = s.replace(anchor, anchor + '    collectionUi = setupCollectionUI({ state, renderEverything });\n', 1)
 
-          old = '  renderDeck();\n  renderAnalysis();\n  renderSavedDecks();'
-          new = '  renderDeck();\n  renderAnalysis();\n  collectionUi?.render();\n  renderSavedDecks();'
-          if 'collectionUi?.render();' not in s:
-              if old not in s:
+          if '  collectionUi?.render();\n  renderSavedDecks();' not in s:
+              anchor = '  renderAnalysis();\n  renderSavedDecks();'
+              if anchor not in s:
                   raise SystemExit('collection render anchor missing')
-              s = s.replace(old, new, 1)
+              s = s.replace(anchor, '  renderAnalysis();\n  collectionUi?.render();\n  renderSavedDecks();', 1)
 
-          old = '''  onOwnedChange(card, delta) {
-            const next = Math.max(0, (state.owned.get(card.id) ?? 0) + Number(delta));
-            if (next === 0) state.owned.delete(card.id);
-            else state.owned.set(card.id, next);
-            persist();
-            renderCards();
-            renderDeck();
-          },'''
-          new = '''  onOwnedChange(card, delta) {
-            const maxOwned = Number(card.maxCopies ?? 3);
-            const next = Math.min(maxOwned, Math.max(0, (state.owned.get(card.id) ?? 0) + Number(delta)));
-            if (next === 0) state.owned.delete(card.id);
-            else state.owned.set(card.id, next);
-            persist();
-            renderCards();
-            renderDeck();
-            renderAnalysis();
-            collectionUi?.render();
-          },'''
-          if old not in s:
+          owned_pattern = re.compile(r'''  onOwnedChange\(card, delta\) \{\n.*?\n  \},\n  onDiscover\(card\) \{''', re.S)
+          owned_replacement = '''  onOwnedChange(card, delta) {
+    const maxOwned = Number(card.maxCopies ?? 3);
+    const next = Math.min(maxOwned, Math.max(0, (state.owned.get(card.id) ?? 0) + Number(delta)));
+    if (next === 0) state.owned.delete(card.id);
+    else state.owned.set(card.id, next);
+    persist();
+    renderCards();
+    renderDeck();
+    renderAnalysis();
+    collectionUi?.render();
+  },
+  onDiscover(card) {'''
+          s, count = owned_pattern.subn(owned_replacement, s, count=1)
+          if count != 1:
               raise SystemExit('owned handler anchor missing')
-          s = s.replace(old, new, 1)
+
           p.write_text(s, encoding='utf-8')
 
-          # collection.js: use the central workspace persistence and add base-card fallback.
+          # collection.js
           p = Path('js/collection.js')
           s = p.read_text(encoding='utf-8')
           if not s.startswith('import { saveWorkspace }'):
               s = 'import { saveWorkspace } from "./storage.js";\n\n' + s
           s = s.replace('      persistOwned(state);', '      saveWorkspace(state);')
-          s = s.replace(
-              '        cardId,\n        owned,',
-              '        cardId,\n        baseCardId: Number(card?.baseCardId ?? cardId),\n        owned,',
-              1
-          )
-          s = s.replace(
-              '    cardId,\n    owned,\n    name:',
-              '    cardId,\n    baseCardId: Number.isFinite(Number(entry.baseCardId)) ? Number(entry.baseCardId) : cardId,\n    owned,\n    name:',
-              1
-          )
-          old_resolve = '''  const exact = state.cardMap.get(entry.cardId);
-            if (exact) return { id: exact.id, card: exact };
 
-            if (entry.name && entry.setId !== null) {'''
-          new_resolve = '''  const exact = state.cardMap.get(entry.cardId);
-            if (exact) return { id: exact.id, card: exact };
+          if 'baseCardId: Number(card?.baseCardId ?? cardId),' not in s:
+              anchor = '        cardId,\n        owned,'
+              if anchor not in s:
+                  raise SystemExit('collection export anchor missing')
+              s = s.replace(anchor, '        cardId,\n        baseCardId: Number(card?.baseCardId ?? cardId),\n        owned,', 1)
 
-            if (Number.isFinite(entry.baseCardId)) {
-              const baseMatches = state.cards.filter(card => Number(card.baseCardId) === Number(entry.baseCardId) && card.deckSelectable);
-              if (baseMatches.length === 1) return { id: baseMatches[0].id, card: baseMatches[0] };
-            }
+          if 'baseCardId: Number.isFinite(Number(entry.baseCardId))' not in s:
+              anchor = '    cardId,\n    owned,\n    name:'
+              if anchor not in s:
+                  raise SystemExit('collection normalize anchor missing')
+              s = s.replace(anchor, '    cardId,\n    baseCardId: Number.isFinite(Number(entry.baseCardId)) ? Number(entry.baseCardId) : cardId,\n    owned,\n    name:', 1)
 
-            if (entry.name && entry.setId !== null) {'''
-          if old_resolve not in s:
-              raise SystemExit('collection resolver anchor missing')
-          s = s.replace(old_resolve, new_resolve, 1)
+          if 'const baseMatches = state.cards.filter' not in s:
+              anchor = '  const exact = state.cardMap.get(entry.cardId);\n  if (exact) return { id: exact.id, card: exact };\n\n'
+              if anchor not in s:
+                  raise SystemExit('collection resolver anchor missing')
+              fallback = '''  const exact = state.cardMap.get(entry.cardId);
+  if (exact) return { id: exact.id, card: exact };
+
+  if (Number.isFinite(entry.baseCardId)) {
+    const baseMatches = state.cards.filter(card => Number(card.baseCardId) === Number(entry.baseCardId) && card.deckSelectable);
+    if (baseMatches.length === 1) return { id: baseMatches[0].id, card: baseMatches[0] };
+  }
+
+'''
+              s = s.replace(anchor, fallback, 1)
+
           s = re.sub(r'\nfunction persistOwned\(state\) \{.*?\n\}\n\nfunction setStatus', '\nfunction setStatus', s, count=1, flags=re.S)
           p.write_text(s, encoding='utf-8')
 
-          # Card updater: retain the official base card id for future migration/fallback.
+          # Card updater keeps the official base card id as a migration fallback.
           p = Path('scripts/update-cards.mjs')
           s = p.read_text(encoding='utf-8')
-          old = '    id: Number(common.card_id ?? id),\n    name: common.name ?? "",'
-          new = '    id: Number(common.card_id ?? id),\n    baseCardId: Number(common.base_card_id ?? common.card_id ?? id),\n    name: common.name ?? "",'
           if 'baseCardId:' not in s:
-              if old not in s:
+              anchor = '    id: Number(common.card_id ?? id),\n    name: common.name ?? "",'
+              if anchor not in s:
                   raise SystemExit('card updater anchor missing')
-              s = s.replace(old, new, 1)
+              s = s.replace(anchor, '    id: Number(common.card_id ?? id),\n    baseCardId: Number(common.base_card_id ?? common.card_id ?? id),\n    name: common.name ?? "",', 1)
           p.write_text(s, encoding='utf-8')
           PY
 
