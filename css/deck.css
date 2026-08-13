@@ -1,0 +1,47 @@
+.deck-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.deck-list {
+  display: flex;
+  flex-direction: column;
+  gap: .45rem;
+}
+
+.deck-row {
+  display: grid;
+  grid-template-columns: 34px 1fr auto;
+  align-items: center;
+  gap: .5rem;
+  border: 1px solid var(--border);
+  border-radius: .55rem;
+  padding: .45rem;
+  background: var(--panel-2);
+}
+
+.deck-row img {
+  width: 34px;
+  height: 46px;
+  object-fit: cover;
+  border-radius: .25rem;
+}
+
+.deck-row-title { min-width: 0; font-size: .85rem; }
+.deck-row-title strong {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.deck-controls { display: flex; align-items: center; gap: .25rem; }
+.deck-controls button {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: .4rem;
+  background: var(--panel);
+  color: var(--text);
+}

@@ -1,0 +1,40 @@
+.class-list,
+.filter-options {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+}
+
+.filter-group {
+  margin-top: .85rem;
+  padding-top: .85rem;
+  border-top: 1px solid var(--border);
+}
+
+.filter-group-title {
+  display: flex;
+  justify-content: space-between;
+  gap: .5rem;
+  font-size: .84rem;
+  margin-bottom: .45rem;
+}
+
+.filter-option {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  color: var(--muted);
+  font-size: .82rem;
+}
+
+.class-button {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: .5rem;
+  padding: .5rem .6rem;
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+.class-button.active { border-color: var(--accent); }
