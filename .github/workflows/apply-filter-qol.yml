@@ -21,69 +21,58 @@ jobs:
 
           index = Path('index.html')
           html = index.read_text(encoding='utf-8')
-          old = '        <label><input id="show-excluded" type="checkbox"> Show excluded cards</label>\n'
-          new = old + '        <label><input id="show-unavailable" type="checkbox"> Show unavailable filters</label>\n'
-          if old not in html:
-              raise SystemExit('index view anchor missing')
-          html = html.replace(old, new, 1)
+          marker = '<label><input id="show-excluded" type="checkbox"> Show excluded cards</label>'
+          addition = marker + '\n        <label><input id="show-unavailable" type="checkbox"> Show unavailable filters</label>'
+          if 'id="show-unavailable"' not in html:
+              if marker not in html:
+                  raise SystemExit('index marker missing')
+              html = html.replace(marker, addition, 1)
           index.write_text(html, encoding='utf-8')
 
           app = Path('js/app.js')
           t = app.read_text(encoding='utf-8')
 
-          old = '  showExcluded: document.getElementById("show-excluded"),\n  archetypes:'
-          new = '  showExcluded: document.getElementById("show-excluded"),\n  showUnavailable: document.getElementById("show-unavailable"),\n  archetypes:'
-          if old not in t:
-              raise SystemExit('els anchor missing')
-          t = t.replace(old, new, 1)
+          if 'showUnavailable: document.getElementById("show-unavailable")' not in t:
+              marker = '  showExcluded: document.getElementById("show-excluded"),'
+              if marker not in t:
+                  raise SystemExit('els marker missing')
+              t = t.replace(marker, marker + '\n  showUnavailable: document.getElementById("show-unavailable"),', 1)
 
-          old = '''  els.showExcluded.addEventListener("change", () => {
-            state.showExcluded = els.showExcluded.checked;
-            persist();
-            renderCards();
-          });'''
-          new = old + '''
-
-          els.showUnavailable.addEventListener("change", () => {
+          if 'state.showUnavailableFilters = els.showUnavailable.checked;' not in t:
+              marker = '  els.clearDeck.addEventListener("click", () => {'
+              block = '''  els.showUnavailable.addEventListener("change", () => {
             state.showUnavailableFilters = els.showUnavailable.checked;
             persist();
             renderEverything();
-          });'''
-          if old not in t:
-              raise SystemExit('show excluded anchor missing')
-          t = t.replace(old, new, 1)
+          });
 
-          old = '''  els.showGenerated.checked = state.showGenerated;
-            els.showExcluded.checked = state.showExcluded;
-          }'''
-          new = '''  els.showGenerated.checked = state.showGenerated;
-            els.showExcluded.checked = state.showExcluded;
-            els.showUnavailable.checked = state.showUnavailableFilters;
-          }'''
-          if old not in t:
-              raise SystemExit('sync controls anchor missing')
-          t = t.replace(old, new, 1)
+          '''
+              if marker not in t:
+                  raise SystemExit('clear deck marker missing')
+              t = t.replace(marker, block + marker, 1)
 
-          old_count = '''    const count = classPool.filter(card => {
-                if (title === "Set") return card.set === value;
-                if (title === "Type") return card.type === value;
-                if (title === "Rarity") return card.rarity === value;
-                if (title === "Trait") return (card.traits ?? []).includes(value);
-                if (title === "Keyword") return (card.keywords ?? []).includes(value);
-                return true;
-              }).length;
+          if 'els.showUnavailable.checked = state.showUnavailableFilters;' not in t:
+              marker = '  els.showExcluded.checked = state.showExcluded;'
+              if marker not in t:
+                  raise SystemExit('sync marker missing')
+              t = t.replace(marker, marker + '\n  els.showUnavailable.checked = state.showUnavailableFilters;', 1)
 
-              label.append(input, document.createTextNode(value));'''
-          new_count = '''    const count = getFilterOptionResultCount(title, value, targetSet);
+          start = t.index('function renderCheckboxGroup(')
+          end = t.index('\nfunction renderArchetypes()', start)
+          section = t[start:end]
+          old_start = section.index('    const count = classPool.filter(card => {')
+          old_end_marker = '    label.append(input, document.createTextNode(value));'
+          old_end = section.index(old_end_marker, old_start)
+          replacement = '''    const count = getFilterOptionResultCount(title, value, targetSet);
               if (!state.showUnavailableFilters && count === 0 && !targetSet.has(value)) continue;
 
-              label.append(input, document.createTextNode(value));'''
-          if old_count not in t:
-              raise SystemExit('filter count block missing')
-          t = t.replace(old_count, new_count, 1)
+          '''
+          section = section[:old_start] + replacement + section[old_end:]
+          t = t[:start] + section + t[end:]
 
-          anchor = '\nfunction renderArchetypes() {'
-          helper = r'''
+          if 'function getFilterOptionResultCount(' not in t:
+              marker = '\nfunction renderArchetypes() {'
+              helper = r'''
           function getFilterOptionResultCount(title, value, targetSet) {
             const original = [...targetSet];
             const andGroup = title === "Trait" || title === "Keyword";
@@ -102,13 +91,13 @@ jobs:
             return count;
           }
           '''
-          if anchor not in t:
-              raise SystemExit('archetype anchor missing')
-          t = t.replace(anchor, helper + anchor, 1)
+              if marker not in t:
+                  raise SystemExit('render archetypes marker missing')
+              t = t.replace(marker, helper + marker, 1)
 
           old_saved = '<div class="muted">${escapeHtml(variant.class ?? "Unknown")} · ${size}/40</div>'
-          new_saved = '<div class="muted">${escapeHtml(variant.class ?? "Unknown")} · ${size > 40 ? `40 (+${size - 40})` : `${size}/40`}</div>'
           if old_saved in t:
+              new_saved = '<div class="muted">${escapeHtml(variant.class ?? "Unknown")} · ${size > 40 ? `40 (+${size - 40})` : `${size}/40`}</div>'
               t = t.replace(old_saved, new_saved, 1)
 
           app.write_text(t, encoding='utf-8')
