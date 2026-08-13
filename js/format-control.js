@@ -64,7 +64,11 @@ function setup() {
 
   if (actions) {
     const existingCollection = document.getElementById("open-collection");
-    if (existingCollection) existingCollection.textContent = "Collection quick";
+    if (existingCollection) {
+      existingCollection.hidden = true;
+      existingCollection.setAttribute("aria-hidden", "true");
+      existingCollection.tabIndex = -1;
+    }
 
     if (!actions.querySelector('[href="./collection.html"]')) {
       const collection = document.createElement("a");
