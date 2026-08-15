@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - scripts/materialize-battle-two-turn-lookahead.py
+      - scripts/materialize-battle-two-turn-lookahead-v2.py
       - scripts/materialize-battle-two-turn-lookahead-tuning.py
       - scripts/check-battle-two-turn-lookahead.mjs
       - .github/workflows/apply-battle-two-turn-lookahead.yml
@@ -25,7 +26,7 @@ jobs:
 
       - name: Materialize two-turn look-ahead
         run: |
-          python3 scripts/materialize-battle-two-turn-lookahead.py
+          python3 scripts/materialize-battle-two-turn-lookahead-v2.py
           python3 scripts/materialize-battle-two-turn-lookahead-tuning.py
 
       - name: Validate two-turn look-ahead and Battle Sim
@@ -54,6 +55,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add js/battle-engine-v5.js scripts/check-battle-two-turn-lookahead.mjs
-          git rm -f scripts/materialize-battle-two-turn-lookahead.py scripts/materialize-battle-two-turn-lookahead-tuning.py
+          git rm -f scripts/materialize-battle-two-turn-lookahead.py scripts/materialize-battle-two-turn-lookahead-v2.py scripts/materialize-battle-two-turn-lookahead-tuning.py
           git commit -m "feat: add two-turn Battle Sim look-ahead"
           git push
