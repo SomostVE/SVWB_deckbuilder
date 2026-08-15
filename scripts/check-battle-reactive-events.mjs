@@ -209,7 +209,8 @@ executeGenericEffects("Select 2 enemy followers on the field and banish them.", 
 assert.equal(opponent.board.length, 0, "Vira Fanfare must banish two enemy followers when two targets exist");
 
 player.personalTurn = 12;
-player.evolutionsThisMatch = 3;
+player.evolutionsThisMatch = 0;
+viraContext.instance = { skyboundEvolutions: 3 };
 const viraSuper = executeGenericEffects("[[battle-super-skybound-self:15]]", viraContext);
 assert.equal(vira.superEvolved, true, "Vira Super Skybound Art must super-evolve herself without spending SEP");
 assert.deepEqual([vira.attack, vira.defense], [9, 11], "Ability-driven Super-Evolution grants +3/+3");

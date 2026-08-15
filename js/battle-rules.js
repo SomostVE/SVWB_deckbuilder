@@ -354,7 +354,7 @@ function resolveTimedAbilityHooks(textValue, context) {
   const crest = text.match(crestHook);
   if (crest) {
     const threshold = Number(crest[1]);
-    const active = skyboundCount(context.player) >= threshold;
+    const active = skyboundCount(context) >= threshold;
     if (active && gainCrestDirect(context.player, crest[2].trim(), context.card)) {
       actions.push(`Skybound Art · Crest: ${crest[2].trim()}`);
       applied = true;
@@ -366,7 +366,7 @@ function resolveTimedAbilityHooks(textValue, context) {
   const superSelf = text.match(superHook);
   if (superSelf) {
     const threshold = Number(superSelf[1]);
-    if (skyboundCount(context.player) >= threshold && context.sourceUnit) {
+    if (skyboundCount(context) >= threshold && context.sourceUnit) {
       actions.push(...superEvolveByAbility(context, context.sourceUnit));
       applied = true;
     }
@@ -872,7 +872,7 @@ function drawMatching(context, predicate, excludedNames) {
 }
 
 function superEvolveByAbility(context, unit) {
-  if (unit.superEvolved) return [];
+  if (unit.evolved || unit.superEvolved) return [];
   unit.attack += 3;
   unit.defense += 3;
   unit.maxDefense += 3;
@@ -880,12 +880,13 @@ function superEvolveByAbility(context, unit) {
   unit.evolved = true;
   unit.superEvolved = true;
   context.player.evolutionsThisMatch = (Number(context.player.evolutionsThisMatch) || 0) + 1;
+  context.recordHandEvolution?.();
   context.stats.superEvolutions[context.playerIndex] += 1;
   return [`Super Skybound Art · super-evolve ${unit.name}`];
 }
 
-function skyboundCount(player) {
-  return (Number(player.personalTurn) || 0) + (Number(player.evolutionsThisMatch) || 0);
+function skyboundCount(context) {
+  return (Number(context.player?.personalTurn) || 0) + (Number(context.instance?.skyboundEvolutions) || 0);
 }
 
 function gainCrestDirect(player, name, card) {

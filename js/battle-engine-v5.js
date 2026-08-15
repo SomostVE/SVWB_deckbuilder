@@ -11,7 +11,7 @@ import { analyzeCardSupport as analyzeCardSupportV4 } from "./battle-engine-v4.j
 
 export const BATTLE_RULES_VERSION = 5;
 
-const MAX_ROUNDS = 20;
+const MAX_ROUNDS = 60;
 const MAX_ACTIONS = 24;
 const GAP_HOOK = "[[battle-rule-gap-hook]]";
 const FULL_OVERRIDES = new Map([
@@ -314,6 +314,7 @@ function instance(player, card) {
     costDelta: 0,
     attackBonus: 0,
     defenseBonus: 0,
+    skyboundEvolutions: 0,
     x: initialX(card)
   };
 }
@@ -321,6 +322,32 @@ function instance(player, card) {
 function initialX(card) {
   const match = String(card?.text ?? "").match(/X starts at\s*(-?\d+)/i);
   return match ? Number(match[1]) : 0;
+}
+
+function recordHandEvolution(player) {
+  for (const item of player.hand ?? []) item.skyboundEvolutions = (Number(item.skyboundEvolutions) || 0) + 1;
+}
+
+function skyboundCountForInstance(ctx) {
+  return (Number(ctx.player?.personalTurn) || 0) + (Number(ctx.instance?.skyboundEvolutions) || 0);
+}
+
+export function inspectPlayableModes(card, { pp = 0, boardSize = 0, spellboost = 0, costDelta = 0 } = {}) {
+  const inst = {
+    uid: "inspect-mode",
+    card,
+    spellboost: Number(spellboost) || 0,
+    costDelta: Number(costDelta) || 0,
+    attackBonus: 0,
+    defenseBonus: 0,
+    skyboundEvolutions: 0,
+    x: initialX(card)
+  };
+  const player = {
+    pp: Math.max(0, Number(pp) || 0),
+    board: Array.from({ length: Math.max(0, Number(boardSize) || 0) }, (_, index) => ({ uid: `inspect-${index}`, type: "Follower" }))
+  };
+  return modes(inst, player).map(mode => ({ kind: mode.kind, cost: mode.cost, modeIndex: mode.modeIndex ?? 0 }));
 }
 
 function normalizeDeck(deck) {
@@ -471,22 +498,43 @@ function modes(inst, player) {
   const text = String(card.text ?? "");
   const base = costOf(inst);
   const out = [];
-  const enhance = [...text.matchAll(/Enhance\s*\(?\s*(\d+)\s*\)?\s*:/gi)].map(match => Number(match[1])).filter(cost => cost <= player.pp).sort((a,b)=>b-a);
+  const canUseFieldSlot = card.type === "Spell" || player.board.length < 5;
+  const enhance = [...text.matchAll(/Enhance\s*\(?\s*(\d+)\s*\)?\s*:/gi)]
+    .map(match => Number(match[1]))
+    .filter(cost => cost <= player.pp)
+    .sort((a,b)=>b-a);
   if (enhance.length) {
+    if (!canUseFieldSlot) return out;
     const cost = enhance[0];
     for (const choice of expandModes(section(text, `enhance ${cost}`))) out.push({ kind: choice.i ? "mode" : "enhance", cost, text: choice.text, modeIndex: choice.i, scoreBonus: 5, enhanced: true });
     return out;
   }
-  if (base <= player.pp && (card.type === "Spell" || player.board.length < 5)) {
-    for (const choice of expandModes(baseText(text))) out.push({ kind: choice.i ? "mode" : "base", cost: base, text: choice.text, modeIndex: choice.i, scoreBonus: 0 });
+
+  // Accelerate and Crystallize are fallback play modes: they are available only
+  // when the card itself cannot be paid at its current effective cost.
+  if (base <= player.pp) {
+    if (canUseFieldSlot) {
+      for (const choice of expandModes(baseText(text))) out.push({ kind: choice.i ? "mode" : "base", cost: base, text: choice.text, modeIndex: choice.i, scoreBonus: 0 });
+    }
+    return out;
   }
-  const crystallize = [...text.matchAll(/Crystallize\s*\(?\s*(\d+)\s*\)?\s*:?/gi)].map(match => Number(match[1])).filter(cost => cost <= player.pp).sort((a,b)=>a-b)[0];
-  if (crystallize != null && player.board.length < 5) {
-    out.push({ kind: "crystallize", cost: crystallize, text: crystallizeText(text, crystallize), modeIndex: 0, scoreBonus: base > player.pp ? 5 : 0 });
+
+  const crystallizeCosts = [...text.matchAll(/Crystallize\s*\(?\s*(\d+)\s*\)?\s*:?/gi)]
+    .map(match => Number(match[1]))
+    .filter(cost => cost <= player.pp);
+  const accelerateCosts = [...text.matchAll(/Accelerate\s*\(?\s*(\d+)\s*\)?\s*:/gi)]
+    .map(match => Number(match[1]))
+    .filter(cost => cost <= player.pp);
+  const highestAlternativeCost = Math.max(-1, ...crystallizeCosts, ...accelerateCosts);
+  if (highestAlternativeCost < 0) return out;
+
+  if (player.board.length < 5 && crystallizeCosts.includes(highestAlternativeCost)) {
+    out.push({ kind: "crystallize", cost: highestAlternativeCost, text: crystallizeText(text, highestAlternativeCost), modeIndex: 0, scoreBonus: 5 });
   }
-  const accelerate = [...text.matchAll(/Accelerate\s*\(?\s*(\d+)\s*\)?\s*:/gi)].map(match => Number(match[1])).filter(cost => cost <= player.pp).sort((a,b)=>a-b)[0];
-  if (accelerate != null) {
-    for (const choice of expandModes(section(text, `accelerate ${accelerate}`))) out.push({ kind: "accelerate", cost: accelerate, text: choice.text, modeIndex: choice.i, scoreBonus: base > player.pp ? 4 : -1 });
+  if (accelerateCosts.includes(highestAlternativeCost)) {
+    for (const choice of expandModes(section(text, `accelerate ${highestAlternativeCost}`))) {
+      out.push({ kind: "accelerate", cost: highestAlternativeCost, text: choice.text, modeIndex: choice.i, scoreBonus: 4 });
+    }
   }
   return out;
 }
@@ -697,14 +745,14 @@ function resolveText(raw, ctx) {
   const superSkybound = text.match(/Super Skybound Art\s*\(?\s*(\d+)?\s*\)?\s*:\s*(.*)$/i);
   if (superSkybound) {
     const need = Number(superSkybound[1] ?? 15);
-    if (ctx.player.personalTurn + ctx.player.evolutionsThisMatch < need) return { actions: [], applied: false, unresolved: false };
+    if (skyboundCountForInstance(ctx) < need) return { actions: [], applied: false, unresolved: false };
     text = superSkybound[2];
     actions.push("Super Skybound Art");
   }
   const skybound = text.match(/Skybound Art\s*\(?\s*(\d+)?\s*\)?\s*:\s*(.*)$/i);
   if (skybound && !/Super Skybound Art/i.test(text)) {
     const need = Number(skybound[1] ?? 10);
-    if (ctx.player.personalTurn + ctx.player.evolutionsThisMatch < need) return { actions: [], applied: false, unresolved: false };
+    if (skyboundCountForInstance(ctx) < need) return { actions: [], applied: false, unresolved: false };
     text = skybound[2];
     actions.push("Skybound Art");
   }
@@ -880,8 +928,9 @@ function resolveText(raw, ctx) {
 
 function effectContext(ctx) {
   return {
-    card: ctx.card, sourceUnit: ctx.sourceUnit, player: ctx.player, opponent: ctx.opponent,
+    card: ctx.card, instance: ctx.instance, sourceUnit: ctx.sourceUnit, player: ctx.player, opponent: ctx.opponent,
     playerIndex: ctx.playerIndex, enemyIndex: ctx.enemyIndex, stats: ctx.stats, rng: ctx.rng,
+    recordHandEvolution: () => recordHandEvolution(ctx.player),
     draw: (player, amount, index) => drawCards(player, amount, ctx.stats, index),
     chooseEnemyFollower: board => chooseTarget(board, true),
     chooseAlliedFollower: (board, excluded) => board.filter(unit => unit.type === "Follower" && unit !== excluded).sort((a,b)=>b.attack+b.defense-a.attack-a.defense)[0] ?? excluded,
@@ -1375,6 +1424,7 @@ function maybeEvolve(player, opponent, playerIndex, enemyIndex, stats, rng, map)
   unit.evolved = true;
   unit.superEvolved = superMode;
   player.evolutionsThisMatch += 1;
+  recordHandEvolution(player);
   if (superMode) stats.superEvolutions[playerIndex] += 1;
   else stats.evolutions[playerIndex] += 1;
   const actions = [];
@@ -1461,6 +1511,7 @@ function evolveUnitByAbility(ctx, unit, actions) {
   if (/can't attack followers or leaders/i.test(String(unit.card?.text ?? ""))) unit.canAttackLeader = false;
   unit.evolved = true;
   ctx.player.evolutionsThisMatch += 1;
+  recordHandEvolution(ctx.player);
   ctx.stats.evolutions[ctx.playerIndex] += 1;
   actions.push(`evolve ${unit.name} by ability`);
   const evolveText = getUnitTriggeredText(unit, "evolve");
@@ -1470,7 +1521,7 @@ function evolveUnitByAbility(ctx, unit, actions) {
 }
 
 function superEvolveUnitByAbility(ctx, unit, actions) {
-  if (unit.superEvolved) return;
+  if (unit.evolved || unit.superEvolved) return;
   unit.attack += 3;
   unit.defense += 3;
   unit.maxDefense += 3;
@@ -1479,6 +1530,7 @@ function superEvolveUnitByAbility(ctx, unit, actions) {
   unit.evolved = true;
   unit.superEvolved = true;
   ctx.player.evolutionsThisMatch += 1;
+  recordHandEvolution(ctx.player);
   ctx.stats.superEvolutions[ctx.playerIndex] += 1;
   actions.push(`super-evolve ${unit.name}`);
   const evolveText = getUnitTriggeredText(unit, "evolve");
@@ -1490,13 +1542,13 @@ function superEvolveUnitByAbility(ctx, unit, actions) {
 function attackPhase(player, opponent, playerIndex, enemyIndex, stats, frames, players, round, rng, map, record) {
   for (const attacker of [...player.board].filter(unit => unit.type === "Follower")) {
     while (player.board.includes(attacker) && attacker.attacksMade < attacker.maxAttacks) {
-      const allWards = opponent.board.filter(unit => unit.type === "Follower" && hasU(unit, "Ward"));
-      const attackableWards = attackable(opponent.board).filter(unit => hasU(unit, "Ward"));
+      const wards = activeWards(opponent.board);
+      const attackableWards = wards.filter(unit => !unit.intimidate && !unit.ambush);
       const foes = attackable(opponent.board);
       const canFollower = attacker.canAttackFollower;
-      const canLeader = attacker.canAttackLeader && !allWards.length;
+      const canLeader = attacker.canAttackLeader && !wards.length;
       let target = null, leader = false;
-      if (allWards.length) {
+      if (wards.length) {
         if (canFollower && attackableWards.length) target = tradeTarget(attacker, attackableWards, player.strategy);
         else break;
       } else if (canLeader && hasCollectiveBoardLethal(player, opponent)) leader = true;
@@ -1573,8 +1625,10 @@ function attackPhase(player, opponent, playerIndex, enemyIndex, stats, frames, p
         const incoming = Math.max(0, target.attack);
         const dealtToTarget = damageUnit(target, outgoing, opponent, player, { player, opponent, playerIndex, enemyIndex, stats, rng, cardMap: map }, actions);
         const dealtToAttacker = damageUnit(attacker, incoming, player, opponent, { player, opponent, playerIndex, enemyIndex, stats, rng, cardMap: map }, actions);
-        if (hasU(attacker, "Bane") && dealtToTarget > 0) target.defense = 0;
-        if (hasU(target, "Bane") && dealtToAttacker > 0) attacker.defense = 0;
+        // Bane is a combat destruction effect, not a damage threshold. It still
+        // applies when attack is 0 or combat damage is prevented.
+        if (hasU(attacker, "Bane")) destroyUnit(opponent, target);
+        if (hasU(target, "Bane")) destroyUnit(player, attacker);
         if (hasU(attacker, "Drain")) {
           const healed = healPlayer(player, dealtToTarget, stats, playerIndex);
           if (healed) actions.push(`Drain heals ${healed}`);
@@ -1601,6 +1655,7 @@ function attackPhase(player, opponent, playerIndex, enemyIndex, stats, frames, p
 }
 
 function attackable(board) { return board.filter(unit => unit.type === "Follower" && !unit.intimidate && !unit.ambush); }
+function activeWards(board) { return board.filter(unit => unit.type === "Follower" && hasU(unit, "Ward") && !unit.intimidate && !unit.ambush); }
 
 // [[battle-actual-damage-v5]]
 function damageLeader(player, amountValue) {
@@ -1647,17 +1702,22 @@ function chooseTarget(board, targeted) {
 }
 
 function tradeTarget(attacker, targets, strategy) {
-  return [...targets].sort((a,b) => {
-    const killA = attacker.attack >= a.defense ? 1 : 0;
-    const killB = attacker.attack >= b.defense ? 1 : 0;
-    if (killA !== killB) return killB - killA;
-    return strategy.tradeBias >= .65 ? (b.attack+b.defense)-(a.attack+a.defense) : a.defense-b.defense;
-  })[0] ?? null;
+  const tradeBias = clamp(Number(strategy?.tradeBias ?? .5), 0, 1);
+  const score = target => {
+    const kills = hasU(attacker, "Bane") || Math.max(0, Number(attacker.attack) || 0) >= Math.max(0, Number(target.defense) || 0);
+    const enemyBane = hasU(target, "Bane");
+    const invincible = attacker.superEvolved;
+    const survivesDamage = invincible || (Number(attacker.defense) || 0) > Math.max(0, Number(target.attack) || 0);
+    const survives = invincible || (!enemyBane && survivesDamage);
+    const threat = Math.max(0, Number(target.attack) || 0) * 3 + Math.max(0, Number(target.defense) || 0);
+    return (kills ? 100 : 0) + (survives ? 18 : 0) + threat * (0.45 + tradeBias) + (hasU(target, "Ward") ? 3 : 0);
+  };
+  return [...targets].sort((a,b) => score(b) - score(a))[0] ?? null;
 }
 
 // [[battle-ai-collective-lethal-v1]]
 function hasCollectiveBoardLethal(player, opponent) {
-  if (opponent.board.some(unit => unit.type === "Follower" && hasU(unit, "Ward"))) return false;
+  if (activeWards(opponent.board).length) return false;
   const hasCap = opponent.leaderDamageCap != null && Number.isFinite(Number(opponent.leaderDamageCap));
   const cap = hasCap ? Math.max(0, Number(opponent.leaderDamageCap)) : null;
   if (cap === 0) return false;
@@ -1675,8 +1735,36 @@ function hasCollectiveBoardLethal(player, opponent) {
 }
 
 function shouldFace(attacker, player, opponent, foes, rng) {
-  if (attacker.attack >= opponent.hp || player.strategy.style === "aggro" || !foes.length) return true;
-  return player.strategy.faceBias >= .65 || rng() < player.strategy.faceBias;
+  if (attacker.attack >= opponent.hp || !foes.length) return true;
+
+  const style = String(player.strategy?.style ?? "midrange");
+  const killable = foes.filter(target => canCombatRemove(attacker, target));
+  const enemyAttack = foes.reduce((sum, unit) => sum + Math.max(0, Number(unit.attack) || 0), 0);
+  const alliedAttack = player.board
+    .filter(unit => unit.type === "Follower")
+    .reduce((sum, unit) => sum + Math.max(0, Number(unit.attack) || 0), 0);
+  const defensiveEmergency = killable.length > 0 && enemyAttack >= Math.max(5, player.hp - 3);
+  const materiallyBehind = killable.length > 0 && enemyAttack >= alliedAttack + 4;
+  const highThreat = killable.some(target => (Number(target.attack) || 0) >= 4);
+
+  // Aggro should pressure, not blindly ignore every profitable or necessary
+  // trade. The previous unconditional face rule amplified first-player snowball.
+  if (style === "aggro") {
+    if (defensiveEmergency) return false;
+    if (materiallyBehind && opponent.hp > 8) return false;
+    if (highThreat && opponent.hp > 12) return false;
+    return true;
+  }
+
+  if (defensiveEmergency) return false;
+  const faceBias = clamp(Number(player.strategy?.faceBias ?? .5), 0, 1);
+  return faceBias >= .65 || rng() < faceBias;
+}
+
+function canCombatRemove(attacker, target) {
+  if (!attacker || !target) return false;
+  if (hasU(attacker, "Bane")) return true;
+  return Math.max(0, Number(attacker.attack) || 0) >= Math.max(0, Number(target.defense) || 0);
 }
 
 function strike(attacker, player, opponent, playerIndex, enemyIndex, stats, rng, map) {
@@ -1751,7 +1839,7 @@ function getUnitTriggeredText(unit, event) {
 
 function toCemetery(player, item, addShadow = false) { player.cemetery.push(item); if (addShadow) player.shadows += 1; }
 function destroyUnit(player, unit) { if (unit.superEvolved && player.isActive) return false; unit.defense = 0; return true; }
-function banish(player, unit) { if (unit.superEvolved && player.isActive) return false; if (unit.type === "Follower") notifyFollowerLeavesField(player, unit); player.board = player.board.filter(item => item.uid !== unit.uid); player.banished.push({ uid: unit.uid, card: unit.card }); return true; }
+function banish(player, unit) { if (unit.type === "Follower") notifyFollowerLeavesField(player, unit); player.board = player.board.filter(item => item.uid !== unit.uid); player.banished.push({ uid: unit.uid, card: unit.card }); return true; }
 function bounce(player, unit) { if (unit.type === "Follower") notifyFollowerLeavesField(player, unit); player.board = player.board.filter(item => item.uid !== unit.uid); const item = instance(player, unit.card); if (player.hand.length >= 9) { toCemetery(player, item, false); return false; } player.hand.push(item); return true; }
 
 function hasCrest(player, name) { const target = norm(name); return (player.crests ?? []).some(crest => norm(crest.name) === target); }

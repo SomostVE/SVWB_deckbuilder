@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { BATTLE_RULES_VERSION, inspectEffectiveCost, simulateBattle } from "../js/battle-engine.js";
+import { BATTLE_RULES_VERSION, inspectEffectiveCost, inspectPlayableModes, simulateBattle } from "../js/battle-engine.js";
 
 assert.equal(BATTLE_RULES_VERSION, 5, "Battle Sim v5 must be active");
 
@@ -53,8 +53,8 @@ const wardResult = simulateBattle({
 });
 assert.equal(
   wardResult.frames.some(frame => /Storm Tester attacks Opponent's leader/.test(frame.action)),
-  false,
-  "Ward must block non-Ward attack targets even when the Ward follower has Intimidate"
+  true,
+  "Ward must be inactive while that follower also has Intimidate"
 );
 
 const drawSpell = {
@@ -118,5 +118,60 @@ const gapResult = simulateBattle({
   recordFrames: false
 });
 assert.ok(gapResult.summary.stats.unsupportedEffects[0] > 0, "Playing Partial cards must increment the benchmark rule-gap exposure counter");
+
+
+const altModeTester = {
+  id: 40,
+  name: "Alternative Mode Tester",
+  class: "Neutral",
+  type: "Follower",
+  cost: 5,
+  attack: 3,
+  defense: 3,
+  traits: [],
+  keywords: [],
+  text: "Accelerate (1): Draw a card. Crystallize (2): Countdown (1) Last Words: Draw a card."
+};
+assert.deepEqual(inspectPlayableModes(altModeTester, { pp: 5 }), [{ kind: "base", cost: 5, modeIndex: 0 }], "Accelerate/Crystallize must be unavailable when the base card is affordable");
+assert.deepEqual(inspectPlayableModes(altModeTester, { pp: 3 }), [{ kind: "crystallize", cost: 2, modeIndex: 0 }], "The highest affordable fallback play cost must be used");
+assert.deepEqual(inspectPlayableModes(altModeTester, { pp: 1 }), [{ kind: "accelerate", cost: 1, modeIndex: 0 }], "Accelerate must remain available when the base card is unaffordable");
+assert.deepEqual(inspectPlayableModes(altModeTester, { pp: 5, boardSize: 5 }), [], "A full field must not unlock fallback modes when the base follower is otherwise affordable");
+
+const baneAttacker = {
+  id: 50,
+  name: "Zero Attack Bane Tester",
+  class: "Neutral",
+  type: "Follower",
+  cost: 1,
+  attack: 0,
+  defense: 5,
+  traits: [],
+  keywords: ["Storm", "Bane"],
+  text: "Storm Bane"
+};
+const baneTarget = {
+  id: 51,
+  name: "Bane Ward Tester",
+  class: "Neutral",
+  type: "Follower",
+  cost: 1,
+  attack: 0,
+  defense: 10,
+  traits: [],
+  keywords: ["Ward", "Barrier"],
+  text: "Ward Barrier"
+};
+const baneResult = simulateBattle({
+  playerDeck: [[50, 40]],
+  opponentDeck: [[51, 40]],
+  cardMap: new Map([[50, baneAttacker], [51, baneTarget]]),
+  playerStrategy: { style: "aggro", mulliganMaxCost: 1, faceBias: 1, tradeBias: 0 },
+  opponentStrategy: { style: "control", mulliganMaxCost: 1, faceBias: 0, tradeBias: 1 },
+  seed: "rules-bane-zero-damage",
+  playerSide: "second"
+});
+const baneAttackFrame = baneResult.frames.find(frame => frame.active === 0 && frame.phase === "attack" && /Zero Attack Bane Tester attacks Bane Ward Tester/.test(frame.action));
+assert.ok(baneAttackFrame, "Bane regression must produce combat into Ward");
+assert.equal(baneAttackFrame.players[1].board.some(unit => unit.name === "Bane Ward Tester"), false, "Bane must destroy after combat even when actual combat damage is 0");
 
 console.log("Battle Sim exact-rule regressions: OK");
