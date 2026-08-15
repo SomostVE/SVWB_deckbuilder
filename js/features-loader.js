@@ -13,3 +13,6 @@ if(document.querySelector('.sidebar')){
 if(document.querySelector('.header-actions')){
   import('./battle-link.js');
 }
+if(document.querySelector('.battle-page')){
+  import('./battle-v2-ui.js');
+}
