@@ -1339,6 +1339,14 @@ function attackPhase(player, opponent, playerIndex, enemyIndex, stats, frames, p
       }
 
       if (leader) {
+        // [[battle-strike-precombat-v5]] Attack/Strike abilities resolve before combat damage.
+        actions.push(...strike(attacker, player, opponent, playerIndex, enemyIndex, stats, rng, map));
+        actions.push(...cleanup(opponent, player, enemyIndex, playerIndex, stats, rng, map), ...cleanup(player, opponent, playerIndex, enemyIndex, stats, rng, map));
+        if (!player.board.includes(attacker) || opponent.hp <= 0) {
+          snap(frames, players, { round, active: playerIndex, phase: "attack", action: compact(`${attacker.name} attacks ${opponent.name}'s leader.`, actions) }, stats, record);
+          if (opponent.hp <= 0) return;
+          break;
+        }
         const damage = Math.max(0, attacker.attack);
         opponent.hp -= damage;
         stats.damageDealt[playerIndex] += damage;
@@ -1347,21 +1355,31 @@ function attackPhase(player, opponent, playerIndex, enemyIndex, stats, frames, p
           if (healed) actions.push(`Drain heals ${healed}`);
           actions.push(...afterLeaderHeal(player, healed, stats, playerIndex));
         }
-        actions.push(...strike(attacker, player, opponent, playerIndex, enemyIndex, stats, rng, map));
         snap(frames, players, { round, active: playerIndex, phase: "attack", action: compact(`${attacker.name} attacks ${opponent.name}'s leader for ${damage}.`, actions) }, stats, record);
         if (opponent.hp <= 0) return;
         continue;
       }
 
       if (target) {
+        // Attack/Strike and Clash abilities all resolve before combat damage.
+        actions.push(...strike(attacker, player, opponent, playerIndex, enemyIndex, stats, rng, map));
         const clashAttacker = getUnitTriggeredText(attacker, "clash");
         const clashTarget = getUnitTriggeredText(target, "clash");
         if (clashAttacker) actions.push(...resolveText(clashAttacker, { card: attacker.card, sourceUnit: attacker, player, opponent, playerIndex, enemyIndex, stats, rng, cardMap: map }).actions);
         if (clashTarget) actions.push(...resolveText(clashTarget, { card: target.card, sourceUnit: target, player: opponent, opponent: player, playerIndex: enemyIndex, enemyIndex: playerIndex, stats, rng, cardMap: map }).actions);
         actions.push(...cleanup(player, opponent, playerIndex, enemyIndex, stats, rng, map), ...cleanup(opponent, player, enemyIndex, playerIndex, stats, rng, map));
-        if (!player.board.includes(attacker) || !opponent.board.includes(target)) {
-          snap(frames, players, { round, active: playerIndex, phase: "attack", action: compact(`${attacker.name} clashes with ${target.name}.`, actions) }, stats, record);
-          break;
+        const attackerAlive = player.board.includes(attacker);
+        const targetAlive = opponent.board.includes(target);
+        if (!attackerAlive || !targetAlive) {
+          if (attackerAlive && attacker.superEvolved && !targetAlive && target.defense <= 0) {
+            opponent.hp -= 1;
+            stats.damageDealt[playerIndex] += 1;
+            actions.push("Super-Evolution deals 1 leader damage");
+          }
+          snap(frames, players, { round, active: playerIndex, phase: "attack", action: compact(`${attacker.name} attacks ${target.name}.`, actions) }, stats, record);
+          if (opponent.hp <= 0) return;
+          if (!attackerAlive) break;
+          continue;
         }
 
         const outgoing = Math.max(0, attacker.attack);
@@ -1386,7 +1404,6 @@ function attackPhase(player, opponent, playerIndex, enemyIndex, stats, frames, p
           }
         }
         actions.push(...cleanup(opponent, player, enemyIndex, playerIndex, stats, rng, map), ...cleanup(player, opponent, playerIndex, enemyIndex, stats, rng, map));
-        if (player.board.includes(attacker)) actions.push(...strike(attacker, player, opponent, playerIndex, enemyIndex, stats, rng, map));
         snap(frames, players, { round, active: playerIndex, phase: "attack", action: compact(`${attacker.name} attacks ${target.name}.`, actions) }, stats, record);
         if (opponent.hp <= 0) return;
         continue;
@@ -1454,7 +1471,7 @@ function strike(attacker, player, opponent, playerIndex, enemyIndex, stats, rng,
   if (!text) return [];
   stats.strikeTriggered[playerIndex] += 1;
   const result = resolveText(text, { card: attacker.card, sourceUnit: attacker, player, opponent, playerIndex, enemyIndex, stats, rng, cardMap: map });
-  return ["Strike", ...result.actions, ...cleanup(opponent, player, enemyIndex, playerIndex, stats, rng, map)];
+  return ["Strike", ...result.actions];
 }
 
 function healPlayer(player, amount, stats, index) {
