@@ -145,6 +145,9 @@ export function applyEntryCrestEffects(context, unit) {
   if (!unit || unit.type !== "Follower" || unit.__entryEventsApplied) return [];
   unit.__entryEventsApplied = true;
   const actions = [];
+  const traits = new Set((unit.card?.traits ?? []).map(normalize));
+
+  if (traits.has("artifact")) recordArtifactEntry(context.player, unit);
 
   for (const crest of context.player.crests ?? []) {
     const name = normalize(crest.name);
@@ -156,7 +159,6 @@ export function applyEntryCrestEffects(context, unit) {
     }
   }
 
-  const traits = new Set((unit.card?.traits ?? []).map(normalize));
   for (const source of context.player.board ?? []) {
     if (source === unit || source.type !== "Follower") continue;
     const name = normalize(source.name);
@@ -295,6 +297,36 @@ function resolveCardSpecificText(textValue, context) {
   const actions = [];
   let applied = false;
   const cardName = normalize(context.card?.name);
+
+  if (cardName === "freerunning" && artifactEntryCount(context.player) >= 3) {
+    const hasAnalyzing = /\banalyzing artifact\b/i.test(text);
+    const hasAncient = /\bancient artifact\b/i.test(text);
+    if (hasAnalyzing !== hasAncient) {
+      const missingName = hasAnalyzing ? "Ancient Artifact" : "Analyzing Artifact";
+      const missing = relatedCardByName(context.card, missingName);
+      const count = missing && typeof context.addToHand === "function"
+        ? context.addToHand(context.player, missing, 1, context.playerIndex)
+        : 0;
+      if (count) {
+        context.stats.cardsGenerated[context.playerIndex] += count;
+        actions.push(`Freerunning threshold: add ${missing.name}`);
+        applied = true;
+      }
+    }
+  }
+
+  if (cardName === "scarlet, anathema of dislocation") {
+    const artifactDamage = /deal X damage to all enemy followers\.\s*X is the number of differently named allied Artifact followers that have entered the field this match\.?/i;
+    if (artifactDamage.test(text)) {
+      const amount = artifactEntryCount(context.player);
+      const targets = context.opponent.board.filter(unit => unit.type === "Follower");
+      for (const target of targets) target.defense -= amount;
+      if (targets.length) context.cleanup(context.opponent, context.enemyIndex);
+      actions.push(`Scarlet: ${amount} damage to ${targets.length} enemy follower${targets.length === 1 ? "" : "s"}`);
+      text = text.replace(artifactDamage, " ");
+      applied = true;
+    }
+  }
 
   if (cardName === "imari, dewdrop") {
     const fanfare = /select a card in your hand and discard it\.\s*draw a spell\.?/i;
@@ -474,6 +506,16 @@ function fieldValue(unit) {
 function relatedCardByName(card, name) {
   const target = normalize(name);
   return (card?.__relatedCardObjects ?? []).find(related => normalize(related.name) === target) ?? null;
+}
+
+function recordArtifactEntry(player, unit) {
+  if (!Array.isArray(player.artifactFollowerNamesEntered)) player.artifactFollowerNamesEntered = [];
+  const name = normalize(unit?.name ?? unit?.card?.name);
+  if (name && !player.artifactFollowerNamesEntered.includes(name)) player.artifactFollowerNamesEntered.push(name);
+}
+
+function artifactEntryCount(player) {
+  return Array.isArray(player?.artifactFollowerNamesEntered) ? player.artifactFollowerNamesEntered.length : 0;
 }
 
 function giveUnitKeyword(unit, keyword) {
