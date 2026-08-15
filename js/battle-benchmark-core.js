@@ -145,10 +145,9 @@ function wilsonInterval(successes, trials, z = 1.959963984540054) {
   const denominator = 1 + z2 / trials;
   const center = (p + z2 / (2 * trials)) / denominator;
   const margin = z * Math.sqrt((p * (1 - p) + z2 / (4 * trials)) / trials) / denominator;
-  return {
-    low: Math.max(0, (center - margin) * 100),
-    high: Math.min(100, (center + margin) * 100)
-  };
+  const low = successes <= 0 ? 0 : Math.max(0, (center - margin) * 100);
+  const high = successes >= trials ? 100 : Math.min(100, (center + margin) * 100);
+  return { low, high };
 }
 
 function sampleTier(games) {
