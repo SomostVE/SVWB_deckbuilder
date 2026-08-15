@@ -49,6 +49,9 @@ jobs:
       - name: Run Battle Sim tactical look-ahead regression
         run: node scripts/check-battle-ai-lookahead.mjs
 
+      - name: Run Battle Sim Fuse regression
+        run: node scripts/check-battle-fuse.mjs
+
       - name: Run Battle Sim full coverage regression
         run: node scripts/check-battle-coverage-100.mjs
 
