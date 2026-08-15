@@ -94,11 +94,20 @@ const freerunning = {
   cost: 1,
   __relatedCardObjects: [analyzing, ancient]
 };
+const scarlet = {
+  id: 10774110,
+  name: "Scarlet, Anathema of Dislocation",
+  type: "Follower",
+  traits: ["Anathema"],
+  keywords: ["Storm", "Ward"]
+};
 
 const player = makePlayer();
 const opponent = { name: "Opponent", hp: 20, maxHp: 20, board: [], hand: [], nextSerial: 0 };
 const battleStats = stats();
 const context = baseContext(player, opponent, battleStats);
+const scarletInstance = { uid: "scarlet-instance", card: scarlet, x: 0 };
+player.deck = [scarletInstance];
 
 const artifactA = artifactUnit("Analyzing Artifact");
 const artifactB = artifactUnit("Ancient Artifact");
@@ -108,6 +117,7 @@ player.board = [artifactA, artifactB, artifactC];
 applyEntryCrestEffects(context, artifactA);
 applyEntryCrestEffects(context, artifactB);
 assert.deepEqual(player.artifactFollowerNamesEntered, ["analyzing artifact", "ancient artifact"], "Artifact history must track unique names");
+assert.equal(scarletInstance.x, 2, "Scarlet X must follow the number of differently named Artifact followers that entered");
 
 let result = executeGenericEffects("Add an Analyzing Artifact to your hand.", { ...context, card: freerunning });
 assert.deepEqual(player.hand.map(item => item.card.name), ["Analyzing Artifact"], "Freerunning below 3 unique Artifact entries must activate only the selected mode");
@@ -117,30 +127,18 @@ player.hand = [];
 battleStats.cardsGenerated[0] = 0;
 applyEntryCrestEffects(context, artifactC);
 assert.equal(player.artifactFollowerNamesEntered.length, 3, "Third differently named Artifact must unlock Freerunning's combined mode");
+assert.equal(scarletInstance.x, 3, "Scarlet runtime instance must receive the unlocked Artifact-entry count before it is played");
 
 result = executeGenericEffects("Add an Analyzing Artifact to your hand.", { ...context, card: freerunning });
 assert.deepEqual(player.hand.map(item => item.card.name).sort(), ["Analyzing Artifact", "Ancient Artifact"], "Freerunning at 3 unique Artifact entries must activate both modes");
 assert.equal(battleStats.cardsGenerated[0], 2, "Both Freerunning-generated Artifacts must count as generated cards");
 assert.equal(result.unresolved, false, "Freerunning threshold effect must resolve without a rule gap");
 
-const scarlet = {
-  id: 10774110,
-  name: "Scarlet, Anathema of Dislocation",
-  type: "Follower",
-  traits: ["Anathema"],
-  keywords: ["Storm", "Ward"]
-};
-opponent.board = [
-  { uid: "enemy-a", name: "Enemy A", type: "Follower", attack: 2, defense: 5, maxDefense: 5, keywords: [] },
-  { uid: "enemy-b", name: "Enemy B", type: "Follower", attack: 2, defense: 2, maxDefense: 2, keywords: [] }
-];
-
 result = executeGenericEffects(
-  "Deal X damage to all enemy followers. X is the number of differently named allied Artifact followers that have entered the field this match.",
+  "X is the number of differently named allied Artifact followers that have entered the field this match.",
   { ...context, card: scarlet }
 );
-assert.equal(opponent.board.length, 1, "Scarlet must destroy followers whose defense is not greater than the Artifact-entry count");
-assert.equal(opponent.board[0].defense, 2, "Scarlet must deal exactly X damage where X is the unique Artifact-entry count");
-assert.ok(result.actions.some(action => action.includes("Scarlet: 3 damage")), "Scarlet's resolved X damage must be visible in actions");
+assert.equal(result.unresolved, false, "Scarlet's explanatory X clause must not remain unresolved after v5 consumes its X-damage clause");
+assert.ok(result.actions.includes("Scarlet: X=3"), "Scarlet should expose the resolved Artifact-history X value in its action log");
 
 console.log("Battle Sim Artifact history regressions: OK");
