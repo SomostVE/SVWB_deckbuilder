@@ -1,0 +1,33 @@
+name: Final Battle Sim mirror audit
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/final-battle-mirror-audit.yml
+permissions:
+  contents: read
+jobs:
+  mirror:
+    strategy:
+      fail-fast: false
+      matrix:
+        deck:
+          - buff-forestcraft
+          - aggro-swordcraft
+          - spell-runecraft
+          - ramp-dragoncraft
+          - aggro-abysscraft
+          - ward-havencraft
+          - puppetry-portalcraft
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: 1000-game mirror
+        env:
+          MIRROR_DECK_ID: ${{ matrix.deck }}
+          MIRROR_GAMES: '1000'
+        run: node scripts/benchmark-reference-mirrors.mjs
