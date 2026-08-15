@@ -79,6 +79,7 @@ function createAggregate() {
     ppSpent: 0,
     ppWasted: 0,
     ruleGapExposures: 0,
+    ruleGapsByCard: {},
     healing: 0,
     cardsPlayed: 0
   };
@@ -94,6 +95,11 @@ function addResult(bucket, result) {
   bucket.ppSpent += Number(stats.ppSpent?.[0]) || 0;
   bucket.ppWasted += Number(stats.ppWasted?.[0]) || 0;
   bucket.ruleGapExposures += (Number(stats.unsupportedEffects?.[0]) || 0) + (Number(stats.unsupportedEffects?.[1]) || 0);
+  for (const side of stats.ruleGapsByCard ?? []) {
+    for (const [name, count] of Object.entries(side ?? {})) {
+      bucket.ruleGapsByCard[name] = (Number(bucket.ruleGapsByCard[name]) || 0) + (Number(count) || 0);
+    }
+  }
   bucket.healing += Number(stats.healing?.[0]) || 0;
   bucket.cardsPlayed += Number(stats.cardsPlayed?.[0]) || 0;
 
@@ -114,6 +120,9 @@ function finalizeAggregate(bucket) {
   const winRate = games ? bucket.wins / games * 100 : 0;
   const winRate95 = wilsonInterval(bucket.wins, games);
   const ruleGapsPerGame = games ? bucket.ruleGapExposures / games : 0;
+  const ruleGapsByCard = Object.entries(bucket.ruleGapsByCard ?? {})
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([name, count]) => ({ name, count, perGame: games ? count / games : 0 }));
   return {
     games,
     wins: bucket.wins,
@@ -134,6 +143,7 @@ function finalizeAggregate(bucket) {
     averageCardsPlayed: games ? bucket.cardsPlayed / games : 0,
     ppEfficiency: ppTotal ? bucket.ppSpent / ppTotal * 100 : 0,
     ruleGapsPerGame,
+    ruleGapsByCard,
     unsupportedTriggersPerGame: ruleGapsPerGame
   };
 }
