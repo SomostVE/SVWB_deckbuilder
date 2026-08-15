@@ -11,12 +11,12 @@ if (source.includes("// [[battle-actual-damage-v5]]")) {
 const randomLeaderOld = `      if (target.leader) {
         ctx.opponent.hp -= Number(match[1]);
         ctx.stats.damageDealt[ctx.playerIndex] += Number(match[1]);
-        actions.push(\`${match[1]} to enemy leader\`);
+        actions.push(\`\${match[1]} to enemy leader\`);
       } else {`;
 const randomLeaderNew = `      if (target.leader) {
         const dealt = damageLeader(ctx.opponent, Number(match[1]));
         ctx.stats.damageDealt[ctx.playerIndex] += dealt;
-        actions.push(\`${dealt} to enemy leader\`);
+        actions.push(\`\${dealt} to enemy leader\`);
       } else {`;
 if (!source.includes(randomLeaderOld)) throw new Error("Random leader damage block not found");
 source = source.replace(randomLeaderOld, randomLeaderNew);
