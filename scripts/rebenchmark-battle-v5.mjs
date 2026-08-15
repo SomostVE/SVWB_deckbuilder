@@ -1,3 +1,4 @@
+// Reproducible Battle Sim v5 matrix for Ward Havencraft and Puppetry Portalcraft.
 import fs from "node:fs/promises";
 import { runMatchupBenchmark } from "../js/battle-benchmark-core.js";
 
