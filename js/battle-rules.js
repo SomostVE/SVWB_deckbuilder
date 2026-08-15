@@ -12,7 +12,15 @@ export function getTriggeredText(card, event, mode = null) {
   // Lifecycle events are emitted centrally by the battle engine. Injecting
   // destruction/turn-end hooks here made those events run once per unit text
   // and then again through the engine's explicit event dispatch.
-  return core.getTriggeredText(card, event, mode);
+  const base = core.getTriggeredText(card, event, mode);
+  if (base) return base;
+  // [[battle-natural-evolve-trigger-v5]]
+  if (event === "evolve") {
+    const text = String(card?.text ?? "").toLowerCase().replace(/[’‘]/g, "'").replace(/\s+/g, " ").trim();
+    const reactive = text.match(/when this follower evolves,\s*([^.]*(?:\.|$))/i);
+    if (reactive) return reactive[1].trim();
+  }
+  return "";
 }
 
 export function executeGenericEffects(textValue, context) {
@@ -391,6 +399,44 @@ function resolveCardSpecificText(textValue, context) {
       context.player.sep = Math.min(2, before + 2);
       actions.push(`Olivia: recover ${context.player.sep - before} SEP`);
       text = text.replace(recoverSep, " ");
+      applied = true;
+    }
+  }
+
+  // [[battle-asher-v5]]
+  if (cardName === "asher & lydia, paths beyond") {
+    const enemyWard = /select an enemy follower on the field and give it Ward\.?/i;
+    if (enemyWard.test(text)) {
+      const target = context.chooseEnemyFollower?.(context.opponent.board) ?? null;
+      if (target && giveUnitKeyword(target, "Ward")) actions.push(`Asher & Lydia: give Ward to ${target.name}`);
+      text = text.replace(enemyWard, " ");
+      applied = true;
+    }
+
+    const enhanceSelf = /evolve this follower and give it Storm\.?/i;
+    if (enhanceSelf.test(text)) {
+      if (context.sourceUnit) {
+        context.evolveUnitByAbility?.(context.sourceUnit);
+        giveUnitKeyword(context.sourceUnit, "Storm");
+        actions.push("Asher & Lydia: evolve and gain Storm");
+      }
+      text = text.replace(enhanceSelf, " ");
+      applied = true;
+    }
+
+    const destroyWards = /destroy 2 random enemy followers with Ward\.?/i;
+    if (destroyWards.test(text)) {
+      const candidates = context.opponent.board.filter(unit => unit.type === "Follower" && hasKeyword(unit, "Ward"));
+      const destroyed = [];
+      for (let index = 0; index < 2 && candidates.length; index += 1) {
+        const roll = Math.max(0, Math.min(candidates.length - 1, Math.floor((context.rng?.() ?? 0) * candidates.length)));
+        const [target] = candidates.splice(roll, 1);
+        target.defense = 0;
+        destroyed.push(target.name);
+      }
+      if (destroyed.length) context.cleanup?.(context.opponent, context.enemyIndex);
+      if (destroyed.length) actions.push(`Asher & Lydia: destroy ${destroyed.join(" + ")}`);
+      text = text.replace(destroyWards, " ");
       applied = true;
     }
   }

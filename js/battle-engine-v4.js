@@ -29,7 +29,6 @@ const PARTIAL_OVERRIDES = new Map([
   ["sofina, inspiring strength", "Mode-driven evolution and evolved turn-end board debuff are not fully modeled"],
   ["aether, empyrean guardian", "Random differently named deck summons and Super-Evolve Aura distribution are not fully modeled"],
   ["edeth, voice of heaven", "Last Words resummon-without-Last-Words and targeted Super-Evolve destruction are not fully modeled"],
-  ["asher & lydia, paths beyond", "Enemy Ward targeting, Enhance evolution and evolve-trigger destruction are not fully modeled"],
 ]);
 
 const HANDLED_REACTIVE_CLAUSES = [
