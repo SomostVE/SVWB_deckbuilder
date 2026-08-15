@@ -6,10 +6,19 @@ export const BATTLE_RULES_VERSION = 4;
 
 const ENTRY_HOOK = "[[battle-entry-hook]]";
 const GAP_HOOK = "[[battle-rule-gap-hook]]";
+const SPELL_HOOK = "[[battle-spell-play-hook]]";
 const FULL_OVERRIDES = new Map([
   ["wilbert, desolate paladin", "Persistent Ward-entry Crest is modeled"],
-  ["grimnir, heavenly gale", "Persistent Crest turn-end trigger is modeled"]
+  ["grimnir, heavenly gale", "Persistent Crest turn-end trigger is modeled"],
+  ["sincerity of the dewdrop", "Field transform into Imari's Little Buddies is modeled"]
 ]);
+
+const HANDLED_REACTIVE_CLAUSES = [
+  /Whenever an allied Puppetry follower enters the field, give it Storm and Bane\.?/gi,
+  /Whenever an allied Puppetry follower enters the field, give it Ward\.?/gi,
+  /Whenever an allied Artifact follower enters the field, give it Rush\.?/gi,
+  /Whenever you play a spell, if this follower is evolved, summon an Imari's Little Buddies\.?/gi
+];
 
 export function simulateBattle(options) {
   const originalMap = options.cardMap;
@@ -82,21 +91,47 @@ export const inspectEffectiveCost = v3.inspectEffectiveCost;
 function prepareSimulationCardMap(cardMap) {
   const prepared = new Map();
   prepareOriginalCardMap(cardMap);
+
   for (const [id, card] of cardMap.entries()) {
     if (!card) continue;
     const support = analyzeCardSupport(card);
+    let text = sanitizeHandledReactiveText(card.text);
+    text = expandEnhanceWithBaseFanfare(text);
     const hooks = [];
     if (card.type === "Follower") hooks.push(ENTRY_HOOK);
     if (support.level !== "full") hooks.push(GAP_HOOK);
+    text = injectHooks(text, hooks);
+    text = injectSpellHooks(text, card);
+
     prepared.set(Number(id), {
       ...card,
       keywords: [...(card.keywords ?? [])],
       traits: [...(card.traits ?? [])],
       relatedCards: [...(card.relatedCards ?? [])],
-      text: injectHooks(card.text, hooks)
+      text
     });
   }
+
+  for (const card of prepared.values()) {
+    card.__relatedCardObjects = (card.relatedCards ?? [])
+      .map(id => prepared.get(Number(id)))
+      .filter(Boolean);
+  }
+
   return prepared;
+}
+
+function sanitizeHandledReactiveText(textValue) {
+  let text = String(textValue ?? "");
+  for (const pattern of HANDLED_REACTIVE_CLAUSES) text = text.replace(pattern, " ");
+  return text.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function expandEnhanceWithBaseFanfare(textValue) {
+  const text = String(textValue ?? "");
+  const fanfare = text.match(/\bFanfare\s*:\s*([\s\S]*?)(?=\b(?:Enhance\s*\(?\s*\d+\s*\)?|Accelerate\s*\(?\s*\d+\s*\)?|Last Words|Strike|Clash|Evolve|Super-Evolve|Engage|On Spellboost|At the start of your turn|At the end of your turn)\s*:|$)/i)?.[1]?.trim();
+  if (!fanfare || !/\bEnhance\s*\(?\s*\d+\s*\)?\s*:/i.test(text)) return text;
+  return text.replace(/\bEnhance\s*\(?\s*(\d+)\s*\)?\s*:/gi, match => `${match} ${fanfare} `);
 }
 
 function injectHooks(textValue, hooks) {
@@ -107,6 +142,15 @@ function injectHooks(textValue, hooks) {
     return text.replace(/\bFanfare\s*:/i, match => `${match} ${hookText} `);
   }
   return `${hookText}${text ? ` ${text}` : ""}`.trim();
+}
+
+function injectSpellHooks(textValue, card) {
+  let text = String(textValue ?? "");
+  if (card.type === "Spell") text = `${SPELL_HOOK} ${text}`.trim();
+  if (/\bAccelerate\s*\(?\s*\d+\s*\)?\s*:/i.test(text)) {
+    text = text.replace(/\bAccelerate\s*\(?\s*\d+\s*\)?\s*:/gi, match => `${match} ${SPELL_HOOK} `);
+  }
+  return text;
 }
 
 function prepareOriginalCardMap(cardMap) {

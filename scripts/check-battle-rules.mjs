@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { BATTLE_RULES_VERSION, inspectEffectiveCost, simulateBattle } from "../js/battle-engine.js";
-import { applyEntryCrestEffects, applyTurnEndCrestEffects } from "../js/battle-rules.js";
+import { applyEntryCrestEffects, applySpellPlayedEffects, applyTurnEndCrestEffects } from "../js/battle-rules.js";
 
 assert.equal(BATTLE_RULES_VERSION, 4, "Battle Sim v4 must be active");
 
@@ -98,18 +98,9 @@ assert.ok(firstSpellFrame, "Shadow regression test must produce a spell-play fra
 assert.ok(firstSpellFrame.stats.cardsBurned[0] > 0, "Shadow regression test must burn cards from a full hand");
 assert.equal(firstSpellFrame.players[0].shadows, 1, "Playing the spell adds one Shadow; burned cards do not add Shadows");
 
-const crestStats = {
-  healing: [0, 0],
-  unsupportedEffects: [0, 0]
-};
-const crestPlayer = {
-  hp: 19,
-  maxHp: 20,
-  personalTurn: 7,
-  crests: [{ name: "Wilbert, Desolate Paladin" }],
-  board: []
-};
-const crestOpponent = { hp: 20, board: [] };
+const crestStats = { healing: [0, 0], unsupportedEffects: [0, 0], cardsGenerated: [0, 0] };
+const crestPlayer = { hp: 19, maxHp: 20, personalTurn: 7, crests: [{ name: "Wilbert, Desolate Paladin" }], board: [], nextSerial: 0 };
+const crestOpponent = { hp: 20, board: [], nextSerial: 0 };
 const crestContext = {
   player: crestPlayer,
   opponent: crestOpponent,
@@ -123,19 +114,12 @@ const crestContext = {
   },
   cleanup() {}
 };
-const holyCavalier = {
-  name: "Holy Cavalier",
-  type: "Follower",
-  attack: 1,
-  defense: 2,
-  maxDefense: 2,
-  keywords: ["Ward"]
-};
+const holyCavalier = { name: "Holy Cavalier", type: "Follower", attack: 1, defense: 2, maxDefense: 2, keywords: ["Ward"], card: { traits: [] } };
 applyEntryCrestEffects(crestContext, holyCavalier);
 assert.equal(holyCavalier.attack, 2, "Wilbert Crest gives an entering Ward follower +1 attack");
 assert.equal(holyCavalier.defense, 4, "Wilbert Crest gives an entering Ward follower +2 defense");
 applyEntryCrestEffects(crestContext, holyCavalier);
-assert.equal(holyCavalier.attack, 2, "Entry Crest effects must only apply once to the same follower");
+assert.equal(holyCavalier.attack, 2, "Entry effects must only apply once to the same follower");
 
 crestPlayer.crests = [{ name: "Grimnir, Heavenly Gale" }];
 crestPlayer.board = [{ name: "Super Tester", type: "Follower", superEvolved: true, defense: 5, maxDefense: 5, keywords: [] }];
@@ -155,6 +139,34 @@ assert.equal(crestPlayer.crests[0].__countdownRemaining, 1, "Sandalphon Crest co
 crestPlayer.personalTurn = 10;
 applyTurnEndCrestEffects(crestContext);
 assert.equal(crestPlayer.crests.length, 0, "Sandalphon Crest expires after Countdown 2");
+
+function source(name) {
+  return { name, type: "Follower", keywords: [], card: { traits: [] } };
+}
+const portalPlayer = { hp: 20, maxHp: 20, personalTurn: 1, crests: [], nextSerial: 0, board: [source("Orchis, Newfound Heart"), source("Zwei, Symphonic Heart")] };
+const portalContext = { ...crestContext, player: portalPlayer, opponent: crestOpponent };
+const puppet = { name: "Enhanced Puppet", type: "Follower", attack: 3, defense: 3, maxDefense: 3, keywords: ["Rush"], card: { traits: ["Puppetry"] } };
+applyEntryCrestEffects(portalContext, puppet);
+assert.ok(puppet.keywords.includes("Storm"), "Orchis gives entering Puppetry followers Storm");
+assert.ok(puppet.keywords.includes("Bane"), "Orchis gives entering Puppetry followers Bane");
+assert.ok(puppet.keywords.includes("Ward"), "Zwei gives entering Puppetry followers Ward");
+
+const broadcaster = source("Brazen Broadcaster");
+portalPlayer.board = [broadcaster];
+const artifact = { name: "Analyzing Artifact", type: "Follower", attack: 1, defense: 1, maxDefense: 1, keywords: [], card: { traits: ["Artifact"] } };
+applyEntryCrestEffects(portalContext, artifact);
+assert.ok(artifact.keywords.includes("Rush"), "Brazen Broadcaster gives entering Artifact followers Rush");
+
+const buddiesCard = { id: 99, name: "Imari's Little Buddies", type: "Follower", attack: 3, defense: 3, traits: [], keywords: ["Rush"] };
+const imari = { name: "Imari, Dewdrop", type: "Follower", evolved: true, card: { __relatedCardObjects: [buddiesCard] } };
+portalPlayer.board = [imari];
+portalContext.summon = (player, card, amount) => {
+  player.board.push({ name: card.name, type: "Follower", card, attack: card.attack, defense: card.defense, maxDefense: card.defense, keywords: [...card.keywords] });
+  return amount;
+};
+const imariActions = applySpellPlayedEffects(portalContext);
+assert.equal(portalPlayer.board.filter(unit => unit.name === "Imari's Little Buddies").length, 1, "An evolved Imari summons Little Buddies when a spell is played");
+assert.ok(imariActions.some(action => /Imari/.test(action)), "Imari spell trigger must be visible in resolved actions");
 
 const partialFollower = {
   id: 30,

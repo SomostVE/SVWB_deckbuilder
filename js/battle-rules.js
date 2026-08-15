@@ -4,6 +4,7 @@ export * from "./battle-rules-core.js";
 
 const ENTRY_HOOK = "[[battle-entry-hook]]";
 const GAP_HOOK = "[[battle-rule-gap-hook]]";
+const SPELL_HOOK = "[[battle-spell-play-hook]]";
 const TURN_END_HOOK = "[[battle-crest-turn-end-hook]]";
 
 export function getTriggeredText(card, event, mode = null) {
@@ -17,6 +18,8 @@ export function executeGenericEffects(textValue, context) {
   const actions = [];
   let applied = false;
   let gapEncountered = false;
+  const hasEntryHook = containsHook(text, ENTRY_HOOK);
+  const hasSpellHook = containsHook(text, SPELL_HOOK);
 
   if (containsHook(text, GAP_HOOK)) {
     text = stripHook(text, GAP_HOOK);
@@ -24,14 +27,8 @@ export function executeGenericEffects(textValue, context) {
     gapEncountered = true;
   }
 
-  if (containsHook(text, ENTRY_HOOK)) {
-    text = stripHook(text, ENTRY_HOOK);
-    const entryActions = applyEntryCrestEffects(context, context.sourceUnit);
-    if (entryActions.length) {
-      actions.push(...entryActions);
-      applied = true;
-    }
-  }
+  if (hasEntryHook) text = stripHook(text, ENTRY_HOOK);
+  if (hasSpellHook) text = stripHook(text, SPELL_HOOK);
 
   if (containsHook(text, TURN_END_HOOK)) {
     text = stripHook(text, TURN_END_HOOK);
@@ -40,6 +37,29 @@ export function executeGenericEffects(textValue, context) {
       actions.push(...crestActions);
       applied = true;
     }
+  }
+
+  if (hasEntryHook && context.sourceUnit) {
+    const selfEntry = text.match(/\bwhen this (?:card|follower) enters the field,\s*([^.]*)\.?/i);
+    if (selfEntry) {
+      const result = core.executeGenericEffects(selfEntry[1], { ...context, card: context.sourceUnit.card, sourceUnit: context.sourceUnit });
+      actions.push(...(result.actions ?? []).map(action => `${context.sourceUnit.name}: ${action}`));
+      applied ||= result.applied;
+      text = text.replace(selfEntry[0], " ");
+    }
+
+    const entryActions = applyEntryCrestEffects(context, context.sourceUnit);
+    if (entryActions.length) {
+      actions.push(...entryActions);
+      applied = true;
+    }
+  }
+
+  const transform = resolveFieldTransform(text, context);
+  if (transform.matched) {
+    text = transform.text;
+    actions.push(...transform.actions);
+    applied ||= transform.applied;
   }
 
   const superEvolvedCondition = text.match(/if there(?:'|’)s a super-evolved allied follower on the field,\s*(.*)$/i);
@@ -61,22 +81,38 @@ export function executeGenericEffects(textValue, context) {
           actions.push(...entryActions);
           applied = true;
         }
+        const selfActions = applySummonedSelfEntry({ ...context, player, playerIndex }, unit);
+        if (selfActions.length) {
+          actions.push(...selfActions);
+          applied = true;
+        }
       }
       return count;
     }
   };
 
   const result = core.executeGenericEffects(text, wrappedContext);
+  actions.push(...(result.actions ?? []));
+  applied ||= result.applied;
+
+  if (hasSpellHook) {
+    const spellActions = applySpellPlayedEffects(wrappedContext);
+    if (spellActions.length) {
+      actions.push(...spellActions);
+      applied = true;
+    }
+  }
+
   return {
-    applied: applied || result.applied,
-    actions: unique([...actions, ...(result.actions ?? [])]),
-    unresolved: gapEncountered || result.unresolved
+    applied,
+    actions: unique(actions),
+    unresolved: gapEncountered || result.unresolved || (transform.matched && !transform.applied)
   };
 }
 
 export function applyEntryCrestEffects(context, unit) {
-  if (!unit || unit.type !== "Follower" || unit.__entryCrestsApplied) return [];
-  unit.__entryCrestsApplied = true;
+  if (!unit || unit.type !== "Follower" || unit.__entryEventsApplied) return [];
+  unit.__entryEventsApplied = true;
   const actions = [];
 
   for (const crest of context.player.crests ?? []) {
@@ -87,6 +123,40 @@ export function applyEntryCrestEffects(context, unit) {
     }
   }
 
+  const traits = new Set((unit.card?.traits ?? []).map(normalize));
+  for (const source of context.player.board ?? []) {
+    if (source === unit || source.type !== "Follower") continue;
+    const name = normalize(source.name);
+
+    if (name === "orchis, newfound heart" && traits.has("puppetry")) {
+      const gained = [giveUnitKeyword(unit, "Storm"), giveUnitKeyword(unit, "Bane")].some(Boolean);
+      if (gained) actions.push(`Orchis: ${unit.name} gains Storm and Bane`);
+    }
+
+    if (name === "zwei, symphonic heart" && traits.has("puppetry")) {
+      if (giveUnitKeyword(unit, "Ward")) actions.push(`Zwei: ${unit.name} gains Ward`);
+    }
+
+    if (name === "brazen broadcaster" && traits.has("artifact")) {
+      if (giveUnitKeyword(unit, "Rush")) actions.push(`Brazen Broadcaster: ${unit.name} gains Rush`);
+    }
+  }
+
+  return actions;
+}
+
+export function applySpellPlayedEffects(context) {
+  const actions = [];
+  for (const source of [...(context.player.board ?? [])]) {
+    if (normalize(source.name) !== "imari, dewdrop" || !source.evolved) continue;
+    const token = relatedCardByName(source.card, "Imari's Little Buddies");
+    if (!token || context.player.board.length >= 5) continue;
+    const count = context.summon(context.player, token, 1, context.playerIndex);
+    if (count) {
+      context.stats.cardsGenerated[context.playerIndex] += count;
+      actions.push(`Imari: summon ${token.name}`);
+    }
+  }
   return actions;
 }
 
@@ -136,16 +206,128 @@ export function applyTurnEndCrestEffects(context) {
   return actions;
 }
 
+function applySummonedSelfEntry(context, unit) {
+  const text = String(unit.card?.text ?? "");
+  const match = text.match(/\bwhen this (?:card|follower) enters the field,\s*([^.]*)\.?/i);
+  if (!match) return [];
+  const result = core.executeGenericEffects(match[1], { ...context, card: unit.card, sourceUnit: unit });
+  return (result.actions ?? []).map(action => `${unit.name}: ${action}`);
+}
+
+function resolveFieldTransform(textValue, context) {
+  const text = String(textValue ?? "");
+  const match = text.match(/select a card on the field and transform it into (?:an?\s+)?([^.;]+)\.?/i);
+  if (!match) return { matched: false, applied: false, actions: [], text };
+
+  const token = relatedCardByName(context.card, match[1].trim());
+  const selected = chooseTransformTarget(context);
+  if (!token || !selected) {
+    return { matched: true, applied: false, actions: ["transform target unavailable"], text: text.replace(match[0], " ") };
+  }
+
+  const replacement = transformedUnit(selected.owner, selected.unit, token);
+  const index = selected.owner.board.indexOf(selected.unit);
+  if (index < 0) return { matched: true, applied: false, actions: ["transform target unavailable"], text: text.replace(match[0], " ") };
+  selected.owner.board.splice(index, 1, replacement);
+  return {
+    matched: true,
+    applied: true,
+    actions: [`transform ${selected.unit.name} into ${token.name}`],
+    text: text.replace(match[0], " ")
+  };
+}
+
+function chooseTransformTarget(context) {
+  let enemy = context.opponent.board.filter(unit => !unit.aura);
+  const lloyd = enemy.filter(unit => normalize(unit.name) === "lloyd");
+  if (lloyd.length) enemy = lloyd;
+  if (enemy.length) {
+    return {
+      owner: context.opponent,
+      unit: [...enemy].sort((a, b) => fieldValue(b) - fieldValue(a))[0]
+    };
+  }
+  const allied = context.player.board.filter(unit => unit !== context.sourceUnit);
+  if (!allied.length) return null;
+  return {
+    owner: context.player,
+    unit: [...allied].sort((a, b) => fieldValue(a) - fieldValue(b))[0]
+  };
+}
+
+function transformedUnit(owner, oldUnit, card) {
+  const attack = Number(card.attack) || 0;
+  const defense = Number(card.defense) || 0;
+  const keywords = [...(card.keywords ?? [])];
+  const follower = card.type === "Follower";
+  return {
+    uid: `${owner.name}-transform-${owner.nextSerial++}`,
+    cardId: Number(card.id),
+    card,
+    name: card.name,
+    image: card.image,
+    type: card.type,
+    attack: follower ? attack : 0,
+    defense: follower ? defense : 0,
+    maxDefense: follower ? defense : 0,
+    keywords,
+    barrier: hasKeywordCard(card, "Barrier") ? 1 : 0,
+    ambush: hasKeywordCard(card, "Ambush"),
+    aura: hasKeywordCard(card, "Aura"),
+    intimidate: hasKeywordCard(card, "Intimidate"),
+    summonedThisTurn: oldUnit.summonedThisTurn,
+    canAttackLeader: follower && hasKeywordCard(card, "Storm"),
+    canAttackFollower: follower && (hasKeywordCard(card, "Storm") || hasKeywordCard(card, "Rush")),
+    attacked: follower ? false : true,
+    attacksMade: 0,
+    maxAttacks: 1,
+    evolved: false,
+    superEvolved: false,
+    reactedThisTurn: false,
+    engagedThisTurn: false
+  };
+}
+
+function fieldValue(unit) {
+  if (unit.type === "Follower") return (Number(unit.attack) || 0) + (Number(unit.defense) || 0) + (hasKeyword(unit, "Ward") ? 2 : 0);
+  return 4;
+}
+
+function relatedCardByName(card, name) {
+  const target = normalize(name);
+  return (card?.__relatedCardObjects ?? []).find(related => normalize(related.name) === target) ?? null;
+}
+
+function giveUnitKeyword(unit, keyword) {
+  if (!unit.keywords) unit.keywords = [];
+  if (hasKeyword(unit, keyword)) return false;
+  unit.keywords.push(keyword);
+  if (keyword === "Barrier") unit.barrier = 1;
+  if (keyword === "Aura") unit.aura = true;
+  if (keyword === "Ambush") unit.ambush = true;
+  if (keyword === "Intimidate") unit.intimidate = true;
+  if (keyword === "Storm") {
+    unit.canAttackLeader = true;
+    unit.canAttackFollower = true;
+  }
+  if (keyword === "Rush") unit.canAttackFollower = true;
+  return true;
+}
+
+function hasKeyword(unit, keyword) {
+  return (unit.keywords ?? []).some(value => normalize(value) === normalize(keyword));
+}
+
+function hasKeywordCard(card, keyword) {
+  return (card.keywords ?? []).some(value => normalize(value) === normalize(keyword));
+}
+
 function containsHook(text, hook) {
   return String(text).toLowerCase().includes(hook);
 }
 
 function stripHook(text, hook) {
   return String(text).replace(new RegExp(escapeRegex(hook), "gi"), " ").replace(/\s+/g, " ").trim();
-}
-
-function hasKeyword(unit, keyword) {
-  return (unit.keywords ?? []).some(value => normalize(value) === normalize(keyword));
 }
 
 function normalize(value) {

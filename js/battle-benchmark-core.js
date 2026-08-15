@@ -56,10 +56,11 @@ export function runMatchupBenchmark({
     diagnostics: {
       sideGap: Math.abs(first.winRate - second.winRate),
       drawRate: overall.drawRate,
-      unresolvedTriggersPerGame: overall.unsupportedTriggersPerGame,
+      ruleGapsPerGame: overall.ruleGapsPerGame,
+      unresolvedTriggersPerGame: overall.ruleGapsPerGame,
       confidenceWidth: overall.winRate95.high - overall.winRate95.low,
       sampleTier: sampleTier(totalGames),
-      rulesTier: rulesTier({ minimumModeledPercent, unsupportedCopies, partialCopies, unresolvedTriggersPerGame: overall.unsupportedTriggersPerGame })
+      rulesTier: rulesTier({ minimumModeledPercent, unsupportedCopies, partialCopies, ruleGapsPerGame: overall.ruleGapsPerGame })
     }
   };
 }
@@ -77,7 +78,7 @@ function createAggregate() {
     damageTaken: 0,
     ppSpent: 0,
     ppWasted: 0,
-    unsupportedTriggers: 0,
+    ruleGapExposures: 0,
     healing: 0,
     cardsPlayed: 0
   };
@@ -92,7 +93,7 @@ function addResult(bucket, result) {
   bucket.damageTaken += Number(stats.damageDealt?.[1]) || 0;
   bucket.ppSpent += Number(stats.ppSpent?.[0]) || 0;
   bucket.ppWasted += Number(stats.ppWasted?.[0]) || 0;
-  bucket.unsupportedTriggers += Number(stats.unsupportedEffects?.[0]) || 0;
+  bucket.ruleGapExposures += (Number(stats.unsupportedEffects?.[0]) || 0) + (Number(stats.unsupportedEffects?.[1]) || 0);
   bucket.healing += Number(stats.healing?.[0]) || 0;
   bucket.cardsPlayed += Number(stats.cardsPlayed?.[0]) || 0;
 
@@ -112,6 +113,7 @@ function finalizeAggregate(bucket) {
   const ppTotal = bucket.ppSpent + bucket.ppWasted;
   const winRate = games ? bucket.wins / games * 100 : 0;
   const winRate95 = wilsonInterval(bucket.wins, games);
+  const ruleGapsPerGame = games ? bucket.ruleGapExposures / games : 0;
   return {
     games,
     wins: bucket.wins,
@@ -131,7 +133,8 @@ function finalizeAggregate(bucket) {
     averageHealing: games ? bucket.healing / games : 0,
     averageCardsPlayed: games ? bucket.cardsPlayed / games : 0,
     ppEfficiency: ppTotal ? bucket.ppSpent / ppTotal * 100 : 0,
-    unsupportedTriggersPerGame: games ? bucket.unsupportedTriggers / games : 0
+    ruleGapsPerGame,
+    unsupportedTriggersPerGame: ruleGapsPerGame
   };
 }
 
@@ -154,8 +157,8 @@ function sampleTier(games) {
   return "exploratory";
 }
 
-function rulesTier({ minimumModeledPercent, unsupportedCopies, partialCopies, unresolvedTriggersPerGame }) {
-  if (unsupportedCopies > 0 || minimumModeledPercent < 80 || unresolvedTriggersPerGame >= .5) return "low";
-  if (partialCopies > 12 || minimumModeledPercent < 92 || unresolvedTriggersPerGame >= .1) return "partial";
+function rulesTier({ minimumModeledPercent, unsupportedCopies, partialCopies, ruleGapsPerGame }) {
+  if (unsupportedCopies > 0 || minimumModeledPercent < 80 || ruleGapsPerGame >= .5) return "low";
+  if (partialCopies > 12 || minimumModeledPercent < 92 || ruleGapsPerGame >= .1) return "partial";
   return "good";
 }
