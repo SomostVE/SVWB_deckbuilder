@@ -82,19 +82,12 @@
       <div class="benchmark-head">
         <div>
           <h2>Benchmark</h2>
-          <p class="tools-muted">Run repeatable matchups with the current rules engine. Run deck matchups or calibrate the current AI with reference-deck mirrors. Rules coverage and side bias stay visible.</p>
+          <p class="tools-muted">Test your current or saved deck against the reference decks with the production Battle Sim AI. Rules coverage, confidence range and First/Second split stay visible.</p>
         </div>
         <div class="battle-local-badge">Worker · deterministic seeds</div>
       </div>
 
       <div class="benchmark-controls">
-        <label>
-          <span>Benchmark mode</span>
-          <select id="benchmark-mode">
-            <option value="deck">Deck benchmark</option>
-            <option value="calibration">AI mirror calibration</option>
-          </select>
-        </label>
         <label>
           <span>Opponent pool</span>
           <select id="benchmark-scope">
@@ -105,7 +98,10 @@
         <label>
           <span>Games / matchup</span>
           <select id="benchmark-games">
-            <option value="100">100</option>
+            <option value="25">25 · quick</option>
+            <option value="50">50</option>
+            <option value="100" selected>100</option>
+            <option value="250">250</option>
             <option value="500">500</option>
             <option value="1000">1,000</option>
           </select>
@@ -160,5 +156,6 @@
 
   <script type="module" src="./js/battle.js"></script>
   <script type="module" src="./js/battle-benchmark.js"></script>
+  <script type="module" src="./js/battle-benchmark-ui.js"></script>
 </body>
 </html>
