@@ -3,7 +3,8 @@ import {
   applyEntryCrestEffects,
   applyFollowerDestroyedEffects,
   applySpellPlayedEffects,
-  executeGenericEffects
+  executeGenericEffects,
+  getTriggeredText
 } from "../js/battle-rules.js";
 
 const stats = {
@@ -68,6 +69,13 @@ const context = {
     return count;
   }
 };
+
+const vanillaFollower = { type: "Follower", text: "Ward." };
+assert.equal(getTriggeredText(vanillaFollower, "lastWords"), "", "Destroyed followers without Last Words must not synthesize a Last Words event");
+const lastWordsFollower = { type: "Follower", text: "Last Words: Draw a card." };
+assert.equal(getTriggeredText(lastWordsFollower, "lastWords"), "Draw a card.", "Last Words text must be returned without a duplicate destroyed-event hook");
+const endTurnFollower = { type: "Follower", text: "At the end of your turn: Draw a card." };
+assert.equal(getTriggeredText(endTurnFollower, "turnEnd"), "Draw a card.", "Turn-end text must not inject a duplicate Crest event");
 
 player.crests = [{ name: "Wilbert, Desolate Paladin" }];
 const holyKnight = {
