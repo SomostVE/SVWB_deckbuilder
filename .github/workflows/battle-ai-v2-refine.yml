@@ -6,53 +6,15 @@ on:
     paths:
       - ".github/workflows/battle-ai-v2-refine.yml"
 
-permissions:
-  contents: write
-
 jobs:
-  refine-ai:
+  diagnose:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
           node-version: "24"
-
-      - name: Materialize AI refinement
-        run: python3 scripts/materialize-battle-ai-v21.py
-
-      - name: Syntax and Battle Sim regressions
-        run: |
-          node --check js/battle-engine-v5.js
-          node scripts/check-battle-rules.mjs
-          node scripts/check-battle-reactive-events.mjs
-          node scripts/check-battle-artifact-history.mjs
-          node scripts/check-battle-focus-rules.mjs
-          node scripts/check-battle-ability-evolve.mjs
-          node scripts/check-battle-asher.mjs
-          node scripts/check-battle-coverage-100.mjs
-          node scripts/check-battle-v5-integration.mjs
-          node scripts/check-battle-sim.mjs
-          node scripts/check-battle-benchmark.mjs
-          node scripts/check-battle-benchmark-calibration.mjs
-          node scripts/check-battle-benchmark-compare.mjs
-
-      - name: Re-run 1000-game mirrors
-        run: node scripts/benchmark-reference-mirrors.mjs
-
-      - name: Commit AI refinement
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add js/battle-engine-v5.js
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-            exit 0
-          fi
-          git commit -m "feat: tune Battle Sim AI v2.1"
-          git push
+      - name: Diagnose Ward mirror sides
+        run: node scripts/diagnose-ward-side.mjs
