@@ -25,19 +25,12 @@ const FULL_OVERRIDES = new Map([
 // engine does not yet reproduce exactly. Keeping them partial makes benchmark
 // rule-gap metrics honest instead of treating base combat as full coverage.
 const PARTIAL_OVERRIDES = new Map([
-  ["serene sanctuary", "Engage countdown advancement is not modeled"],
   ["galleon, earth personified", "Permanent attack lock and conditional random evolution are not fully modeled"],
   ["sofina, inspiring strength", "Mode-driven evolution and evolved turn-end board debuff are not fully modeled"],
-  ["jeanne, saintly knight", "The all-other-allies board buff target set is not modeled exactly"],
   ["aether, empyrean guardian", "Random differently named deck summons and Super-Evolve Aura distribution are not fully modeled"],
   ["edeth, voice of heaven", "Last Words resummon-without-Last-Words and targeted Super-Evolve destruction are not fully modeled"],
-  ["olivia, proud dark angel", "Super-evolution point recovery is not modeled"],
-  ["puppet cat", "The generated Puppet +3/+0 conditional buff is not targeted correctly"],
-  ["lovestruck puppeteer", "Evolve replication of Fanfare is not modeled"],
-  ["cool courier", "Evolve replication of Fanfare is not modeled"],
   ["eudie, your dependable mentor", "Evolve another allied follower is not modeled"],
   ["asher & lydia, paths beyond", "Enemy Ward targeting, Enhance evolution and evolve-trigger destruction are not fully modeled"],
-  ["odin, twilit fate", "Banish an enemy card is only modeled for follower targets"]
 ]);
 
 const HANDLED_REACTIVE_CLAUSES = [
