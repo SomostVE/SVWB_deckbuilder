@@ -34,6 +34,9 @@ jobs:
       - name: Run Battle Sim reactive-event regressions
         run: node scripts/check-battle-reactive-events.mjs
 
+      - name: Run Battle Sim v5 integration
+        run: node scripts/check-battle-v5-integration.mjs
+
       - name: Run Battle Sim smoke test
         run: node scripts/check-battle-sim.mjs
 
