@@ -20,6 +20,26 @@ const FULL_OVERRIDES = new Map([
   ["analyzing artifact", "Self-entry draw trigger is modeled"]
 ]);
 
+// The legacy classifier is intentionally permissive for followers. These cards
+// have executable pieces, but also contain material clauses that the active
+// engine does not yet reproduce exactly. Keeping them partial makes benchmark
+// rule-gap metrics honest instead of treating base combat as full coverage.
+const PARTIAL_OVERRIDES = new Map([
+  ["serene sanctuary", "Engage countdown advancement is not modeled"],
+  ["galleon, earth personified", "Permanent attack lock and conditional random evolution are not fully modeled"],
+  ["sofina, inspiring strength", "Mode-driven evolution and evolved turn-end board debuff are not fully modeled"],
+  ["jeanne, saintly knight", "The all-other-allies board buff target set is not modeled exactly"],
+  ["aether, empyrean guardian", "Random differently named deck summons and Super-Evolve Aura distribution are not fully modeled"],
+  ["edeth, voice of heaven", "Last Words resummon-without-Last-Words and targeted Super-Evolve destruction are not fully modeled"],
+  ["olivia, proud dark angel", "Super-evolution point recovery is not modeled"],
+  ["puppet cat", "The generated Puppet +3/+0 conditional buff is not targeted correctly"],
+  ["lovestruck puppeteer", "Evolve replication of Fanfare is not modeled"],
+  ["cool courier", "Evolve replication of Fanfare is not modeled"],
+  ["eudie, your dependable mentor", "Evolve another allied follower is not modeled"],
+  ["asher & lydia, paths beyond", "Enemy Ward targeting, Enhance evolution and evolve-trigger destruction are not fully modeled"],
+  ["odin, twilit fate", "Banish an enemy card is only modeled for follower targets"]
+]);
+
 const HANDLED_REACTIVE_CLAUSES = [
   /Whenever an allied Puppetry follower enters the field, give it Storm and Bane\.?/gi,
   /Whenever an allied Puppetry follower enters the field, give it Ward\.?/gi,
@@ -67,8 +87,12 @@ export function analyzeDeckCoverage(deck, cardMap) {
 
 export function analyzeCardSupport(card) {
   const base = v3.analyzeCardSupport(card);
-  if (!card || base.level !== "partial") return base;
-  const override = FULL_OVERRIDES.get(normalize(card.name));
+  if (!card) return base;
+  const name = normalize(card.name);
+  const forcedPartial = PARTIAL_OVERRIDES.get(name);
+  if (forcedPartial) return { ...base, level: "partial", reason: `Battle Sim rules gap: ${forcedPartial}` };
+  if (base.level !== "partial") return base;
+  const override = FULL_OVERRIDES.get(name);
   return override ? { ...base, level: "full", reason: `Battle Sim v4: ${override}` } : base;
 }
 
