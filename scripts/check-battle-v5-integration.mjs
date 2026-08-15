@@ -19,29 +19,19 @@ function deckList(reference) {
 }
 
 const expectedPartials = new Map([
-  ["Ward Havencraft", [
-    "Galleon, Earth Personified",
-    "Sofina, Inspiring Strength",
-    "Aether, Empyrean Guardian",
-    "Edeth, Voice of Heaven"
-  ]],
-  ["Puppetry Portalcraft", []]
+  ["Ward Havencraft", []],
+  ["Puppetry Portalcraft", []],
+  ["Ramp Dragoncraft", []]
 ]);
 
-for (const name of ["Ward Havencraft", "Puppetry Portalcraft"]) {
+for (const name of expectedPartials.keys()) {
   const reference = byName(name);
   const deck = deckList(reference);
   const coverage = analyzeDeckCoverage(deck, cardMap);
   assert.equal(coverage.unsupported, 0, `${name}: unsupported copies must be zero`);
-  assert.deepEqual(coverage.partialCards, expectedPartials.get(name), `${name}: partial list must reflect only the remaining known unmodeled clauses`);
-
-  const fullyModeled = expectedPartials.get(name).length === 0;
-  if (fullyModeled) {
-    assert.equal(coverage.partial, 0, `${name}: fully modeled deck must have zero partial copies`);
-    assert.equal(coverage.modeledPercent, 100, `${name}: fully modeled deck must report 100% coverage`);
-  } else {
-    assert.ok(coverage.partial > 0 && coverage.modeledPercent < 100, `${name}: honest coverage must remain below 100% until the remaining clauses are implemented`);
-  }
+  assert.deepEqual(coverage.partialCards, [], `${name}: partial card list must be empty`);
+  assert.equal(coverage.partial, 0, `${name}: fully modeled deck must have zero partial copies`);
+  assert.equal(coverage.modeledPercent, 100, `${name}: fully modeled deck must report 100% coverage`);
 
   const result = simulateBattle({
     playerDeck: deck,
@@ -54,8 +44,9 @@ for (const name of ["Ward Havencraft", "Puppetry Portalcraft"]) {
     recordFrames: false
   });
   assert.ok(result.summary.rounds > 0, `${name}: simulation must complete turns`);
-  assert.equal(result.summary.experimental, !fullyModeled, `${name}: experimental flag must match known rules coverage`);
-  console.log(`${name}: ${coverage.modeledPercent}% modeled · partial: ${coverage.partialCards.join(", ") || "none"} · ${result.summary.rounds} rounds`);
+  assert.equal(result.summary.experimental, false, `${name}: fully modeled simulation must not be experimental`);
+  assert.deepEqual(result.summary.stats.unsupportedEffects, [0, 0], `${name}: fully modeled mirror must expose zero rule gaps`);
+  console.log(`${name}: 100% modeled · no partial cards · ${result.summary.rounds} rounds`);
 }
 
 const fullyModeledFocusCards = [
@@ -70,7 +61,12 @@ const fullyModeledFocusCards = [
   "Cool Courier",
   "Eudie, Your Dependable Mentor",
   "Asher & Lydia, Paths Beyond",
-  "Odin, Twilit Fate"
+  "Odin, Twilit Fate",
+  "Galleon, Earth Personified",
+  "Sofina, Inspiring Strength",
+  "Aether, Empyrean Guardian",
+  "Edeth, Voice of Heaven",
+  "Zooey, Ally of the World"
 ];
 
 for (const name of fullyModeledFocusCards) {
@@ -79,10 +75,4 @@ for (const name of fullyModeledFocusCards) {
   assert.equal(analyzeCardSupport(card).level, "full", `${name} is explicitly modeled and must not emit a rule gap`);
 }
 
-const dragon = byName("Ramp Dragoncraft");
-const dragonCoverage = analyzeDeckCoverage(deckList(dragon), cardMap);
-assert.equal(dragonCoverage.unsupported, 0, "Ramp Dragoncraft must have no unsupported copies");
-assert.deepEqual(dragonCoverage.partialCards, ["Zooey, Ally of the World"], "Only Zooey should remain partial in Ramp Dragoncraft after v5");
-
-console.log(`Ramp Dragoncraft: ${dragonCoverage.modeledPercent}% modeled · remaining partial: ${dragonCoverage.partialCards.join(", ")}`);
 console.log("Battle Sim v5 integration: OK");
