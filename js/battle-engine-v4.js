@@ -10,14 +10,18 @@ const SPELL_HOOK = "[[battle-spell-play-hook]]";
 const FULL_OVERRIDES = new Map([
   ["wilbert, desolate paladin", "Persistent Ward-entry Crest is modeled"],
   ["grimnir, heavenly gale", "Persistent Crest turn-end trigger is modeled"],
-  ["sincerity of the dewdrop", "Field transform into Imari's Little Buddies is modeled"]
+  ["sincerity of the dewdrop", "Field transform into Imari's Little Buddies is modeled"],
+  ["sarissa, luxspear al-mi'raj", "Ward-destruction trigger and Evolve Barrier are modeled"],
+  ["knight of the holy order", "On-field stat-buff healing trigger is modeled"]
 ]);
 
 const HANDLED_REACTIVE_CLAUSES = [
   /Whenever an allied Puppetry follower enters the field, give it Storm and Bane\.?/gi,
   /Whenever an allied Puppetry follower enters the field, give it Ward\.?/gi,
   /Whenever an allied Artifact follower enters the field, give it Rush\.?/gi,
-  /Whenever you play a spell, if this follower is evolved, summon an Imari's Little Buddies\.?/gi
+  /Whenever you play a spell, if this follower is evolved, summon an Imari's Little Buddies\.?/gi,
+  /Whenever an allied follower with Ward is destroyed, give this follower \+1\/\+1\.?/gi,
+  /Whenever this follower is given \+ attack or defense on the field, restore 1 defense to your leader\.?/gi
 ];
 
 export function simulateBattle(options) {
@@ -29,52 +33,30 @@ export function simulateBattle(options) {
     analyzeDeckCoverage(options.opponentDeck, originalMap)
   ];
   result.coverage = coverage;
-  if (result.summary) {
-    result.summary.experimental = coverage.some(item => item.unsupported || item.partial);
-  }
+  if (result.summary) result.summary.experimental = coverage.some(item => item.unsupported || item.partial);
   return result;
 }
 
 export function analyzeDeckCoverage(deck, cardMap) {
   prepareOriginalCardMap(cardMap);
-  let total = 0;
-  let full = 0;
-  let partial = 0;
-  let unsupported = 0;
-  const partialCards = [];
-  const unsupportedCards = [];
-  const mechanics = new Map();
-
+  let total = 0, full = 0, partial = 0, unsupported = 0;
+  const partialCards = [], unsupportedCards = [], mechanics = new Map();
   for (const [id, qty] of normalizeDeck(deck)) {
     const card = cardMap.get(Number(id));
     const count = Number(qty) || 0;
     total += count;
     const support = analyzeCardSupport(card);
     if (support.level === "full") full += count;
-    else if (support.level === "partial") {
-      partial += count;
-      if (card) partialCards.push(card.name);
-    } else {
-      unsupported += count;
-      unsupportedCards.push(card?.name ?? `Card ${id}`);
-    }
-    for (const mechanic of support.mechanics ?? []) {
-      mechanics.set(mechanic, (mechanics.get(mechanic) ?? 0) + count);
-    }
+    else if (support.level === "partial") { partial += count; if (card) partialCards.push(card.name); }
+    else { unsupported += count; unsupportedCards.push(card?.name ?? `Card ${id}`); }
+    for (const mechanic of support.mechanics ?? []) mechanics.set(mechanic, (mechanics.get(mechanic) ?? 0) + count);
   }
-
   return {
-    total,
-    full,
-    partial,
-    unsupported,
+    total, full, partial, unsupported,
     modeledPercent: total ? Math.round((full + partial * .72) / total * 100) : 0,
     partialCards: unique(partialCards).slice(0, 18),
     unsupportedCards: unique(unsupportedCards).slice(0, 18),
-    mechanics: [...mechanics]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 14)
-      .map(([name, count]) => ({ name, count }))
+    mechanics: [...mechanics].sort((a, b) => b[1] - a[1]).slice(0, 14).map(([name, count]) => ({ name, count }))
   };
 }
 
@@ -82,8 +64,7 @@ export function analyzeCardSupport(card) {
   const base = v3.analyzeCardSupport(card);
   if (!card || base.level !== "partial") return base;
   const override = FULL_OVERRIDES.get(normalize(card.name));
-  if (!override) return base;
-  return { ...base, level: "full", reason: `Battle Sim v4: ${override}` };
+  return override ? { ...base, level: "full", reason: `Battle Sim v4: ${override}` } : base;
 }
 
 export const inspectEffectiveCost = v3.inspectEffectiveCost;
@@ -91,7 +72,6 @@ export const inspectEffectiveCost = v3.inspectEffectiveCost;
 function prepareSimulationCardMap(cardMap) {
   const prepared = new Map();
   prepareOriginalCardMap(cardMap);
-
   for (const [id, card] of cardMap.entries()) {
     if (!card) continue;
     const support = analyzeCardSupport(card);
@@ -102,7 +82,6 @@ function prepareSimulationCardMap(cardMap) {
     if (support.level !== "full") hooks.push(GAP_HOOK);
     text = injectHooks(text, hooks);
     text = injectSpellHooks(text, card);
-
     prepared.set(Number(id), {
       ...card,
       keywords: [...(card.keywords ?? [])],
@@ -111,13 +90,9 @@ function prepareSimulationCardMap(cardMap) {
       text
     });
   }
-
   for (const card of prepared.values()) {
-    card.__relatedCardObjects = (card.relatedCards ?? [])
-      .map(id => prepared.get(Number(id)))
-      .filter(Boolean);
+    card.__relatedCardObjects = (card.relatedCards ?? []).map(id => prepared.get(Number(id))).filter(Boolean);
   }
-
   return prepared;
 }
 
@@ -138,15 +113,16 @@ function injectHooks(textValue, hooks) {
   if (!hooks.length) return String(textValue ?? "");
   const text = String(textValue ?? "");
   const hookText = hooks.join(" ");
-  if (/\bFanfare\s*:/i.test(text)) {
-    return text.replace(/\bFanfare\s*:/i, match => `${match} ${hookText} `);
-  }
+  if (/\bFanfare\s*:/i.test(text)) return text.replace(/\bFanfare\s*:/i, match => `${match} ${hookText} `);
   return `${hookText}${text ? ` ${text}` : ""}`.trim();
 }
 
 function injectSpellHooks(textValue, card) {
   let text = String(textValue ?? "");
-  if (card.type === "Spell") text = `${SPELL_HOOK} ${text}`.trim();
+  if (card.type === "Spell") {
+    text = `${SPELL_HOOK} ${text}`.trim();
+    text = text.replace(/\bEnhance\s*\(?\s*\d+\s*\)?\s*:/gi, match => `${match} ${SPELL_HOOK} `);
+  }
   if (/\bAccelerate\s*\(?\s*\d+\s*\)?\s*:/i.test(text)) {
     text = text.replace(/\bAccelerate\s*\(?\s*\d+\s*\)?\s*:/gi, match => `${match} ${SPELL_HOOK} `);
   }
@@ -157,26 +133,18 @@ function prepareOriginalCardMap(cardMap) {
   if (!(cardMap instanceof Map)) return;
   for (const card of cardMap.values()) {
     if (!card || Array.isArray(card.__relatedNames)) continue;
-    card.__relatedNames = (card.relatedCards ?? [])
-      .map(id => cardMap.get(Number(id))?.name)
-      .filter(Boolean);
+    card.__relatedNames = (card.relatedCards ?? []).map(id => cardMap.get(Number(id))?.name).filter(Boolean);
   }
 }
 
 function normalizeDeck(deck) {
   if (deck instanceof Map) return [...deck.entries()].map(([id, qty]) => [Number(id), Number(qty)]);
   if (!Array.isArray(deck)) return [];
-  return deck
-    .map(entry => Array.isArray(entry)
-      ? [Number(entry[0]), Number(entry[1])]
-      : [Number(entry.cardId ?? entry.id), Number(entry.qty ?? entry.quantity ?? 1)])
+  return deck.map(entry => Array.isArray(entry)
+    ? [Number(entry[0]), Number(entry[1])]
+    : [Number(entry.cardId ?? entry.id), Number(entry.qty ?? entry.quantity ?? 1)])
     .filter(([id, qty]) => Number.isFinite(id) && qty > 0);
 }
 
-function normalize(value) {
-  return String(value ?? "").toLowerCase().replace(/[’‘]/g, "'").replace(/\s+/g, " ").trim();
-}
-
-function unique(values) {
-  return [...new Set(values.map(String).filter(Boolean))];
-}
+function normalize(value) { return String(value ?? "").toLowerCase().replace(/[’‘]/g, "'").replace(/\s+/g, " ").trim(); }
+function unique(values) { return [...new Set(values.map(String).filter(Boolean))]; }

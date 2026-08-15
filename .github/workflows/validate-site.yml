@@ -31,6 +31,9 @@ jobs:
       - name: Run Battle Sim exact-rule regressions
         run: node scripts/check-battle-rules.mjs
 
+      - name: Run Battle Sim reactive-event regressions
+        run: node scripts/check-battle-reactive-events.mjs
+
       - name: Run Battle Sim smoke test
         run: node scripts/check-battle-sim.mjs
 

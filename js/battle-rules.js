@@ -5,12 +5,15 @@ export * from "./battle-rules-core.js";
 const ENTRY_HOOK = "[[battle-entry-hook]]";
 const GAP_HOOK = "[[battle-rule-gap-hook]]";
 const SPELL_HOOK = "[[battle-spell-play-hook]]";
+const DESTROY_HOOK = "[[battle-follower-destroyed-hook]]";
 const TURN_END_HOOK = "[[battle-crest-turn-end-hook]]";
 
 export function getTriggeredText(card, event, mode = null) {
   const base = core.getTriggeredText(card, event, mode);
-  if (event !== "turnEnd") return base;
-  return `${base ? `${base} ` : ""}${TURN_END_HOOK}`.trim();
+  const hooks = [];
+  if (event === "lastWords" && card?.type === "Follower") hooks.push(DESTROY_HOOK);
+  if (event === "turnEnd") hooks.push(TURN_END_HOOK);
+  return `${base ? `${base} ` : ""}${hooks.join(" ")}`.trim();
 }
 
 export function executeGenericEffects(textValue, context) {
@@ -29,6 +32,15 @@ export function executeGenericEffects(textValue, context) {
 
   if (hasEntryHook) text = stripHook(text, ENTRY_HOOK);
   if (hasSpellHook) text = stripHook(text, SPELL_HOOK);
+
+  if (containsHook(text, DESTROY_HOOK)) {
+    text = stripHook(text, DESTROY_HOOK);
+    const destroyedActions = applyFollowerDestroyedEffects(context, context.sourceUnit);
+    if (destroyedActions.length) {
+      actions.push(...destroyedActions);
+      applied = true;
+    }
+  }
 
   if (containsHook(text, TURN_END_HOOK)) {
     text = stripHook(text, TURN_END_HOOK);
@@ -71,6 +83,15 @@ export function executeGenericEffects(textValue, context) {
 
   const wrappedContext = {
     ...context,
+    buffUnit(unit, attack, defense) {
+      const before = { attack: Number(unit.attack) || 0, defense: Number(unit.defense) || 0 };
+      context.buffUnit(unit, attack, defense);
+      const buffActions = applyBuffedFollowerEffects(context, unit, before);
+      if (buffActions.length) {
+        actions.push(...buffActions);
+        applied = true;
+      }
+    },
     summon(player, card, amount, playerIndex) {
       const before = new Set(player.board.map(unit => unit.uid));
       const count = context.summon(player, card, amount, playerIndex);
@@ -118,8 +139,10 @@ export function applyEntryCrestEffects(context, unit) {
   for (const crest of context.player.crests ?? []) {
     const name = normalize(crest.name);
     if (name === "wilbert, desolate paladin" && hasKeyword(unit, "Ward")) {
+      const before = { attack: Number(unit.attack) || 0, defense: Number(unit.defense) || 0 };
       context.buffUnit(unit, 1, 2);
       actions.push(`Wilbert Crest: +1/+2 ${unit.name}`);
+      actions.push(...applyBuffedFollowerEffects(context, unit, before));
     }
   }
 
@@ -143,6 +166,28 @@ export function applyEntryCrestEffects(context, unit) {
   }
 
   return actions;
+}
+
+export function applyFollowerDestroyedEffects(context, destroyedUnit) {
+  if (!destroyedUnit || destroyedUnit.type !== "Follower" || !hasKeyword(destroyedUnit, "Ward")) return [];
+  const actions = [];
+  for (const source of context.player.board ?? []) {
+    if (source === destroyedUnit || source.type !== "Follower") continue;
+    if (normalize(source.name) !== "sarissa, luxspear al-mi'raj") continue;
+    context.buffUnit(source, 1, 1);
+    actions.push(`Sarissa: +1/+1 after ${destroyedUnit.name} is destroyed`);
+  }
+  return actions;
+}
+
+export function applyBuffedFollowerEffects(context, unit, before = null) {
+  if (!unit || unit.type !== "Follower") return [];
+  const gainedStats = before == null
+    || (Number(unit.attack) || 0) > (Number(before.attack) || 0)
+    || (Number(unit.defense) || 0) > (Number(before.defense) || 0);
+  if (!gainedStats || normalize(unit.name) !== "knight of the holy order") return [];
+  const healed = healLeader(context.player, 1, context.stats, context.playerIndex);
+  return [`Knight of the Holy Order: restore ${healed} leader defense`];
 }
 
 export function applySpellPlayedEffects(context) {
@@ -187,9 +232,7 @@ export function applyTurnEndCrestEffects(context) {
 
     if (name === "sandalphon, primarch successor") {
       if (!Number.isFinite(crest.__countdownRemaining)) crest.__countdownRemaining = 2;
-      const leaderHeal = Math.max(0, Math.min(1, player.maxHp - player.hp));
-      player.hp += leaderHeal;
-      context.stats.healing[context.playerIndex] += leaderHeal;
+      const leaderHeal = healLeader(player, 1, context.stats, context.playerIndex);
       let followerHealing = 0;
       for (const unit of player.board.filter(unit => unit.type === "Follower")) {
         const before = unit.defense;
@@ -242,17 +285,11 @@ function chooseTransformTarget(context) {
   const lloyd = enemy.filter(unit => normalize(unit.name) === "lloyd");
   if (lloyd.length) enemy = lloyd;
   if (enemy.length) {
-    return {
-      owner: context.opponent,
-      unit: [...enemy].sort((a, b) => fieldValue(b) - fieldValue(a))[0]
-    };
+    return { owner: context.opponent, unit: [...enemy].sort((a, b) => fieldValue(b) - fieldValue(a))[0] };
   }
   const allied = context.player.board.filter(unit => unit !== context.sourceUnit);
   if (!allied.length) return null;
-  return {
-    owner: context.player,
-    unit: [...allied].sort((a, b) => fieldValue(a) - fieldValue(b))[0]
-  };
+  return { owner: context.player, unit: [...allied].sort((a, b) => fieldValue(a) - fieldValue(b))[0] };
 }
 
 function transformedUnit(owner, oldUnit, card) {
@@ -262,30 +299,24 @@ function transformedUnit(owner, oldUnit, card) {
   const follower = card.type === "Follower";
   return {
     uid: `${owner.name}-transform-${owner.nextSerial++}`,
-    cardId: Number(card.id),
-    card,
-    name: card.name,
-    image: card.image,
-    type: card.type,
-    attack: follower ? attack : 0,
-    defense: follower ? defense : 0,
-    maxDefense: follower ? defense : 0,
+    cardId: Number(card.id), card, name: card.name, image: card.image, type: card.type,
+    attack: follower ? attack : 0, defense: follower ? defense : 0, maxDefense: follower ? defense : 0,
     keywords,
     barrier: hasKeywordCard(card, "Barrier") ? 1 : 0,
-    ambush: hasKeywordCard(card, "Ambush"),
-    aura: hasKeywordCard(card, "Aura"),
-    intimidate: hasKeywordCard(card, "Intimidate"),
+    ambush: hasKeywordCard(card, "Ambush"), aura: hasKeywordCard(card, "Aura"), intimidate: hasKeywordCard(card, "Intimidate"),
     summonedThisTurn: oldUnit.summonedThisTurn,
     canAttackLeader: follower && hasKeywordCard(card, "Storm"),
     canAttackFollower: follower && (hasKeywordCard(card, "Storm") || hasKeywordCard(card, "Rush")),
-    attacked: follower ? false : true,
-    attacksMade: 0,
-    maxAttacks: 1,
-    evolved: false,
-    superEvolved: false,
-    reactedThisTurn: false,
-    engagedThisTurn: false
+    attacked: follower ? false : true, attacksMade: 0, maxAttacks: 1,
+    evolved: false, superEvolved: false, reactedThisTurn: false, engagedThisTurn: false
   };
+}
+
+function healLeader(player, amount, stats, playerIndex) {
+  const healed = Math.max(0, Math.min(Number(amount) || 0, player.maxHp - player.hp));
+  player.hp += healed;
+  stats.healing[playerIndex] += healed;
+  return healed;
 }
 
 function fieldValue(unit) {
@@ -306,10 +337,7 @@ function giveUnitKeyword(unit, keyword) {
   if (keyword === "Aura") unit.aura = true;
   if (keyword === "Ambush") unit.ambush = true;
   if (keyword === "Intimidate") unit.intimidate = true;
-  if (keyword === "Storm") {
-    unit.canAttackLeader = true;
-    unit.canAttackFollower = true;
-  }
+  if (keyword === "Storm") { unit.canAttackLeader = true; unit.canAttackFollower = true; }
   if (keyword === "Rush") unit.canAttackFollower = true;
   return true;
 }
@@ -317,27 +345,11 @@ function giveUnitKeyword(unit, keyword) {
 function hasKeyword(unit, keyword) {
   return (unit.keywords ?? []).some(value => normalize(value) === normalize(keyword));
 }
-
 function hasKeywordCard(card, keyword) {
   return (card.keywords ?? []).some(value => normalize(value) === normalize(keyword));
 }
-
-function containsHook(text, hook) {
-  return String(text).toLowerCase().includes(hook);
-}
-
-function stripHook(text, hook) {
-  return String(text).replace(new RegExp(escapeRegex(hook), "gi"), " ").replace(/\s+/g, " ").trim();
-}
-
-function normalize(value) {
-  return String(value ?? "").toLowerCase().replace(/[’‘]/g, "'").replace(/\s+/g, " ").trim();
-}
-
-function escapeRegex(value) {
-  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function unique(values) {
-  return [...new Set(values.filter(Boolean))];
-}
+function containsHook(text, hook) { return String(text).toLowerCase().includes(hook); }
+function stripHook(text, hook) { return String(text).replace(new RegExp(escapeRegex(hook), "gi"), " ").replace(/\s+/g, " ").trim(); }
+function normalize(value) { return String(value ?? "").toLowerCase().replace(/[’‘]/g, "'").replace(/\s+/g, " ").trim(); }
+function escapeRegex(value) { return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+function unique(values) { return [...new Set(values.filter(Boolean))]; }
