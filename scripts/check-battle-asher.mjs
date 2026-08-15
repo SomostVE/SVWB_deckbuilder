@@ -9,7 +9,7 @@ const asherCard = {
 
 assert.equal(
   getTriggeredText(asherCard, "evolve"),
-  "destroy 2 random enemy followers with Ward.",
+  "destroy 2 random enemy followers with ward.",
   "Natural-language 'When this follower evolves' clauses must dispatch as an Evolve event"
 );
 
