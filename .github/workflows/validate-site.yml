@@ -46,6 +46,9 @@ jobs:
       - name: Run Battle Sim Asher regression
         run: node scripts/check-battle-asher.mjs
 
+      - name: Run Battle Sim full coverage regression
+        run: node scripts/check-battle-coverage-100.mjs
+
       - name: Run Battle Sim v5 integration
         run: node scripts/check-battle-v5-integration.mjs
 
