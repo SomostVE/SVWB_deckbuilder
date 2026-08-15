@@ -70,7 +70,8 @@ const holdPlan = inspectTurnPlan({
 assert.equal(holdPlan.sequence[0]?.kind, "end", "Planner should preserve a context-only card on a safe turn");
 
 // 5) Attack targets are branches too: a small Bane body can clear the large
-// blocker so the large attacker remains available for pressure.
+// blocker before the large attacker is committed. Setup evolution may happen
+// before combat, but the large attacker must not be wasted into the Ward first.
 const banePlan = inspectTurnPlan({
   hand: [], pp: 0, maxPp: 5, personalTurn: 5, opponentHp: 12,
   strategy: { style: "midrange" },
@@ -80,8 +81,9 @@ const banePlan = inspectTurnPlan({
   ],
   opponentBoard: [{ name: "Large Ward", attack: 6, defense: 9, keywords: ["Ward"] }]
 });
-assert.equal(banePlan.sequence[0]?.kind, "attack");
-assert.equal(banePlan.sequence[0]?.card, "Small Bane", "Planner should branch attack order and spend the Bane body into the large Ward first");
-assert.equal(banePlan.sequence[0]?.target, "Large Ward");
+const baneAttackIndex = banePlan.sequence.findIndex(step => step.kind === "attack" && step.card === "Small Bane" && step.target === "Large Ward");
+const largeAttackIndex = banePlan.sequence.findIndex(step => step.kind === "attack" && step.card === "Large Attacker");
+assert.ok(baneAttackIndex >= 0, "Planner should spend the Bane body into the large Ward");
+assert.ok(largeAttackIndex < 0 || largeAttackIndex > baneAttackIndex, "Large attacker must not be committed before the Bane body clears the Ward");
 
 console.log("Battle Sim full-turn planner regression: OK");
