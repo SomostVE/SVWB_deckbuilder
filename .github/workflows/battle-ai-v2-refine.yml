@@ -1,4 +1,4 @@
-name: Battle Sim AI v2 refinement
+name: Battle Sim AI v2 cleanup
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: write
 
 jobs:
-  retain-v22:
+  cleanup:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -18,34 +18,15 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: "24"
-
-      - name: Restore validated AI v2.2 engine
-        run: git checkout b4672f0 -- js/battle-engine-v5.js
-
-      - name: Syntax and Battle Sim regressions
-        run: |
-          node --check js/battle-engine-v5.js
-          node scripts/check-battle-rules.mjs
-          node scripts/check-battle-reactive-events.mjs
-          node scripts/check-battle-artifact-history.mjs
-          node scripts/check-battle-focus-rules.mjs
-          node scripts/check-battle-ability-evolve.mjs
-          node scripts/check-battle-asher.mjs
-          node scripts/check-battle-coverage-100.mjs
-          node scripts/check-battle-v5-integration.mjs
-          node scripts/check-battle-sim.mjs
-          node scripts/check-battle-benchmark.mjs
-          node scripts/check-battle-benchmark-calibration.mjs
-          node scripts/check-battle-benchmark-compare.mjs
-
-      - name: Commit selected AI version
+      - name: Remove temporary refinement helpers
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add js/battle-engine-v5.js
-          git commit -m "refactor: retain validated Battle Sim AI v2.2"
+          git rm .github/workflows/battle-ai-v2-refine.yml \
+            scripts/materialize-battle-ai-v2.py \
+            scripts/materialize-battle-ai-v21.py \
+            scripts/materialize-battle-ai-v22.py \
+            scripts/materialize-battle-ai-v23.py \
+            scripts/diagnose-ward-side.mjs
+          git commit -m "chore: remove Battle Sim AI refinement helpers"
           git push
