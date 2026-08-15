@@ -10,7 +10,7 @@ permissions:
   contents: write
 
 jobs:
-  refine-ai:
+  retain-v22:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -23,8 +23,8 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Materialize AI v2.3
-        run: python3 scripts/materialize-battle-ai-v23.py
+      - name: Restore validated AI v2.2 engine
+        run: git checkout b4672f0 -- js/battle-engine-v5.js
 
       - name: Syntax and Battle Sim regressions
         run: |
@@ -42,17 +42,10 @@ jobs:
           node scripts/check-battle-benchmark-calibration.mjs
           node scripts/check-battle-benchmark-compare.mjs
 
-      - name: Re-run 1000-game mirrors
-        run: node scripts/benchmark-reference-mirrors.mjs
-
-      - name: Commit AI refinement
+      - name: Commit selected AI version
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add js/battle-engine-v5.js
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-            exit 0
-          fi
-          git commit -m "feat: improve Battle Sim tactical policy"
+          git commit -m "refactor: retain validated Battle Sim AI v2.2"
           git push
