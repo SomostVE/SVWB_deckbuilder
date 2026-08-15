@@ -21,10 +21,10 @@ function fingerprint(result) {
   };
 }
 
-const fullyModeled = decks.filter(deck => ["spell-runecraft", "aggro-abysscraft"].includes(deck.id));
-assert.equal(fullyModeled.length, 2, "Calibration expects the two fully modeled reference decks");
+const identityCalibration = decks.filter(deck => ["spell-runecraft", "aggro-abysscraft"].includes(deck.id));
+assert.equal(identityCalibration.length, 2, "Calibration expects the two identity-bias reference decks");
 
-for (const reference of fullyModeled) {
+for (const reference of identityCalibration) {
   const deck = deckList(reference);
   const input = {
     playerDeck: deck,
@@ -46,7 +46,7 @@ for (const reference of fullyModeled) {
   assert.equal(firstRun.overall.ruleGapsPerGame, 0, `${reference.name}: full-coverage mirror should have zero rule-gap exposures`);
   assert.equal(firstRun.diagnostics.rulesTier, "good", `${reference.name}: full-coverage mirror should be a good rules sample`);
 
-  // This is deliberately broad: it catches catastrophic identity/side bias without
+  // Deliberately broad: this catches catastrophic identity/side bias without
   // pretending a 40-game baseline-AI mirror is a statistical balance test.
   assert.ok(firstRun.overall.winRate >= 20 && firstRun.overall.winRate <= 80, `${reference.name}: mirror win rate ${firstRun.overall.winRate.toFixed(1)}% indicates severe simulator identity bias`);
   assert.ok(firstRun.diagnostics.sideGap <= 60, `${reference.name}: mirror First/Second gap ${firstRun.diagnostics.sideGap.toFixed(1)}% is implausibly large`);
@@ -54,21 +54,26 @@ for (const reference of fullyModeled) {
   console.log(`${reference.name}: mirror ${firstRun.overall.winRate.toFixed(1)}% · first ${firstRun.first.winRate.toFixed(1)}% · second ${firstRun.second.winRate.toFixed(1)}% · side gap ${firstRun.diagnostics.sideGap.toFixed(1)}% · deterministic OK`);
 }
 
-const partialReference = decks.find(deck => deck.id === "buff-forestcraft");
-assert.ok(partialReference, "Calibration expects Buff Forestcraft");
-const partialDeck = deckList(partialReference);
-const partial = runMatchupBenchmark({
-  playerDeck: partialDeck,
-  opponentDeck: partialDeck,
+// Buff Forestcraft used to be the intentional partial-rules sentinel. It is
+// now fully modeled, so calibration must fail if it ever regresses below 100%.
+const forestReference = decks.find(deck => deck.id === "buff-forestcraft");
+assert.ok(forestReference, "Calibration expects Buff Forestcraft");
+const forestDeck = deckList(forestReference);
+const forest = runMatchupBenchmark({
+  playerDeck: forestDeck,
+  opponentDeck: forestDeck,
   cardMap,
-  playerStrategy: partialReference.strategy ?? {},
-  opponentStrategy: partialReference.strategy ?? {},
+  playerStrategy: forestReference.strategy ?? {},
+  opponentStrategy: forestReference.strategy ?? {},
   games: 20,
-  seed: "ci-calibration:partial-gap"
+  seed: "ci-calibration:forest-full"
 });
-assert.ok(partial.coverage.partialCopies > 0, "Partial calibration deck should expose partial card copies");
-assert.ok(partial.overall.ruleGapsPerGame > 0, "Playing partial cards should produce measurable rule-gap exposure");
-assert.notEqual(partial.diagnostics.rulesTier, "good", "A frequently exposed partial matchup must not be labeled good");
+assert.equal(forest.coverage.unsupportedCopies, 0, "Buff Forestcraft must contain no unsupported copies");
+assert.equal(forest.coverage.partialCopies, 0, "Buff Forestcraft must contain no partial copies");
+assert.equal(forest.coverage.player.modeledPercent, 100, "Buff Forestcraft player coverage must be 100%");
+assert.equal(forest.coverage.opponent.modeledPercent, 100, "Buff Forestcraft opponent coverage must be 100%");
+assert.equal(forest.overall.ruleGapsPerGame, 0, "Buff Forestcraft full mirror must expose zero rule gaps");
+assert.equal(forest.diagnostics.rulesTier, "good", "Buff Forestcraft full mirror must be labeled good");
 
-console.log(`Partial rules gate: ${partial.overall.ruleGapsPerGame.toFixed(2)} rule gaps/game · ${partial.diagnostics.rulesTier}`);
+console.log(`Buff Forestcraft full-rules gate: ${forest.overall.ruleGapsPerGame.toFixed(2)} rule gaps/game · ${forest.diagnostics.rulesTier}`);
 console.log("Battle Sim benchmark calibration: OK");
