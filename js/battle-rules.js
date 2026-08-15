@@ -26,6 +26,7 @@ export function executeGenericEffects(textValue, context) {
   if (containsHook(text, GAP_HOOK)) {
     text = stripHook(text, GAP_HOOK);
     context.stats.unsupportedEffects[context.playerIndex] += 1;
+    recordRuleGap(context);
     gapEncountered = true;
   }
 
@@ -486,6 +487,17 @@ function giveUnitKeyword(unit, keyword) {
   if (keyword === "Storm") { unit.canAttackLeader = true; unit.canAttackFollower = true; }
   if (keyword === "Rush") unit.canAttackFollower = true;
   return true;
+}
+
+function recordRuleGap(context) {
+  const stats = context?.stats;
+  if (!stats) return;
+  if (!Array.isArray(stats.ruleGapsByCard)) stats.ruleGapsByCard = [{}, {}];
+  const playerIndex = Number(context.playerIndex) === 1 ? 1 : 0;
+  if (!stats.ruleGapsByCard[playerIndex]) stats.ruleGapsByCard[playerIndex] = {};
+  const sourceName = String(context.card?.name ?? context.sourceUnit?.name ?? "Unknown");
+  const bucket = stats.ruleGapsByCard[playerIndex];
+  bucket[sourceName] = (Number(bucket[sourceName]) || 0) + 1;
 }
 
 function hasKeyword(unit, keyword) { return (unit.keywords ?? []).some(value => normalize(value) === normalize(keyword)); }
