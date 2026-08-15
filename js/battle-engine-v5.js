@@ -372,6 +372,7 @@ function drawCards(player, amount, stats, index) {
 }
 
 // [[battle-ai-v1-extra-pp]]
+// [[battle-ai-v1-1-extra-pp-profile]]
 function useBonusPpIfUseful(player, opponent) {
   if (!player.bonusPpAvailable) return false;
 
@@ -386,19 +387,38 @@ function useBonusPpIfUseful(player, opponent) {
 
   if (!boosted) return false;
 
+  const style = String(player.strategy?.style ?? "midrange");
+  const control = style === "ward-control" || style === "control";
+  const tempo = style === "puppetry-tempo" || style === "buff-tempo";
+  const aggro = style === "aggro";
   const currentScore = Number(current?.score ?? -Infinity);
   const boostedScore = Number(boosted.score ?? -Infinity);
-  const scoreUpgrade = !current || boostedScore >= currentScore + 1.25;
+  const improvement = boostedScore - currentScore;
   const curveUpgrade = boostedSpend > currentSpend;
   const firstChargeDeadline = player.personalTurn === 5 && player.bonusPpUses === 0;
-  const pressureUse = (opponent.hp <= 10 || opponent.board.some(unit => unit.type === "Follower"))
-    && boostedScore > currentScore + 0.25;
+  const laterCharge = player.personalTurn >= 6 && player.bonusPpUses >= 1;
+  const enemyBoard = opponent.board.filter(unit => unit.type === "Follower");
 
-  // Early on, preserve the charge unless +1 PP materially improves the action.
-  // By turn 5 the first charge would otherwise miss its turn-6 refresh, so use it
-  // whenever it converts into additional spend. After turn 6, use it for a clear
-  // tactical upgrade rather than simply because one PP is available.
-  const shouldUse = scoreUpgrade || pressureUse || (firstChargeDeadline && curveUpgrade);
+  let threshold = 1.5;
+  if (aggro) threshold = 1.0;
+  else if (tempo) threshold = 1.65;
+  else if (style === "spell-combo") threshold = 1.75;
+  else if (style === "ramp") threshold = 1.25;
+  else if (control) threshold = 3.0;
+
+  // The second charge is strategically scarcer: tempo/control decks should not
+  // fire it just because a slightly more expensive card became available.
+  if (laterCharge) {
+    if (tempo) threshold += 0.75;
+    if (control) threshold += 1.5;
+  }
+
+  const clearUpgrade = !current || improvement >= threshold;
+  const tacticalPressure = enemyBoard.length > 0 && improvement >= (control ? 2.5 : tempo ? 1.25 : 0.75);
+  const lethalPressure = opponent.hp <= 8 && improvement > 0;
+  const deadlineSpend = firstChargeDeadline && curveUpgrade && (!control || improvement >= -0.25);
+
+  const shouldUse = clearUpgrade || tacticalPressure || lethalPressure || deadlineSpend;
   if (!shouldUse) return false;
 
   player.pp = currentPp + 1;
