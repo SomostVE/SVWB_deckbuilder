@@ -12,7 +12,11 @@ const FULL_OVERRIDES = new Map([
   ["grimnir, heavenly gale", "Persistent Crest turn-end trigger is modeled"],
   ["sincerity of the dewdrop", "Field transform into Imari's Little Buddies is modeled"],
   ["sarissa, luxspear al-mi'raj", "Ward-destruction trigger and Evolve Barrier are modeled"],
-  ["knight of the holy order", "On-field stat-buff healing trigger is modeled"]
+  ["knight of the holy order", "On-field stat-buff healing trigger is modeled"],
+  ["brazen broadcaster", "Artifact entry Rush, Fanfare and Enhance summons are modeled"],
+  ["zwei, symphonic heart", "Puppetry entry Ward, Fanfare and Evolve summons are modeled"],
+  ["orchis, newfound heart", "Puppetry entry Storm/Bane, Fanfare and Super-Evolve summons are modeled"],
+  ["imari, dewdrop", "Discard/search, spell-play summon and Super-Evolve spell search are modeled"]
 ]);
 
 const HANDLED_REACTIVE_CLAUSES = [
@@ -76,6 +80,7 @@ function prepareSimulationCardMap(cardMap) {
     if (!card) continue;
     const support = analyzeCardSupport(card);
     let text = sanitizeHandledReactiveText(card.text);
+    text = adaptMixedSkyboundText(card, text);
     text = expandEnhanceWithBaseFanfare(text);
     const hooks = [];
     if (card.type === "Follower") hooks.push(ENTRY_HOOK);
@@ -100,6 +105,18 @@ function sanitizeHandledReactiveText(textValue) {
   let text = String(textValue ?? "");
   for (const pattern of HANDLED_REACTIVE_CLAUSES) text = text.replace(pattern, " ");
   return text.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function adaptMixedSkyboundText(card, textValue) {
+  let text = String(textValue ?? "");
+  const name = normalize(card?.name);
+  if (name === "vira, luminous primal knight") {
+    text = text.replace(/Super Skybound Art\s*[-–—:]\s*Super-evolve this follower\.?/i, "[[battle-super-skybound-self:15]]");
+  }
+  if (name === "lu woh, light personified") {
+    text = text.replace(/Skybound Art\s*[-–—:]\s*Gain Crest\s*:\s*Lu Woh, Light Personified\.?/i, "[[battle-skybound-crest:10:Lu Woh, Light Personified]]");
+  }
+  return text;
 }
 
 function expandEnhanceWithBaseFanfare(textValue) {
