@@ -8,9 +8,11 @@ on:
       - "scripts/apply-battle-asher.mjs"
       - "scripts/apply-battle-coverage-100.py"
       - "scripts/apply-battle-combat-order-fix.mjs"
+      - "scripts/apply-battle-ai-v1.mjs"
       - "scripts/check-battle-asher.mjs"
       - "scripts/check-battle-coverage-100.mjs"
       - "scripts/check-battle-combat-order.mjs"
+      - "scripts/check-battle-ai-v1.mjs"
 
 permissions:
   contents: write
@@ -30,12 +32,13 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Materialize tested Battle Sim rules
+      - name: Materialize tested Battle Sim rules and AI
         run: |
           node scripts/apply-battle-focus-rules.mjs
           node scripts/apply-battle-asher.mjs
           python3 scripts/apply-battle-coverage-100.py
           node scripts/apply-battle-combat-order-fix.mjs
+          node scripts/apply-battle-ai-v1.mjs
 
       - name: Check changed JavaScript syntax
         run: |
@@ -51,8 +54,9 @@ jobs:
           node scripts/check-battle-asher.mjs
           node scripts/check-battle-coverage-100.mjs
           node scripts/check-battle-combat-order.mjs
+          node scripts/check-battle-ai-v1.mjs
 
-      - name: Commit tested rules
+      - name: Commit tested engine changes
         run: |
           if git diff --quiet -- js/battle-rules-core.js js/battle-rules.js js/battle-engine-v4.js js/battle-engine-v5.js; then
             echo "No changes to commit."
@@ -61,5 +65,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add js/battle-rules-core.js js/battle-rules.js js/battle-engine-v4.js js/battle-engine-v5.js
-          git commit -m "fix: resolve Strike before combat damage"
+          git commit -m "feat: improve baseline AI Extra PP decisions"
           git push origin HEAD:main
