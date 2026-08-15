@@ -82,12 +82,19 @@
       <div class="benchmark-head">
         <div>
           <h2>Benchmark</h2>
-          <p class="tools-muted">Run repeatable matchups with the current rules engine. The benchmark uses the baseline AI for now; rules coverage is the priority.</p>
+          <p class="tools-muted">Run repeatable matchups with the current rules engine. Run deck matchups or calibrate the current AI with reference-deck mirrors. Rules coverage and side bias stay visible.</p>
         </div>
         <div class="battle-local-badge">Worker · deterministic seeds</div>
       </div>
 
       <div class="benchmark-controls">
+        <label>
+          <span>Benchmark mode</span>
+          <select id="benchmark-mode">
+            <option value="deck">Deck benchmark</option>
+            <option value="calibration">AI mirror calibration</option>
+          </select>
+        </label>
         <label>
           <span>Opponent pool</span>
           <select id="benchmark-scope">

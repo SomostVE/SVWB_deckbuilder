@@ -2,10 +2,14 @@ import { runMatchupBenchmark } from "./battle-benchmark-core.js";
 
 self.addEventListener("message", event => {
   const payload = event.data ?? {};
-  if (payload.type !== "run") return;
+  if (payload.type !== "run" && payload.type !== "calibration") return;
 
   try {
     const cardMap = new Map((payload.cards ?? []).map(card => [Number(card.id), card]));
+    if (payload.type === "calibration") {
+      runCalibration(payload, cardMap);
+      return;
+    }
     const opponents = payload.opponents ?? [];
     const results = [];
     const gamesPerMatchup = Math.max(1, Number(payload.games) || 100);
@@ -75,6 +79,54 @@ self.addEventListener("message", event => {
     self.postMessage({ type: "error", message: error?.message || String(error) });
   }
 });
+
+
+function runCalibration(payload, cardMap) {
+  const references = payload.references ?? [];
+  const results = [];
+  const gamesPerMatchup = Math.max(1, Number(payload.games) || 100);
+  const totalGames = gamesPerMatchup * references.length;
+  let completed = 0;
+
+  for (const reference of references) {
+    const opponent = {
+      id: reference.id,
+      name: reference.name,
+      class: reference.class,
+      format: reference.format,
+      strategy: reference.strategy ?? {},
+      deck: reference.deck
+    };
+    const result = runOne({
+      playerDeck: reference.deck,
+      playerStrategy: reference.strategy ?? {},
+      opponent,
+      cardMap,
+      gamesPerMatchup,
+      seed: `${payload.seed || "deci-benchmark"}:${reference.id}:mirror`,
+      completed,
+      totalGames,
+      label: "Mirror"
+    });
+    completed += gamesPerMatchup;
+    results.push({
+      id: reference.id,
+      name: reference.name,
+      class: reference.class,
+      format: reference.format,
+      ...result,
+      compare: null
+    });
+  }
+
+  self.postMessage({
+    type: "complete",
+    calibration: true,
+    results,
+    totalGames,
+    comparison: null
+  });
+}
 
 function runOne({ playerDeck, playerStrategy, opponent, cardMap, gamesPerMatchup, seed, completed, totalGames, label }) {
   return runMatchupBenchmark({
