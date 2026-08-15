@@ -1,0 +1,50 @@
+import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import { BATTLE_RULES_VERSION, analyzeDeckCoverage, simulateBattle } from "../js/battle-engine.js";
+
+const cards = JSON.parse(await fs.readFile(new URL("../data/official/cards.json", import.meta.url), "utf8"));
+const references = JSON.parse(await fs.readFile(new URL("../data/custom/reference-decks.json", import.meta.url), "utf8")).decks ?? [];
+const cardMap = new Map(cards.map(card => [Number(card.id), card]));
+
+assert.equal(BATTLE_RULES_VERSION, 5, "Battle Sim v5 must be active");
+
+function byName(name) {
+  const deck = references.find(reference => reference.name === name);
+  assert.ok(deck, `Missing reference deck: ${name}`);
+  return deck;
+}
+
+function deckList(reference) {
+  return reference.cards.map(card => [Number(card.cardId), Number(card.qty ?? 1)]);
+}
+
+for (const name of ["Ward Havencraft", "Puppetry Portalcraft"]) {
+  const reference = byName(name);
+  const deck = deckList(reference);
+  const coverage = analyzeDeckCoverage(deck, cardMap);
+  assert.equal(coverage.unsupported, 0, `${name}: unsupported copies must be zero`);
+  assert.equal(coverage.partial, 0, `${name}: v5 should fully model every reference-deck copy`);
+  assert.equal(coverage.modeledPercent, 100, `${name}: coverage must be 100%`);
+
+  const result = simulateBattle({
+    playerDeck: deck,
+    opponentDeck: deck,
+    cardMap,
+    playerStrategy: reference.strategy ?? {},
+    opponentStrategy: reference.strategy ?? {},
+    seed: `v5-integration:${name}`,
+    playerSide: "first",
+    recordFrames: false
+  });
+  assert.ok(result.summary.rounds > 0, `${name}: simulation must complete turns`);
+  assert.equal(result.summary.experimental, false, `${name}: fully modeled mirror should not be marked experimental`);
+  console.log(`${name}: ${coverage.modeledPercent}% modeled · ${result.summary.rounds} rounds`);
+}
+
+const dragon = byName("Ramp Dragoncraft");
+const dragonCoverage = analyzeDeckCoverage(deckList(dragon), cardMap);
+assert.equal(dragonCoverage.unsupported, 0, "Ramp Dragoncraft must have no unsupported copies");
+assert.deepEqual(dragonCoverage.partialCards, ["Zooey, Ally of the World"], "Only Zooey should remain partial in Ramp Dragoncraft after v5");
+
+console.log(`Ramp Dragoncraft: ${dragonCoverage.modeledPercent}% modeled · remaining partial: ${dragonCoverage.partialCards.join(", ")}`);
+console.log("Battle Sim v5 integration: OK");
