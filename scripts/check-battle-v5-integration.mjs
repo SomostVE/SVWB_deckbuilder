@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
-import { BATTLE_RULES_VERSION, analyzeDeckCoverage, simulateBattle } from "../js/battle-engine.js";
+import { BATTLE_RULES_VERSION, analyzeCardSupport, analyzeDeckCoverage, simulateBattle } from "../js/battle-engine.js";
 
 const cards = JSON.parse(await fs.readFile(new URL("../data/official/cards.json", import.meta.url), "utf8"));
 const references = JSON.parse(await fs.readFile(new URL("../data/custom/reference-decks.json", import.meta.url), "utf8")).decks ?? [];
@@ -40,6 +40,10 @@ for (const name of ["Ward Havencraft", "Puppetry Portalcraft"]) {
   assert.equal(result.summary.experimental, false, `${name}: fully modeled mirror should not be marked experimental`);
   console.log(`${name}: ${coverage.modeledPercent}% modeled · ${result.summary.rounds} rounds`);
 }
+
+const analyzingArtifact = cards.find(card => card.name === "Analyzing Artifact");
+assert.ok(analyzingArtifact, "Analyzing Artifact must exist in the official card database");
+assert.equal(analyzeCardSupport(analyzingArtifact).level, "full", "Analyzing Artifact self-entry draw is fully modeled and must not emit a rule gap");
 
 const dragon = byName("Ramp Dragoncraft");
 const dragonCoverage = analyzeDeckCoverage(deckList(dragon), cardMap);
