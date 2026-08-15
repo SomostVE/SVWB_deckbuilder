@@ -16,7 +16,8 @@ const FULL_OVERRIDES = new Map([
   ["brazen broadcaster", "Artifact entry Rush, Fanfare and Enhance summons are modeled"],
   ["zwei, symphonic heart", "Puppetry entry Ward, Fanfare and Evolve summons are modeled"],
   ["orchis, newfound heart", "Puppetry entry Storm/Bane, Fanfare and Super-Evolve summons are modeled"],
-  ["imari, dewdrop", "Discard/search, spell-play summon and Super-Evolve spell search are modeled"]
+  ["imari, dewdrop", "Discard/search, spell-play summon and Super-Evolve spell search are modeled"],
+  ["analyzing artifact", "Self-entry draw trigger is modeled"]
 ]);
 
 const HANDLED_REACTIVE_CLAUSES = [
