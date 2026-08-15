@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "scripts/materialize-battle-v5.mjs"
+      - "scripts/materialize-battle-v5-fixed.mjs"
       - "scripts/.battle-v5-part1"
       - "scripts/.battle-v5-part2"
       - "scripts/.battle-v5-part3"
@@ -26,7 +26,7 @@ jobs:
           node-version: "24"
 
       - name: Materialize engine
-        run: node scripts/materialize-battle-v5.mjs
+        run: node scripts/materialize-battle-v5-fixed.mjs
 
       - name: Validate generated engine
         run: node --check js/battle-engine-v5.js
