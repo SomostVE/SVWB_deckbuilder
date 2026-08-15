@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - ".github/workflows/apply-battle-focus-rules.yml"
+      - "scripts/apply-battle-focus-rules.mjs"
 
 permissions:
   contents: write
@@ -24,9 +25,6 @@ jobs:
 
       - name: Materialize focus rules
         run: node scripts/apply-battle-focus-rules.mjs
-
-      - name: Show materialized focus handlers
-        run: grep -n -A110 -B3 "battle-focus-rules-v5" js/battle-rules.js
 
       - name: Check changed JavaScript syntax
         run: |
