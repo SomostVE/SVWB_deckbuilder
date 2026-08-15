@@ -11,9 +11,11 @@ const greedy = follower("Greedy Body", 2, 10, 10);
 const defensiveWard = follower("Future Ward", 2, 1, 8, "Ward", ["Ward"]);
 const enemyStorm = follower("Hidden Storm", 1, 8, 1, "Storm", ["Storm"]);
 const inert = follower("Hidden Inert", 10, 1, 1);
+const ownFiller = follower("Own Future Draw", 10, 1, 1);
 
 const common = {
   hand: [greedy, defensiveWard],
+  deck: [ownFiller],
   pp: 2,
   maxPp: 2,
   hp: 8,
