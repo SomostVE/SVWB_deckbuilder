@@ -24,33 +24,49 @@ const twoDrop = {
 const cardMap = new Map([[oneDrop.id, oneDrop], [twoDrop.id, twoDrop]]);
 const mixedDeck = [[oneDrop.id, 20], [twoDrop.id, 20]];
 
+function firstTurnBonusUses(result) {
+  const frame = [...result.frames].reverse().find(frame => frame.active === 0 && frame.players?.[0]?.personalTurn === 1);
+  return Number(frame?.players?.[0]?.bonusPpUses ?? 0);
+}
+
 let usedOnFirstTurn = 0;
+let controlUsedOnFirstTurn = 0;
 let eligibleSamples = 0;
 for (let index = 0; index < 40; index += 1) {
-  const result = simulateBattle({
+  const common = {
     playerDeck: mixedDeck,
     opponentDeck: mixedDeck,
     cardMap,
-    playerStrategy: { style: "aggro", mulliganMaxCost: 2, faceBias: .9, tradeBias: .2 },
-    opponentStrategy: { style: "aggro", mulliganMaxCost: 2, faceBias: .9, tradeBias: .2 },
     seed: `qa-ai-extra-pp:${index}`,
     playerSide: "second",
     recordFrames: true
+  };
+  const aggro = simulateBattle({
+    ...common,
+    playerStrategy: { style: "aggro", mulliganMaxCost: 2, faceBias: .9, tradeBias: .2 },
+    opponentStrategy: { style: "aggro", mulliganMaxCost: 2, faceBias: .9, tradeBias: .2 }
   });
 
-  const start = result.frames.find(frame => frame.active === 0 && frame.players?.[0]?.personalTurn === 1 && frame.phase === "draw");
+  const start = aggro.frames.find(frame => frame.active === 0 && frame.players?.[0]?.personalTurn === 1 && frame.phase === "draw");
   if (!start) continue;
   const costs = start.players[0].hand.map(card => Number(card.cost));
   if (!costs.includes(1) || !costs.includes(2)) continue;
   eligibleSamples += 1;
+  if (firstTurnBonusUses(aggro) >= 1) usedOnFirstTurn += 1;
 
-  const firstTurnFrames = result.frames.filter(frame => frame.active === 0 && frame.players?.[0]?.personalTurn === 1);
-  if (firstTurnFrames.some(frame => Number(frame.players?.[0]?.bonusPpUses ?? 0) >= 1)) usedOnFirstTurn += 1;
+  const control = simulateBattle({
+    ...common,
+    playerStrategy: { style: "ward-control", mulliganMaxCost: 2, faceBias: .25, tradeBias: .9 },
+    opponentStrategy: { style: "ward-control", mulliganMaxCost: 2, faceBias: .25, tradeBias: .9 }
+  });
+  if (firstTurnBonusUses(control) >= 1) controlUsedOnFirstTurn += 1;
 }
 
 assert.ok(eligibleSamples >= 20, `Expected enough mixed opening hands, got ${eligibleSamples}`);
 assert.ok(usedOnFirstTurn / eligibleSamples >= .75,
-  `AI should use Extra PP to upgrade a playable 1-drop into a stronger 2-drop; used ${usedOnFirstTurn}/${eligibleSamples}`);
+  `Aggro AI should use Extra PP to upgrade a playable 1-drop into a stronger 2-drop; used ${usedOnFirstTurn}/${eligibleSamples}`);
+assert.equal(controlUsedOnFirstTurn, 0,
+  "Control AI should preserve Extra PP on turn 1 for a small generic curve upgrade");
 
 const oneDropOnly = [[oneDrop.id, 40]];
 const noUpgrade = simulateBattle({
@@ -63,8 +79,7 @@ const noUpgrade = simulateBattle({
   playerSide: "second",
   recordFrames: true
 });
-const firstTurnEnd = [...noUpgrade.frames].reverse().find(frame => frame.active === 0 && frame.players?.[0]?.personalTurn === 1);
-assert.equal(Number(firstTurnEnd?.players?.[0]?.bonusPpUses ?? 0), 0,
+assert.equal(firstTurnBonusUses(noUpgrade), 0,
   "AI should not consume Extra PP on turn 1 when +1 PP unlocks no better action or extra spend");
 
-console.log(`Battle AI v1 Extra PP: ${usedOnFirstTurn}/${eligibleSamples} eligible upgraded openings · no-waste case OK`);
+console.log(`Battle AI v1.1 Extra PP: aggro ${usedOnFirstTurn}/${eligibleSamples} upgraded openings · control ${controlUsedOnFirstTurn}/${eligibleSamples} early uses · no-waste OK`);
