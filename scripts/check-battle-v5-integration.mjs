@@ -26,7 +26,6 @@ const expectedPartials = new Map([
     "Edeth, Voice of Heaven"
   ]],
   ["Puppetry Portalcraft", [
-    "Eudie, Your Dependable Mentor",
     "Asher & Lydia, Paths Beyond"
   ]]
 ]);
@@ -64,6 +63,7 @@ const fullyModeledFocusCards = [
   "Puppet Cat",
   "Lovestruck Puppeteer",
   "Cool Courier",
+  "Eudie, Your Dependable Mentor",
   "Odin, Twilit Fate"
 ];
 
