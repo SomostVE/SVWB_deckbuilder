@@ -1,0 +1,27 @@
+name: Check two-turn planner fast
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/check-two-turn-fast.yml
+      - scripts/materialize-battle-two-turn-lookahead.py
+      - scripts/materialize-battle-two-turn-lookahead-v2.py
+      - scripts/materialize-battle-two-turn-lookahead-tuning.py
+      - scripts/check-battle-two-turn-lookahead.mjs
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Materialize
+        run: |
+          python3 scripts/materialize-battle-two-turn-lookahead-v2.py
+          python3 scripts/materialize-battle-two-turn-lookahead-tuning.py
+      - name: Syntax
+        run: node --check js/battle-engine-v5.js
+      - name: Two-turn regression
+        run: node scripts/check-battle-two-turn-lookahead.mjs
