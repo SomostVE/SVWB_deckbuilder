@@ -43,6 +43,9 @@ jobs:
       - name: Run Battle Sim ability evolution regression
         run: node scripts/check-battle-ability-evolve.mjs
 
+      - name: Run Battle Sim Asher regression
+        run: node scripts/check-battle-asher.mjs
+
       - name: Run Battle Sim v5 integration
         run: node scripts/check-battle-v5-integration.mjs
 
