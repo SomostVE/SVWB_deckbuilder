@@ -57,6 +57,23 @@ function generatedDependencies(reference) {
   return dependencies;
 }
 
+function printCardDetails(name) {
+  const card = cards.find(item => item.name === name);
+  if (!card) {
+    console.log(`Card details missing: ${name}`);
+    return;
+  }
+  const support = analyzeCardSupport(card);
+  console.log(`\n--- ${name} ---`);
+  console.log(`id=${card.id} type=${card.type} cost=${card.cost} traits=${(card.traits ?? []).join(",") || "-"} keywords=${(card.keywords ?? []).join(",") || "-"}`);
+  console.log(`support=${support.level} reason=${support.reason ?? "-"}`);
+  console.log(`related=${(card.__relatedNames ?? []).join(" | ") || "-"}`);
+  console.log(`text=${String(card.text ?? "").replace(/\s+/g, " ").trim() || "-"}`);
+}
+
+printCardDetails("Freerunning");
+printCardDetails("Analyzing Artifact");
+
 for (const player of focusDecks) {
   console.log(`\n=== ${player.name} ===`);
   const dependencies = generatedDependencies(player);
@@ -101,6 +118,10 @@ for (const player of focusDecks) {
       `coverage ${result.coverage.player.modeledPercent}%/${result.coverage.opponent.modeledPercent}%`,
       `rules ${result.diagnostics.rulesTier}`
     ].join(" | "));
+
+    if (result.overall.ruleGapsByCard?.length) {
+      console.log(`  gap sources: ${result.overall.ruleGapsByCard.map(item => `${item.name}=${item.count} (${fmt(item.perGame, 2)}/g)`).join(" | ")}`);
+    }
   }
 
   const aggregateWinRate = totalGames ? totalWins / totalGames * 100 : 0;
