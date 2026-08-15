@@ -23,5 +23,5 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Audit and rebenchmark current focus rules
+      - name: Audit and rebenchmark focus rules after ability evolution
         run: node scripts/rebenchmark-battle-v5.mjs
