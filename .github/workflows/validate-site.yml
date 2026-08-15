@@ -55,6 +55,9 @@ jobs:
       - name: Run Battle Sim target branching regression
         run: node scripts/check-battle-target-branching.mjs
 
+      - name: Run Battle Sim full-turn planner regression
+        run: node scripts/check-battle-turn-planner.mjs
+
       - name: Run Battle Sim full coverage regression
         run: node scripts/check-battle-coverage-100.mjs
 
