@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-15T11:48:42.734Z",
+  "generatedAt": "2026-08-15T11:59:02.273Z",
   "source": "https://shadowverse-wb.com/web/CardList/cardList",
   "count": 826,
   "classes": [
@@ -83,7 +83,7 @@
   },
   "update": {
     "added": 0,
-    "modified": 368,
+    "modified": 0,
     "removed": 0
   }
 }
