@@ -1,6 +1,14 @@
-const SUPPORTED_KEYWORDS = new Set(["Ward", "Rush", "Storm", "Bane", "Drain"]);
-const WORD_NUMBERS = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5 };
+import {
+  analyzeCardSupport as analyzeRulesSupport,
+  executeGenericEffects,
+  getBaseCost,
+  getCountdown,
+  getPlayModes,
+  getTriggeredText
+} from "./battle-rules.js";
+
 const MAX_ROUNDS = 20;
+const MAX_ACTIONS_PER_TURN = 20;
 
 export function simulateBattle({
   playerDeck,
@@ -24,15 +32,7 @@ export function simulateBattle({
   players[second].goingSecond = true;
   players[second].bonusPpAvailable = true;
 
-  const stats = {
-    damageDealt: [0, 0],
-    cardsPlayed: [0, 0],
-    attacks: [0, 0],
-    draws: [0, 0],
-    unsupportedEffects: [0, 0],
-    evolutions: [0, 0],
-    superEvolutions: [0, 0]
-  };
+  const stats = createStats();
   const frames = [];
 
   drawCards(players[0], 4, stats, 0);
@@ -46,29 +46,27 @@ export function simulateBattle({
   let lastRound = 0;
 
   outer:
-  for (let round = 1; round <= MAX_ROUNDS; round++) {
+  for (let round = 1; round <= MAX_ROUNDS; round += 1) {
     lastRound = round;
+
     for (const active of [first, second]) {
       const enemy = active === 0 ? 1 : 0;
       const player = players[active];
       const opponent = players[enemy];
 
       player.personalTurn += 1;
+      player.cardsPlayedThisTurn = 0;
+      player.spellsPlayedThisTurn = 0;
       player.maxPp = Math.min(10, player.maxPp + 1);
       player.pp = player.maxPp;
-      for (const unit of player.board) {
-        if (unit.type !== "Follower") continue;
-        unit.summonedThisTurn = false;
-        unit.canAttackLeader = true;
-        unit.canAttackFollower = true;
-        unit.attacked = false;
-      }
+      readyBoard(player);
 
+      const startActions = processTurnStart(player, opponent, active, enemy, stats, rng, cardMap);
       snapshot(frames, players, {
         round,
         active,
         phase: "turn-start",
-        action: `${player.name} starts turn ${player.personalTurn} with ${player.pp}/${player.maxPp} PP.`
+        action: compactAction(`${player.name} starts turn ${player.personalTurn} with ${player.pp}/${player.maxPp} PP.`, startActions)
       }, stats);
 
       drawCards(player, 1, stats, active);
@@ -79,22 +77,22 @@ export function simulateBattle({
         action: `${player.name} draws a card.`
       }, stats);
 
-      maybeUseBonusPp(player, opponent, cardMap, active, frames, players, round, stats);
+      maybeUseBonusPp(player, active, frames, players, round, stats);
 
       let safety = 0;
-      while (safety++ < 12) {
-        const playable = player.hand.filter(instance => canPlay(instance.card, player));
-        if (!playable.length) break;
+      while (safety++ < MAX_ACTIONS_PER_TURN) {
+        const options = getPlayableOptions(player);
+        if (!options.length) break;
 
-        const chosen = choosePlayable(playable, player, opponent);
+        const chosen = choosePlayable(options, player, opponent);
         if (!chosen) break;
-        playCard(chosen, player, opponent, active, enemy, stats, rng);
 
+        const result = playCard(chosen.instance, chosen.mode, player, opponent, active, enemy, stats, rng, cardMap);
         snapshot(frames, players, {
           round,
           active,
           phase: "play",
-          action: `${player.name} plays ${chosen.card.name} (${chosen.card.cost} PP).`
+          action: compactAction(`${player.name} plays ${chosen.instance.card.name} (${chosen.mode.cost} PP${chosen.mode.kind !== "base" ? ` · ${capitalize(chosen.mode.kind)}` : ""}).`, result.actions)
         }, stats);
 
         if (opponent.hp <= 0) {
@@ -103,21 +101,37 @@ export function simulateBattle({
         }
       }
 
-      maybeEvolve(player, opponent, active, enemy, stats, frames, players, round, false);
-      maybeEvolve(player, opponent, active, enemy, stats, frames, players, round, true);
+      const evolveActions = maybeEvolve(player, opponent, active, enemy, stats, rng, cardMap, false);
+      if (evolveActions) {
+        snapshot(frames, players, { round, active, phase: "evolve", action: evolveActions.action }, stats);
+        if (opponent.hp <= 0) { winner = active; break outer; }
+      }
 
-      performAttacks(player, opponent, active, enemy, stats, frames, players, round, rng);
+      const superActions = maybeEvolve(player, opponent, active, enemy, stats, rng, cardMap, true);
+      if (superActions) {
+        snapshot(frames, players, { round, active, phase: "super-evolve", action: superActions.action }, stats);
+        if (opponent.hp <= 0) { winner = active; break outer; }
+      }
+
+      performAttacks(player, opponent, active, enemy, stats, frames, players, round, rng, cardMap);
       if (opponent.hp <= 0) {
         winner = active;
         break outer;
       }
 
+      const endActions = processTurnEnd(player, opponent, active, enemy, stats, rng, cardMap);
+      stats.ppWasted[active] += Math.max(0, player.pp);
       snapshot(frames, players, {
         round,
         active,
         phase: "turn-end",
-        action: `${player.name} ends turn ${player.personalTurn}.`
+        action: compactAction(`${player.name} ends turn ${player.personalTurn}.`, endActions)
       }, stats);
+
+      if (opponent.hp <= 0) {
+        winner = active;
+        break outer;
+      }
     }
   }
 
@@ -135,7 +149,7 @@ export function simulateBattle({
       rounds: lastRound,
       finalHp: players.map(player => player.hp),
       stats,
-      experimental: true
+      experimental: coverage.some(item => item.unsupported > 0 || item.partial > 0)
     }
   };
 }
@@ -148,12 +162,14 @@ export function analyzeDeckCoverage(deck, cardMap) {
   let unsupported = 0;
   const unsupportedCards = [];
   const partialCards = [];
+  const mechanics = new Map();
 
   for (const [id, qty] of rows) {
     const card = cardMap.get(Number(id));
     const count = Number(qty) || 0;
     total += count;
-    const support = card ? analyzeCardSupport(card) : { level: "unsupported", reason: "Card not found in database" };
+    const support = card ? analyzeCardSupport(card) : { level: "unsupported", reason: "Card not found in database", mechanics: [] };
+
     if (support.level === "full") full += count;
     else if (support.level === "partial") {
       partial += count;
@@ -162,6 +178,10 @@ export function analyzeDeckCoverage(deck, cardMap) {
       unsupported += count;
       unsupportedCards.push(card?.name ?? `Card ${id}`);
     }
+
+    for (const mechanic of support.mechanics ?? []) {
+      mechanics.set(mechanic, (mechanics.get(mechanic) ?? 0) + count);
+    }
   }
 
   return {
@@ -169,41 +189,41 @@ export function analyzeDeckCoverage(deck, cardMap) {
     full,
     partial,
     unsupported,
-    modeledPercent: total ? Math.round((full + partial * .5) / total * 100) : 0,
-    partialCards: [...new Set(partialCards)].slice(0, 12),
-    unsupportedCards: [...new Set(unsupportedCards)].slice(0, 12)
+    modeledPercent: total ? Math.round((full + partial * .65) / total * 100) : 0,
+    partialCards: [...new Set(partialCards)].slice(0, 16),
+    unsupportedCards: [...new Set(unsupportedCards)].slice(0, 16),
+    mechanics: [...mechanics.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([name, count]) => ({ name, count }))
   };
 }
 
 export function analyzeCardSupport(card) {
-  if (!card) return { level: "unsupported", reason: "Missing card" };
-  const text = normalizeText(card.text);
-  const keywords = new Set(card.keywords ?? []);
-  const unsupportedKeyword = [...keywords].some(keyword => !SUPPORTED_KEYWORDS.has(keyword));
-  const simpleEffect = hasSimpleEffect(text);
-  const complex = /spellboost|earth rite|necromancy|reanimate|departed|engage|countdown|crest|faith|combo|super-evol|evolve:|last words|enhance|accelerate|transmute|fuse|puppet|artifact|whenever|at the end of|at the start of|select a mode|choose|if you have|if there (?:is|are)|for each|times? this match|cards? played this turn/i.test(text);
+  return analyzeRulesSupport(card);
+}
 
-  if (card.type === "Follower" && !text && !unsupportedKeyword) return { level: "full", reason: "Base follower combat" };
-  if (card.type === "Follower" && !complex && !unsupportedKeyword && (!text || simpleEffect || [...keywords].length)) {
-    return { level: simpleEffect || text ? "partial" : "full", reason: "Basic stats/keywords and simple effects" };
-  }
-  if ((card.type === "Spell" || card.type === "Amulet") && simpleEffect && !complex && !unsupportedKeyword) {
-    return { level: "partial", reason: "Simple text effect only" };
-  }
-  return { level: "unsupported", reason: "Card requires mechanics not modeled yet" };
+function createStats() {
+  const pair = () => [0, 0];
+  return {
+    damageDealt: pair(),
+    cardsPlayed: pair(),
+    attacks: pair(),
+    draws: pair(),
+    unsupportedEffects: pair(),
+    evolutions: pair(),
+    superEvolutions: pair(),
+    healing: pair(),
+    followersLost: pair(),
+    cardsGenerated: pair(),
+    cardsBurned: pair(),
+    ppSpent: pair(),
+    ppWasted: pair(),
+    spellsPlayed: pair(),
+    lastWordsTriggered: pair(),
+    strikeTriggered: pair()
+  };
 }
 
 function makePlayer(name, deck, strategy, cardMap, rng) {
-  const library = [];
-  let serial = 0;
-  for (const [id, qty] of normalizeDeck(deck)) {
-    const card = cardMap.get(Number(id));
-    if (!card) continue;
-    for (let i = 0; i < qty; i += 1) library.push({ uid: `${name}-${serial++}`, card });
-  }
-
-  shuffle(library, rng);
-  return {
+  const player = {
     name,
     strategy: normalizeStrategy(strategy),
     hp: 20,
@@ -212,14 +232,39 @@ function makePlayer(name, deck, strategy, cardMap, rng) {
     pp: 0,
     ep: 2,
     sep: 2,
+    shadows: 0,
     bonusPpAvailable: false,
     goingFirst: false,
     goingSecond: false,
     personalTurn: 0,
-    deck: library,
+    cardsPlayedThisTurn: 0,
+    spellsPlayedThisTurn: 0,
+    nextSerial: 0,
+    deck: [],
     hand: [],
     board: [],
-    cemetery: []
+    cemetery: [],
+    banished: []
+  };
+
+  for (const [id, qty] of normalizeDeck(deck)) {
+    const card = cardMap.get(Number(id));
+    if (!card) continue;
+    for (let i = 0; i < qty; i += 1) player.deck.push(createInstance(player, card));
+  }
+
+  shuffle(player.deck, rng);
+  return player;
+}
+
+function createInstance(player, card) {
+  return {
+    uid: `${player.name}-${player.nextSerial++}`,
+    card,
+    spellboost: 0,
+    costDelta: 0,
+    attackBonus: 0,
+    defenseBonus: 0
   };
 }
 
@@ -264,29 +309,44 @@ function performMulligan(player, rng, stats, playerIndex, frames, players) {
 }
 
 function shouldMulligan(card, strategy) {
-  if (strategy.style === "ramp" && hasRole(card, "Ramp")) return false;
+  const text = normalizeText(card.text);
+  if (strategy.style === "ramp" && (hasRole(card, "Ramp") || /maximum play points|empty play point/.test(text))) return false;
   if (strategy.style === "spell-combo" && (card.type === "Spell" || hasRole(card, "Draw"))) return Number(card.cost) > 4;
   if (strategy.style === "ward-control" && hasKeyword(card, "Ward") && Number(card.cost) <= 4) return false;
+  if (strategy.style === "buff-tempo" && /give .*\+\d+\s*\/\s*\+\d+/.test(text) && Number(card.cost) <= 3) return false;
+  if (strategy.style === "puppetry-tempo" && hasRole(card, "Generate") && Number(card.cost) <= 3) return false;
   return Number(card.cost) > strategy.mulliganMaxCost;
 }
 
 function drawCards(player, amount, stats, playerIndex) {
+  let drawnCount = 0;
   for (let i = 0; i < amount; i += 1) {
     const drawn = player.deck.shift();
     if (!drawn) continue;
     stats.draws[playerIndex] += 1;
-    if (player.hand.length >= 9) player.cemetery.push(drawn);
-    else player.hand.push(drawn);
+    drawnCount += 1;
+    if (player.hand.length >= 9) {
+      sendToCemetery(player, drawn);
+      stats.cardsBurned[playerIndex] += 1;
+    } else {
+      player.hand.push(drawn);
+    }
   }
+  return drawnCount;
 }
 
-function maybeUseBonusPp(player, opponent, cardMap, active, frames, players, round, stats) {
+function maybeUseBonusPp(player, active, frames, players, round, stats) {
   if (!player.bonusPpAvailable) return;
-  const currentlyPlayable = player.hand.some(instance => canPlay(instance.card, player));
-  const withBonus = player.hand.filter(instance => Number(instance.card.cost) <= player.pp + 1 && canFit(instance.card, player));
-  if (currentlyPlayable || !withBonus.length) return;
+  const currentlyPlayable = getPlayableOptions(player).length > 0;
+  if (currentlyPlayable) return;
 
   player.pp += 1;
+  const withBonus = getPlayableOptions(player).length > 0;
+  if (!withBonus) {
+    player.pp -= 1;
+    return;
+  }
+
   player.bonusPpAvailable = false;
   snapshot(frames, players, {
     round,
@@ -296,156 +356,208 @@ function maybeUseBonusPp(player, opponent, cardMap, active, frames, players, rou
   }, stats);
 }
 
-function canPlay(card, player) {
-  return Number(card.cost) <= player.pp && canFit(card, player);
+function getPlayableOptions(player) {
+  const options = [];
+  for (const instance of player.hand) {
+    for (const mode of getPlayModes(instance, player)) {
+      options.push({ instance, mode });
+    }
+  }
+  return options;
 }
 
-function canFit(card, player) {
-  if (card.type === "Spell") return true;
-  return player.board.length < 5;
+function choosePlayable(options, player, opponent) {
+  return options
+    .map(option => ({ ...option, score: scoreCard(option.instance, option.mode, player, opponent) }))
+    .sort((a, b) => b.score - a.score || b.mode.cost - a.mode.cost)[0] ?? null;
 }
 
-function choosePlayable(playable, player, opponent) {
-  return playable
-    .map(instance => ({ instance, score: scoreCard(instance.card, player, opponent) }))
-    .sort((a, b) => b.score - a.score || Number(b.instance.card.cost) - Number(a.instance.card.cost))[0]?.instance ?? null;
-}
-
-function scoreCard(card, player, opponent) {
-  const cost = Number(card.cost) || 0;
-  let score = cost * 2.2 - Math.max(0, player.pp - cost) * .22;
+function scoreCard(instance, mode, player, opponent) {
+  const card = instance.card;
+  const cost = mode.cost;
+  const text = normalizeText(mode.text || card.text);
   const style = player.strategy.style;
-  const text = normalizeText(card.text);
+  let score = cost * 1.9 - Math.max(0, player.pp - cost) * .18 + Number(mode.scoreBonus || 0);
 
-  if (card.type === "Follower") score += 2;
-  if (hasRole(card, "Draw")) score += player.hand.length <= 5 ? 4 : 1;
-  if (hasRole(card, "Removal")) score += opponent.board.length ? 5 : -2;
-  if (hasRole(card, "Finisher")) score += opponent.hp <= 12 ? 6 : 1;
-  if (hasKeyword(card, "Storm")) score += style === "aggro" ? 8 : 4;
-  if (hasKeyword(card, "Ward")) score += style === "ward-control" ? 8 : 2;
-  if (hasRole(card, "Heal")) score += player.hp <= 14 ? 7 : 0;
-  if (hasRole(card, "Ramp") || /maximum play points|empty play point/.test(text)) score += style === "ramp" && player.maxPp < 7 ? 12 : 1;
-  if (style === "spell-combo" && card.type === "Spell") score += 6;
-  if (style === "puppetry-tempo" && hasRole(card, "Generate")) score += 6;
-  if (style === "buff-tempo" && /give .*?\+\d+\/\+\d+|gain \+\d+\/\+\d+/.test(text)) score += 7;
-  if (style === "aggro" && cost <= 3) score += 3;
+  if (card.type === "Follower" && mode.kind !== "accelerate") score += 2;
+  if (hasRole(card, "Draw") || /\bdraw /.test(text)) score += player.hand.length <= 5 ? 4 : 1;
+  if (hasRole(card, "Removal") || /destroy .*enemy follower|damage to .*enemy follower|banish .*enemy follower/.test(text)) score += opponent.board.some(unit => unit.type === "Follower") ? 6 : -3;
+  if (hasRole(card, "Finisher") || /damage to (?:the )?enemy leader/.test(text)) score += opponent.hp <= 12 ? 7 : 1;
+  if (hasKeyword(card, "Storm")) score += style === "aggro" ? 9 : 4;
+  if (hasKeyword(card, "Ward")) score += style === "ward-control" ? 8 : (player.hp <= 12 ? 4 : 2);
+  if (hasRole(card, "Heal")) score += player.hp <= 14 ? 8 : -1;
+  if (hasRole(card, "Ramp") || /maximum play points|empty play point/.test(text)) score += style === "ramp" && player.maxPp < 7 ? 13 : 1;
+  if (style === "spell-combo" && (card.type === "Spell" || mode.kind === "accelerate")) score += 6 + Math.max(0, 3 - cost);
+  if (style === "spell-combo" && instance.spellboost > 0) score += Math.min(5, instance.spellboost * .7);
+  if (style === "puppetry-tempo" && (hasRole(card, "Generate") || /summon|to your hand/.test(text))) score += 7;
+  if (style === "buff-tempo" && /(?:give|gain) .*\+\d+\s*\/\s*\+\d+/.test(text)) score += player.hand.some(item => item.card.type === "Follower") || player.board.some(unit => unit.type === "Follower") ? 8 : 1;
+  if (style === "aggro") {
+    if (cost <= 3) score += 3;
+    if (/damage to (?:the )?enemy leader/.test(text)) score += 7;
+  }
+  if (style === "ward-control" && opponent.board.length >= 2 && hasRole(card, "Board Clear")) score += 10;
 
   const support = analyzeCardSupport(card);
-  if (support.level === "unsupported") score -= 3;
+  if (support.level === "unsupported") score -= 4;
+  if (mode.kind === "enhance" && player.pp - cost <= 2) score += 2;
   return score;
 }
 
-function playCard(instance, player, opponent, playerIndex, enemyIndex, stats, rng) {
+function playCard(instance, mode, player, opponent, playerIndex, enemyIndex, stats, rng, cardMap) {
   player.hand = player.hand.filter(item => item.uid !== instance.uid);
-  player.pp -= Number(instance.card.cost) || 0;
+  player.pp -= mode.cost;
+  player.cardsPlayedThisTurn += 1;
   stats.cardsPlayed[playerIndex] += 1;
+  stats.ppSpent[playerIndex] += mode.cost;
 
   const card = instance.card;
-  if (card.type === "Follower") {
-    player.board.push({
-      uid: instance.uid,
-      cardId: Number(card.id),
-      name: card.name,
-      image: card.image,
-      type: card.type,
-      attack: Number(card.attack) || 0,
-      defense: Number(card.defense) || 0,
-      maxDefense: Number(card.defense) || 0,
-      keywords: [...(card.keywords ?? [])],
-      summonedThisTurn: true,
-      canAttackLeader: hasKeyword(card, "Storm"),
-      canAttackFollower: hasKeyword(card, "Storm") || hasKeyword(card, "Rush"),
-      attacked: false,
-      evolved: false,
-      superEvolved: false
-    });
-  } else if (card.type === "Amulet") {
-    player.board.push({
-      uid: instance.uid,
-      cardId: Number(card.id),
-      name: card.name,
-      image: card.image,
-      type: card.type,
-      attack: 0,
-      defense: 0,
-      maxDefense: 0,
-      keywords: [...(card.keywords ?? [])],
-      summonedThisTurn: true,
-      canAttackLeader: false,
-      canAttackFollower: false,
-      attacked: true
-    });
+  const actions = [];
+  let sourceUnit = null;
+
+  if (mode.kind !== "accelerate") {
+    if (card.type === "Follower") {
+      sourceUnit = makeBoardUnit(instance);
+      player.board.push(sourceUnit);
+    } else if (card.type === "Amulet") {
+      sourceUnit = makeBoardAmulet(instance);
+      player.board.push(sourceUnit);
+    }
   }
 
-  const applied = applySimpleEffects(card, player, opponent, playerIndex, enemyIndex, stats, rng);
-  const support = analyzeCardSupport(card);
-  if (support.level === "unsupported" || (support.level === "partial" && !applied && normalizeText(card.text))) {
-    stats.unsupportedEffects[playerIndex] += 1;
+  const text = mode.text || (mode.kind === "base" ? card.text : "");
+  const effect = resolveCardText({
+    text,
+    card,
+    sourceUnit,
+    player,
+    opponent,
+    playerIndex,
+    enemyIndex,
+    stats,
+    rng,
+    cardMap
+  });
+  actions.push(...effect.actions);
+
+  if (card.type === "Spell" || mode.kind === "accelerate") {
+    stats.spellsPlayed[playerIndex] += 1;
+    player.spellsPlayedThisTurn += 1;
+    for (const handCard of player.hand) handCard.spellboost = (Number(handCard.spellboost) || 0) + 1;
+    sendToCemetery(player, instance);
   }
 
-  if (card.type === "Spell") player.cemetery.push(instance);
+  const cleanupActions = cleanupDead(player, opponent, playerIndex, enemyIndex, stats, rng, cardMap)
+    .concat(cleanupDead(opponent, player, enemyIndex, playerIndex, stats, rng, cardMap));
+  actions.push(...cleanupActions);
+
+  return { actions };
 }
 
-function applySimpleEffects(card, player, opponent, playerIndex, enemyIndex, stats) {
-  const text = normalizeText(card.text);
-  if (!text) return false;
-  let applied = false;
-
-  for (const match of text.matchAll(/\bdraw (a|an|one|two|three|four|five|\d+) cards?\b/g)) {
-    const amount = wordNumber(match[1]);
-    if (amount > 0) {
-      drawCards(player, amount, stats, playerIndex);
-      applied = true;
-    }
-  }
-
-  for (const match of text.matchAll(/\brestore (a|an|one|two|three|four|five|\d+) defense to your leader\b/g)) {
-    const amount = wordNumber(match[1]);
-    if (amount > 0) {
-      player.hp = Math.min(player.maxHp, player.hp + amount);
-      applied = true;
-    }
-  }
-
-  for (const match of text.matchAll(/\bdeal (a|an|one|two|three|four|five|\d+) damage to the enemy leader\b/g)) {
-    const amount = wordNumber(match[1]);
-    if (amount > 0) {
-      opponent.hp -= amount;
-      stats.damageDealt[playerIndex] += amount;
-      applied = true;
-    }
-  }
-
-  for (const match of text.matchAll(/\bdeal (a|an|one|two|three|four|five|\d+) damage to (?:an|a|the) enemy follower\b/g)) {
-    const amount = wordNumber(match[1]);
-    const target = chooseRemovalTarget(opponent.board);
-    if (amount > 0 && target) {
-      target.defense -= amount;
-      cleanupDead(opponent);
-      applied = true;
-    }
-  }
-
-  if (/increase your maximum play points by 1|gain an empty play point orb/.test(text)) {
-    player.maxPp = Math.min(10, player.maxPp + 1);
-    applied = true;
-  }
-
-  return applied;
+function makeBoardUnit(instance) {
+  const card = instance.card;
+  const attack = (Number(card.attack) || 0) + (Number(instance.attackBonus) || 0);
+  const defense = (Number(card.defense) || 0) + (Number(instance.defenseBonus) || 0);
+  return {
+    uid: instance.uid,
+    cardId: Number(card.id),
+    card,
+    name: card.name,
+    image: card.image,
+    type: "Follower",
+    attack,
+    defense,
+    maxDefense: defense,
+    keywords: [...(card.keywords ?? [])],
+    summonedThisTurn: true,
+    canAttackLeader: hasKeyword(card, "Storm"),
+    canAttackFollower: hasKeyword(card, "Storm") || hasKeyword(card, "Rush"),
+    attacked: false,
+    evolved: false,
+    superEvolved: false
+  };
 }
 
-function maybeEvolve(player, opponent, playerIndex, enemyIndex, stats, frames, players, round, superMode) {
+function makeBoardAmulet(instance) {
+  const card = instance.card;
+  return {
+    uid: instance.uid,
+    cardId: Number(card.id),
+    card,
+    name: card.name,
+    image: card.image,
+    type: "Amulet",
+    attack: 0,
+    defense: 0,
+    maxDefense: 0,
+    countdown: getCountdown(card),
+    keywords: [...(card.keywords ?? [])],
+    summonedThisTurn: true,
+    canAttackLeader: false,
+    canAttackFollower: false,
+    attacked: true,
+    evolved: false,
+    superEvolved: false
+  };
+}
+
+function processTurnStart(player, opponent, playerIndex, enemyIndex, stats, rng, cardMap) {
+  const actions = [];
+
+  for (const amulet of [...player.board].filter(unit => unit.type === "Amulet" && Number.isFinite(unit.countdown))) {
+    amulet.countdown -= 1;
+    actions.push(`${amulet.name} countdown ${Math.max(0, amulet.countdown)}`);
+    if (amulet.countdown <= 0) actions.push(...destroyBoardObject(player, opponent, amulet, playerIndex, enemyIndex, stats, rng, cardMap, true));
+  }
+
+  for (const unit of [...player.board]) {
+    const text = getTriggeredText(unit.card, "turnStart");
+    if (!text) continue;
+    const result = resolveCardText({ text, card: unit.card, sourceUnit: unit, player, opponent, playerIndex, enemyIndex, stats, rng, cardMap });
+    actions.push(...result.actions.map(action => `${unit.name}: ${action}`));
+  }
+
+  actions.push(...cleanupDead(player, opponent, playerIndex, enemyIndex, stats, rng, cardMap));
+  actions.push(...cleanupDead(opponent, player, enemyIndex, playerIndex, stats, rng, cardMap));
+  return actions;
+}
+
+function processTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, cardMap) {
+  const actions = [];
+  for (const unit of [...player.board]) {
+    const text = getTriggeredText(unit.card, "turnEnd");
+    if (!text) continue;
+    const result = resolveCardText({ text, card: unit.card, sourceUnit: unit, player, opponent, playerIndex, enemyIndex, stats, rng, cardMap });
+    actions.push(...result.actions.map(action => `${unit.name}: ${action}`));
+  }
+  actions.push(...cleanupDead(player, opponent, playerIndex, enemyIndex, stats, rng, cardMap));
+  actions.push(...cleanupDead(opponent, player, enemyIndex, playerIndex, stats, rng, cardMap));
+  return actions;
+}
+
+function readyBoard(player) {
+  for (const unit of player.board) {
+    if (unit.type !== "Follower") continue;
+    unit.summonedThisTurn = false;
+    unit.canAttackLeader = true;
+    unit.canAttackFollower = true;
+    unit.attacked = false;
+  }
+}
+
+function maybeEvolve(player, opponent, playerIndex, enemyIndex, stats, rng, cardMap, superMode) {
   const firstThreshold = superMode ? 7 : 5;
   const secondThreshold = superMode ? 6 : 4;
   const threshold = player.goingFirst ? firstThreshold : secondThreshold;
   const pointsKey = superMode ? "sep" : "ep";
-  if (player.personalTurn < threshold || player[pointsKey] <= 0) return;
-  if (!opponent.board.some(unit => unit.type === "Follower")) return;
+  if (player.personalTurn < threshold || player[pointsKey] <= 0) return null;
 
   const candidates = player.board.filter(unit => unit.type === "Follower" && !unit.attacked && !unit.evolved && !unit.superEvolved);
-  if (!candidates.length) return;
+  if (!candidates.length) return null;
 
-  candidates.sort((a, b) => (b.attack + b.defense) - (a.attack + a.defense));
+  const wantsEvolve = opponent.board.some(unit => unit.type === "Follower") || player.strategy.faceBias >= .72 || opponent.hp <= 10;
+  if (!wantsEvolve) return null;
+
+  candidates.sort((a, b) => evolveScore(b, opponent, player.strategy) - evolveScore(a, opponent, player.strategy));
   const unit = candidates[0];
   const bonus = superMode ? 3 : 2;
   player[pointsKey] -= 1;
@@ -461,16 +573,31 @@ function maybeEvolve(player, opponent, playerIndex, enemyIndex, stats, frames, p
     stats.evolutions[playerIndex] += 1;
   }
 
-  snapshot(frames, players, {
-    round,
-    active: playerIndex,
-    phase: superMode ? "super-evolve" : "evolve",
-    action: `${player.name} ${superMode ? "super-evolves" : "evolves"} ${unit.name}.`
-  }, stats);
+  const trigger = getTriggeredText(unit.card, superMode ? "superEvolve" : "evolve")
+    || (superMode ? getTriggeredText(unit.card, "evolve") : "");
+  const actions = [];
+  if (trigger) {
+    const effect = resolveCardText({ text: trigger, card: unit.card, sourceUnit: unit, player, opponent, playerIndex, enemyIndex, stats, rng, cardMap });
+    actions.push(...effect.actions);
+  }
+  actions.push(...cleanupDead(opponent, player, enemyIndex, playerIndex, stats, rng, cardMap));
+
+  return {
+    action: compactAction(`${player.name} ${superMode ? "super-evolves" : "evolves"} ${unit.name}.`, actions)
+  };
 }
 
-function performAttacks(player, opponent, playerIndex, enemyIndex, stats, frames, players, round, rng) {
-  const attackers = player.board.filter(unit => unit.type === "Follower" && !unit.attacked);
+function evolveScore(unit, opponent, strategy) {
+  let score = unit.attack + unit.defense;
+  if (hasUnitKeyword(unit, "Storm")) score += strategy.faceBias * 8;
+  if (hasUnitKeyword(unit, "Ward")) score += (1 - strategy.faceBias) * 5;
+  const target = chooseRemovalTarget(opponent.board);
+  if (target && unit.attack + 2 >= target.defense) score += 4;
+  return score;
+}
+
+function performAttacks(player, opponent, playerIndex, enemyIndex, stats, frames, players, round, rng, cardMap) {
+  const attackers = [...player.board].filter(unit => unit.type === "Follower" && !unit.attacked);
   for (const attacker of attackers) {
     if (!player.board.includes(attacker)) continue;
 
@@ -484,7 +611,7 @@ function performAttacks(player, opponent, playerIndex, enemyIndex, stats, frames
 
     if (wards.length && mayAttackFollower) {
       target = chooseTradeTarget(attacker, wards, player.strategy);
-    } else if (mayAttackLeader && (enemyFollowers.length === 0 || player.strategy.faceBias >= .6 || rng() < player.strategy.faceBias)) {
+    } else if (mayAttackLeader && shouldAttackLeader(attacker, player, opponent, enemyFollowers, rng)) {
       targetLeader = true;
     } else if (mayAttackFollower && enemyFollowers.length) {
       target = chooseTradeTarget(attacker, enemyFollowers, player.strategy);
@@ -498,18 +625,24 @@ function performAttacks(player, opponent, playerIndex, enemyIndex, stats, frames
     attacker.canAttackLeader = false;
     attacker.canAttackFollower = false;
     stats.attacks[playerIndex] += 1;
+    const actions = [];
 
     if (targetLeader) {
       const damage = Math.max(0, attacker.attack);
       opponent.hp -= damage;
       stats.damageDealt[playerIndex] += damage;
-      if (hasUnitKeyword(attacker, "Drain")) player.hp = Math.min(player.maxHp, player.hp + damage);
-
+      if (hasUnitKeyword(attacker, "Drain")) {
+        const healed = Math.max(0, Math.min(damage, player.maxHp - player.hp));
+        player.hp += healed;
+        stats.healing[playerIndex] += healed;
+        if (healed) actions.push(`Drain heals ${healed}`);
+      }
+      actions.push(...resolveStrike(attacker, player, opponent, playerIndex, enemyIndex, stats, rng, cardMap));
       snapshot(frames, players, {
         round,
         active: playerIndex,
         phase: "attack",
-        action: `${attacker.name} attacks ${opponent.name}'s leader for ${damage}.`
+        action: compactAction(`${attacker.name} attacks ${opponent.name}'s leader for ${damage}.`, actions)
       }, stats);
       if (opponent.hp <= 0) return;
       continue;
@@ -523,25 +656,203 @@ function performAttacks(player, opponent, playerIndex, enemyIndex, stats, frames
       if (!attacker.superEvolved) attacker.defense -= incoming;
       if (hasUnitKeyword(attacker, "Bane") && outgoing > 0) target.defense = 0;
       if (hasUnitKeyword(target, "Bane") && incoming > 0 && !attacker.superEvolved) attacker.defense = 0;
-      if (hasUnitKeyword(attacker, "Drain")) player.hp = Math.min(player.maxHp, player.hp + outgoing);
+      if (hasUnitKeyword(attacker, "Drain")) {
+        const healed = Math.max(0, Math.min(outgoing, player.maxHp - player.hp));
+        player.hp += healed;
+        stats.healing[playerIndex] += healed;
+        if (healed) actions.push(`Drain heals ${healed}`);
+      }
 
       const destroyedBySuper = attacker.superEvolved && target.defense <= 0;
-      cleanupDead(opponent);
-      cleanupDead(player);
+      actions.push(...cleanupDead(opponent, player, enemyIndex, playerIndex, stats, rng, cardMap));
+      actions.push(...cleanupDead(player, opponent, playerIndex, enemyIndex, stats, rng, cardMap));
       if (destroyedBySuper) {
         opponent.hp -= 1;
         stats.damageDealt[playerIndex] += 1;
+        actions.push("Super-Evolution deals 1 leader damage");
       }
+      if (player.board.includes(attacker)) actions.push(...resolveStrike(attacker, player, opponent, playerIndex, enemyIndex, stats, rng, cardMap));
 
       snapshot(frames, players, {
         round,
         active: playerIndex,
         phase: "attack",
-        action: `${attacker.name} attacks ${targetName}${destroyedBySuper ? " · Super-Evolution deals 1 leader damage" : ""}.`
+        action: compactAction(`${attacker.name} attacks ${targetName}.`, actions)
       }, stats);
       if (opponent.hp <= 0) return;
     }
   }
+}
+
+function shouldAttackLeader(attacker, player, opponent, enemyFollowers, rng) {
+  if (attacker.attack >= opponent.hp) return true;
+  if (player.strategy.style === "aggro") return true;
+  if (enemyFollowers.length === 0) return true;
+  return player.strategy.faceBias >= .65 || rng() < player.strategy.faceBias;
+}
+
+function resolveStrike(attacker, player, opponent, playerIndex, enemyIndex, stats, rng, cardMap) {
+  const text = getTriggeredText(attacker.card, "strike");
+  if (!text) return [];
+  stats.strikeTriggered[playerIndex] += 1;
+  const result = resolveCardText({ text, card: attacker.card, sourceUnit: attacker, player, opponent, playerIndex, enemyIndex, stats, rng, cardMap });
+  const cleanupActions = cleanupDead(opponent, player, enemyIndex, playerIndex, stats, rng, cardMap);
+  return [`Strike`, ...result.actions, ...cleanupActions];
+}
+
+function resolveCardText({ text, card, sourceUnit, player, opponent, playerIndex, enemyIndex, stats, rng, cardMap }) {
+  if (!String(text ?? "").trim()) return { actions: [], applied: false };
+  const support = analyzeCardSupport(card);
+  const context = makeEffectContext({ card, sourceUnit, player, opponent, playerIndex, enemyIndex, stats, rng, cardMap });
+  const result = executeGenericEffects(text, context);
+
+  if (support.level === "unsupported" || (support.level === "partial" && result.unresolved)) {
+    stats.unsupportedEffects[playerIndex] += 1;
+  }
+  return result;
+}
+
+function makeEffectContext({ card, sourceUnit, player, opponent, playerIndex, enemyIndex, stats, rng, cardMap }) {
+  return {
+    card,
+    sourceUnit,
+    player,
+    opponent,
+    playerIndex,
+    enemyIndex,
+    stats,
+    rng,
+    draw: (owner, amount, ownerIndex) => drawCards(owner, amount, stats, ownerIndex),
+    chooseEnemyFollower: chooseRemovalTarget,
+    chooseAlliedFollower: (board, exclude) => chooseAlliedFollower(board, exclude),
+    chooseHandFollower,
+    buffUnit,
+    buffHand,
+    relatedCards: source => getRelatedCards(source, cardMap),
+    summon: (owner, targetCard, amount, ownerIndex) => summonGenerated(owner, targetCard, amount, ownerIndex),
+    addToHand: (owner, targetCard, amount, ownerIndex) => addGeneratedToHand(owner, targetCard, amount, ownerIndex, stats),
+    cleanup: owner => {
+      if (owner === player) return cleanupDead(player, opponent, playerIndex, enemyIndex, stats, rng, cardMap);
+      return cleanupDead(opponent, player, enemyIndex, playerIndex, stats, rng, cardMap);
+    },
+    banish: banishUnit,
+    returnToHand: returnUnitToHand
+  };
+}
+
+function getRelatedCards(card, cardMap) {
+  const ids = new Set();
+  for (const relation of card?.relations ?? []) ids.add(Number(relation.id));
+  for (const id of card?.relatedCards ?? []) ids.add(Number(id));
+  return [...ids].map(id => cardMap.get(id)).filter(Boolean);
+}
+
+function summonGenerated(player, card, amount) {
+  let count = 0;
+  for (let i = 0; i < amount && player.board.length < 5; i += 1) {
+    const instance = createInstance(player, card);
+    if (card.type === "Follower") player.board.push(makeBoardUnit(instance));
+    else if (card.type === "Amulet") player.board.push(makeBoardAmulet(instance));
+    else break;
+    count += 1;
+  }
+  return count;
+}
+
+function addGeneratedToHand(player, card, amount, playerIndex, stats) {
+  let count = 0;
+  for (let i = 0; i < amount; i += 1) {
+    const instance = createInstance(player, card);
+    if (player.hand.length >= 9) {
+      sendToCemetery(player, instance);
+      stats.cardsBurned[playerIndex] += 1;
+      continue;
+    }
+    player.hand.push(instance);
+    count += 1;
+  }
+  return count;
+}
+
+function chooseAlliedFollower(board, exclude = null) {
+  return board
+    .filter(unit => unit.type === "Follower" && unit !== exclude)
+    .sort((a, b) => (b.attack + b.defense) - (a.attack + a.defense))[0]
+    ?? (exclude?.type === "Follower" ? exclude : null);
+}
+
+function chooseHandFollower(hand) {
+  return hand
+    .filter(instance => instance.card.type === "Follower")
+    .sort((a, b) => (Number(b.card.cost) || 0) - (Number(a.card.cost) || 0))[0] ?? null;
+}
+
+function buffUnit(unit, attack, defense) {
+  unit.attack += Number(attack) || 0;
+  unit.defense += Number(defense) || 0;
+  unit.maxDefense += Number(defense) || 0;
+}
+
+function buffHand(instance, attack, defense) {
+  instance.attackBonus = (Number(instance.attackBonus) || 0) + (Number(attack) || 0);
+  instance.defenseBonus = (Number(instance.defenseBonus) || 0) + (Number(defense) || 0);
+}
+
+function banishUnit(player, unit) {
+  player.board = player.board.filter(item => item.uid !== unit.uid);
+  player.banished.push({ uid: unit.uid, card: unit.card });
+}
+
+function returnUnitToHand(player, unit) {
+  player.board = player.board.filter(item => item.uid !== unit.uid);
+  const instance = createInstance(player, unit.card);
+  if (player.hand.length >= 9) {
+    sendToCemetery(player, instance);
+    return false;
+  }
+  player.hand.push(instance);
+  return true;
+}
+
+function cleanupDead(player, opponent, playerIndex, enemyIndex, stats, rng, cardMap) {
+  const actions = [];
+  let safety = 0;
+  while (safety++ < 12) {
+    const dead = player.board.filter(unit => unit.type === "Follower" && unit.defense <= 0);
+    if (!dead.length) break;
+
+    for (const unit of dead) {
+      player.board = player.board.filter(item => item.uid !== unit.uid);
+      sendToCemetery(player, { uid: unit.uid, card: unit.card });
+      stats.followersLost[playerIndex] += 1;
+      const lastWords = getTriggeredText(unit.card, "lastWords");
+      if (!lastWords) continue;
+      stats.lastWordsTriggered[playerIndex] += 1;
+      const result = resolveCardText({ text: lastWords, card: unit.card, sourceUnit: unit, player, opponent, playerIndex, enemyIndex, stats, rng, cardMap });
+      actions.push(`${unit.name} Last Words${result.actions.length ? `: ${result.actions.join(" · ")}` : ""}`);
+    }
+  }
+  return actions;
+}
+
+function destroyBoardObject(player, opponent, unit, playerIndex, enemyIndex, stats, rng, cardMap, triggerLastWords) {
+  const actions = [];
+  player.board = player.board.filter(item => item.uid !== unit.uid);
+  sendToCemetery(player, { uid: unit.uid, card: unit.card });
+  if (!triggerLastWords) return actions;
+
+  const lastWords = getTriggeredText(unit.card, "lastWords");
+  if (lastWords) {
+    stats.lastWordsTriggered[playerIndex] += 1;
+    const result = resolveCardText({ text: lastWords, card: unit.card, sourceUnit: unit, player, opponent, playerIndex, enemyIndex, stats, rng, cardMap });
+    actions.push(`${unit.name} Last Words${result.actions.length ? `: ${result.actions.join(" · ")}` : ""}`);
+  }
+  return actions;
+}
+
+function sendToCemetery(player, instance) {
+  player.cemetery.push(instance);
+  player.shadows += 1;
 }
 
 function chooseTradeTarget(attacker, targets, strategy) {
@@ -560,14 +871,6 @@ function chooseRemovalTarget(board) {
     .sort((a, b) => (b.attack + b.defense) - (a.attack + a.defense))[0] ?? null;
 }
 
-function cleanupDead(player) {
-  const dead = player.board.filter(unit => unit.type === "Follower" && unit.defense <= 0);
-  if (dead.length) {
-    player.cemetery.push(...dead.map(unit => ({ uid: unit.uid, card: { id: unit.cardId, name: unit.name } })));
-    player.board = player.board.filter(unit => unit.type !== "Follower" || unit.defense > 0);
-  }
-}
-
 function snapshot(frames, players, meta, stats) {
   frames.push({
     index: frames.length,
@@ -583,52 +886,51 @@ function snapshot(frames, players, meta, stats) {
       maxPp: player.maxPp,
       ep: player.ep,
       sep: player.sep,
+      shadows: player.shadows,
       bonusPpAvailable: player.bonusPpAvailable,
       personalTurn: player.personalTurn,
       deckCount: player.deck.length,
       cemeteryCount: player.cemetery.length,
-      hand: player.hand.map(instance => cardView(instance.card)),
-      board: player.board.map(unit => ({ ...unit, keywords: [...(unit.keywords ?? [])] }))
+      hand: player.hand.map(instance => cardView(instance)),
+      board: player.board.map(unit => unitView(unit))
     })),
-    stats: {
-      damageDealt: [...stats.damageDealt],
-      cardsPlayed: [...stats.cardsPlayed],
-      attacks: [...stats.attacks],
-      draws: [...stats.draws],
-      unsupportedEffects: [...stats.unsupportedEffects],
-      evolutions: [...stats.evolutions],
-      superEvolutions: [...stats.superEvolutions]
-    }
+    stats: cloneStats(stats)
   });
 }
 
-function cardView(card) {
+function cardView(instance) {
+  const card = instance.card;
   return {
     id: Number(card.id),
     name: card.name,
     image: card.image,
     type: card.type,
-    cost: Number(card.cost) || 0,
-    attack: Number(card.attack) || 0,
-    defense: Number(card.defense) || 0,
+    cost: getBaseCost(instance),
+    attack: (Number(card.attack) || 0) + (Number(instance.attackBonus) || 0),
+    defense: (Number(card.defense) || 0) + (Number(instance.defenseBonus) || 0),
+    spellboost: Number(instance.spellboost) || 0,
     keywords: [...(card.keywords ?? [])]
   };
 }
 
-function hasSimpleEffect(text) {
-  return /\bdraw (?:a|an|one|two|three|four|five|\d+) cards?\b|\brestore (?:a|an|one|two|three|four|five|\d+) defense to your leader\b|\bdeal (?:a|an|one|two|three|four|five|\d+) damage to (?:the enemy leader|(?:an|a|the) enemy follower)\b|increase your maximum play points by 1|gain an empty play point orb/.test(text);
+function unitView(unit) {
+  const { card, ...view } = unit;
+  return { ...view, keywords: [...(unit.keywords ?? [])] };
+}
+
+function cloneStats(stats) {
+  return Object.fromEntries(Object.entries(stats).map(([key, value]) => [key, Array.isArray(value) ? [...value] : value]));
+}
+
+function compactAction(base, actions) {
+  const details = (actions ?? []).map(String).filter(Boolean);
+  return details.length ? `${base} · ${details.slice(0, 5).join(" · ")}${details.length > 5 ? " · …" : ""}` : base;
 }
 
 function hasRole(card, role) { return (card.roles ?? []).includes(role); }
 function hasKeyword(card, keyword) { return (card.keywords ?? []).includes(keyword); }
 function hasUnitKeyword(unit, keyword) { return (unit.keywords ?? []).includes(keyword); }
-function normalizeText(value) { return String(value ?? "").toLowerCase().replace(/\s+/g, " ").trim(); }
-
-function wordNumber(value) {
-  const normalized = String(value ?? "").toLowerCase();
-  if (/^\d+$/.test(normalized)) return Number(normalized);
-  return WORD_NUMBERS[normalized] ?? 0;
-}
+function normalizeText(value) { return String(value ?? "").toLowerCase().replace(/[’‘]/g, "'").replace(/\s+/g, " ").trim(); }
 
 function createRng(seedValue) {
   let seed = 2166136261;
@@ -651,6 +953,11 @@ function shuffle(array, rng) {
     const j = Math.floor(rng() * (i + 1));
     [array[i], array[j]] = [array[j], array[i]];
   }
+}
+
+function capitalize(value) {
+  const text = String(value ?? "");
+  return text ? text[0].toUpperCase() + text.slice(1) : "";
 }
 
 function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
