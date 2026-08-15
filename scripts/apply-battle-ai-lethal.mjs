@@ -20,7 +20,8 @@ const marker = `function shouldFace(attacker, player, opponent, foes, rng) {`;
 const helper = `// [[battle-ai-collective-lethal-v1]]
 function hasCollectiveBoardLethal(player, opponent) {
   if (opponent.board.some(unit => unit.type === "Follower" && hasU(unit, "Ward"))) return false;
-  const cap = Number.isFinite(Number(opponent.leaderDamageCap)) ? Math.max(0, Number(opponent.leaderDamageCap)) : null;
+  const hasCap = opponent.leaderDamageCap != null && Number.isFinite(Number(opponent.leaderDamageCap));
+  const cap = hasCap ? Math.max(0, Number(opponent.leaderDamageCap)) : null;
   if (cap === 0) return false;
 
   let total = 0;
