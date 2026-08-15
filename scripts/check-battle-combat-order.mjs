@@ -22,7 +22,9 @@ const wall = {
   name: "QA Wall",
   class: "Neutral",
   type: "Follower",
-  cost: 1,
+  // Cost 3 guarantees that exactly one Wall can exist when the first Strike
+  // attack happens: Extra PP cannot play it on turn 1, but can on turn 2.
+  cost: 3,
   attack: 10,
   defense: 10,
   evolvedAttack: 12,
@@ -50,7 +52,7 @@ const result = simulateBattle({
 const strikeFrame = result.frames.find(frame => frame.phase === "attack" && /QA Striker attacks QA Wall/.test(frame.action));
 assert.ok(strikeFrame, "Expected QA Striker to attack QA Wall");
 assert.match(strikeFrame.action, /Strike/i, "Strike ability should resolve during the attack");
-assert.equal(strikeFrame.players[1].board.some(unit => unit.name === "QA Wall"), false, "Strike should destroy the attacked Wall before combat damage");
+assert.equal(strikeFrame.players[1].board.some(unit => unit.name === "QA Wall"), false, "The only enemy Wall should be destroyed by Strike before combat damage");
 assert.equal(strikeFrame.players[0].board.some(unit => unit.name === "QA Striker"), true, "Attacker must survive because the target was destroyed before combat damage");
 
 console.log("Battle Sim combat ordering: Strike resolves before combat damage · OK");
