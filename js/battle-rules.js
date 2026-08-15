@@ -395,6 +395,21 @@ function resolveCardSpecificText(textValue, context) {
     }
   }
 
+  // [[battle-ability-evolve-v5]]
+  if (cardName === "eudie, your dependable mentor") {
+    const evolveOther = /select another unevolved allied follower on the field and evolve it\.?/i;
+    if (evolveOther.test(text)) {
+      const target = context.player.board
+        .filter(unit => unit.type === "Follower" && unit !== context.sourceUnit && !unit.evolved && !unit.superEvolved)
+        .sort((a, b) => fieldValue(b) - fieldValue(a))[0] ?? null;
+      if (target && typeof context.evolveUnitByAbility === "function" && context.evolveUnitByAbility(target)) {
+        actions.push(`Eudie: evolve ${target.name}`);
+      }
+      text = text.replace(evolveOther, " ");
+      applied = true;
+    }
+  }
+
   if (cardName === "freerunning" && artifactEntryCount(context.player) >= 3) {
     const hasAnalyzing = /\banalyzing artifact\b/i.test(text);
     const hasAncient = /\bancient artifact\b/i.test(text);
