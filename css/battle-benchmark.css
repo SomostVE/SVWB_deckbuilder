@@ -1,0 +1,193 @@
+.battle-benchmark {
+  padding: .7rem;
+}
+
+.benchmark-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .75rem;
+}
+
+.benchmark-head h2 {
+  margin-bottom: .15rem;
+}
+
+.benchmark-head p {
+  margin-bottom: 0;
+}
+
+.benchmark-controls {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(130px, .55fr) auto auto;
+  gap: .5rem;
+  margin-top: .7rem;
+  align-items: end;
+}
+
+.benchmark-controls label {
+  display: grid;
+  gap: .28rem;
+  color: var(--muted);
+  font-size: .7rem;
+  font-weight: 700;
+}
+
+.benchmark-controls select {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: .45rem;
+  padding: .48rem .55rem;
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+#benchmark-run {
+  border-color: rgba(96, 200, 132, .55);
+  background: rgba(96, 200, 132, .11);
+  font-weight: 800;
+}
+
+#benchmark-cancel {
+  border-color: rgba(241, 141, 141, .45);
+}
+
+.benchmark-progress-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .6rem;
+  margin-top: .65rem;
+}
+
+#benchmark-progress {
+  width: 100%;
+  height: 9px;
+  accent-color: var(--accent);
+}
+
+#benchmark-progress-label {
+  min-width: 120px;
+  color: var(--muted);
+  font-size: .64rem;
+  text-align: right;
+}
+
+.benchmark-overall {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .45rem;
+  margin-top: .7rem;
+}
+
+.benchmark-table-wrap {
+  margin-top: .65rem;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: .55rem;
+}
+
+.benchmark-table {
+  width: 100%;
+  min-width: 920px;
+  border-collapse: collapse;
+  font-size: .7rem;
+}
+
+.benchmark-table th,
+.benchmark-table td {
+  padding: .48rem .52rem;
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.benchmark-table th {
+  color: var(--muted);
+  background: rgba(255,255,255,.025);
+  font-size: .61rem;
+  text-transform: uppercase;
+  letter-spacing: .035em;
+}
+
+.benchmark-table th:first-child,
+.benchmark-table td:first-child {
+  text-align: left;
+}
+
+.benchmark-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.benchmark-table td strong,
+.benchmark-table td small {
+  display: block;
+}
+
+.benchmark-table td small {
+  margin-top: .08rem;
+  color: var(--muted);
+  font-size: .58rem;
+}
+
+.benchmark-win {
+  color: #8ee3aa;
+  font-weight: 800;
+}
+
+.benchmark-coverage {
+  display: inline-block;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: .16rem .34rem;
+  font-size: .58rem;
+  font-weight: 800;
+}
+
+.benchmark-coverage.good {
+  color: #8ee3aa;
+  border-color: rgba(96, 200, 132, .4);
+}
+
+.benchmark-coverage.partial {
+  color: #e6c675;
+  border-color: rgba(230, 198, 117, .4);
+}
+
+.benchmark-coverage.low {
+  color: #f18d8d;
+  border-color: rgba(241, 141, 141, .45);
+}
+
+.benchmark-note {
+  margin-top: .55rem;
+  color: var(--muted);
+  font-size: .62rem;
+  line-height: 1.4;
+}
+
+@media (max-width: 760px) {
+  .benchmark-head {
+    flex-direction: column;
+  }
+
+  .benchmark-controls {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .benchmark-controls .button {
+    width: 100%;
+  }
+
+  .benchmark-overall {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .benchmark-progress-row {
+    grid-template-columns: 1fr;
+  }
+
+  #benchmark-progress-label {
+    text-align: left;
+  }
+}
