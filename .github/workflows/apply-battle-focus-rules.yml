@@ -6,7 +6,7 @@ on:
       - ".github/workflows/apply-battle-focus-rules.yml"
       - "scripts/apply-battle-focus-rules.mjs"
       - "scripts/apply-battle-asher.mjs"
-      - "scripts/apply-battle-coverage-100.mjs"
+      - "scripts/apply-battle-coverage-100.py"
       - "scripts/check-battle-asher.mjs"
       - "scripts/check-battle-coverage-100.mjs"
 
@@ -32,7 +32,7 @@ jobs:
         run: |
           node scripts/apply-battle-focus-rules.mjs
           node scripts/apply-battle-asher.mjs
-          node scripts/apply-battle-coverage-100.mjs
+          python3 scripts/apply-battle-coverage-100.py
 
       - name: Check changed JavaScript syntax
         run: |
