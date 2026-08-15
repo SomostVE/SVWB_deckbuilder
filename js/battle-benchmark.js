@@ -218,16 +218,16 @@ function renderResults(results, comparison) {
   els.results.innerHTML = `
     <div class="benchmark-overall">
       ${metric(`${formatPct(overall.winRate)}`, "Overall win rate")}
-      ${metric(`${overall.wins}-${overall.losses}-${overall.draws}`, "W-L-D")}
-      ${metric(overall.averageRounds.toFixed(1), "Avg rounds")}
-      ${metric(`${overall.averageSideGap.toFixed(1)}%`, "Avg side gap")}
-      ${metric(overall.unresolvedPerGame.toFixed(2), "Unresolved / game")}
+      ${metric(`${overall.wins}-${overall.losses}-${overall.draws}`, "Wins · Losses · Draws")}
+      ${metric(overall.averageRounds.toFixed(1), "Average rounds")}
+      ${metric(`${overall.averageSideGap.toFixed(1)}%`, "Average First/Second gap")}
+      ${metric(overall.unresolvedPerGame.toFixed(2), "Rule gaps per game")}
     </div>
     <div class="benchmark-table-wrap">
       <table class="benchmark-table">
         <thead>
           <tr>
-            <th>Matchup</th><th>Win</th><th>95% CI</th><th>First</th><th>Second</th><th>Side gap</th><th>W-L-D</th><th>Avg end</th><th>Unresolved</th><th>Coverage</th>
+            <th>Opponent deck</th><th>Win rate</th><th>95% confidence interval</th><th>Win rate when going first</th><th>Win rate when going second</th><th>First/Second win-rate gap</th><th>Wins / Losses / Draws</th><th>Average ending turn</th><th>Rule gaps per game</th><th>Rules coverage</th>
           </tr>
         </thead>
         <tbody>
@@ -235,7 +235,7 @@ function renderResults(results, comparison) {
         </tbody>
       </table>
     </div>
-    <div class="benchmark-note">100 games is exploratory. 500 is better for tuning; 1,000 is preferred before comparing small win-rate differences. Same seed + same pool remains deterministic, while the 95% interval shows sampling noise and Side gap helps expose first/second bias.</div>
+    <div class="benchmark-note">100 games is exploratory. 500 is better for tuning; 1,000 is preferred before comparing small win-rate differences. Same seed + same pool remains deterministic, while the 95% confidence interval shows sampling noise and the First/Second win-rate gap helps expose side bias.</div>
   `;
 }
 
@@ -254,15 +254,15 @@ function renderComparisonResults(results, comparison) {
     <div class="benchmark-overall">
       ${metric(formatPct(primaryOverall.winRate), primaryName)}
       ${metric(formatPct(compareOverall.winRate), compareName)}
-      ${metric(formatSignedPct(delta), "Overall delta")}
-      ${metric(`${primaryOverall.averageSideGap.toFixed(1)}% / ${compareOverall.averageSideGap.toFixed(1)}%`, "Side gap · A / B")}
-      ${metric(`${primaryOverall.unresolvedPerGame.toFixed(2)} / ${compareOverall.unresolvedPerGame.toFixed(2)}`, "Unresolved · A / B")}
+      ${metric(formatSignedPct(delta), "Overall win-rate difference")}
+      ${metric(`${primaryOverall.averageSideGap.toFixed(1)}% / ${compareOverall.averageSideGap.toFixed(1)}%`, "First/Second gap · Deck A / Deck B")}
+      ${metric(`${primaryOverall.unresolvedPerGame.toFixed(2)} / ${compareOverall.unresolvedPerGame.toFixed(2)}`, "Rule gaps per game · Deck A / Deck B")}
     </div>
     <div class="benchmark-table-wrap">
       <table class="benchmark-table">
         <thead>
           <tr>
-            <th>Matchup</th><th>A Win</th><th>B Win</th><th>Δ</th><th>A 95% CI</th><th>B 95% CI</th><th>A First/Second</th><th>B First/Second</th><th>Coverage A/B</th>
+            <th>Opponent deck</th><th>Deck A win rate</th><th>Deck B win rate</th><th>Win-rate difference (B − A)</th><th>Deck A 95% confidence interval</th><th>Deck B 95% confidence interval</th><th>Deck A First / Second win rate</th><th>Deck B First / Second win rate</th><th>Rules coverage A / B</th>
           </tr>
         </thead>
         <tbody>
@@ -270,7 +270,7 @@ function renderComparisonResults(results, comparison) {
         </tbody>
       </table>
     </div>
-    <div class="benchmark-note"><strong>A:</strong> ${escapeHtml(primaryName)} · <strong>B:</strong> ${escapeHtml(compareName)}. Both variants run against the same opponents with the same deterministic seeds and alternating First/Second split. The raw Δ is useful for direction; use 500–1,000 games before treating small differences as meaningful.</div>
+    <div class="benchmark-note"><strong>A:</strong> ${escapeHtml(primaryName)} · <strong>B:</strong> ${escapeHtml(compareName)}. Both variants run against the same opponents with the same deterministic seeds and alternating First/Second split. The win-rate difference is useful for direction; use 500–1,000 games before treating small differences as meaningful.</div>
   `;
 }
 
