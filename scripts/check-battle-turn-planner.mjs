@@ -12,7 +12,8 @@ const spell = (name, cost, text) => ({
 });
 
 // 1) A full field should not force a bad pass: the planner can sacrifice a
-// small follower first, open a slot, then deploy the much stronger follower.
+// small follower, open a slot, then deploy the much stronger follower. Other
+// useful setup actions (such as evolving another follower) may happen first.
 const bigWard = follower("Planner Big Ward", 3, 6, 6, "Ward", ["Ward"]);
 const fullBoardPlan = inspectTurnPlan({
   hand: [bigWard], pp: 3, maxPp: 3, personalTurn: 5,
@@ -26,8 +27,10 @@ const fullBoardPlan = inspectTurnPlan({
   ],
   opponentBoard: [{ name: "Wall", attack: 5, defense: 10 }]
 });
-assert.equal(fullBoardPlan.sequence[0]?.kind, "attack", "Planner should attack first when that opens the only board slot");
-assert.ok(fullBoardPlan.sequence.some(step => step.kind === "play" && step.card === "Planner Big Ward"), "Planner should use the opened slot later in the same planned turn");
+const fullBoardAttackIndex = fullBoardPlan.sequence.findIndex(step => step.kind === "attack" && step.card === "Sacrifice");
+const fullBoardPlayIndex = fullBoardPlan.sequence.findIndex(step => step.kind === "play" && step.card === "Planner Big Ward");
+assert.ok(fullBoardAttackIndex >= 0, "Planner should find the sacrificial attack that can open the only board slot");
+assert.ok(fullBoardPlayIndex > fullBoardAttackIndex, "Planner should deploy the strong follower only after the board-opening trade");
 
 // 2) Evolution can be a setup action rather than a final phase. Recovering PP
 // first should unlock a card that otherwise cannot be played.
@@ -52,9 +55,10 @@ const lethalPlan = inspectTurnPlan({
   board: [{ name: "Finisher", attack: 5, defense: 5, canAttackLeader: true, canAttackFollower: true }],
   opponentBoard: [{ name: "Enemy Ward", attack: 1, defense: 5, keywords: ["Ward"] }]
 });
-assert.equal(lethalPlan.sequence[0]?.kind, "play", "Planner should remove the Ward before committing the lethal attacker");
-assert.equal(lethalPlan.sequence[0]?.target, "Enemy Ward");
-assert.ok(lethalPlan.sequence.some(step => step.kind === "attack" && step.target === "leader"), "Planner should see the lethal attack after removal");
+const removalIndex = lethalPlan.sequence.findIndex(step => step.kind === "play" && step.card === "Open The Way" && step.target === "Enemy Ward");
+const lethalAttackIndex = lethalPlan.sequence.findIndex(step => step.kind === "attack" && step.target === "leader");
+assert.ok(removalIndex >= 0, "Planner should remove the Ward");
+assert.ok(lethalAttackIndex > removalIndex, "Planner should attack the leader only after removing the Ward");
 
 // 4) End-turn/pass is a real branch. Do not dump a dead heal merely because PP
 // is available and there is nothing to survive.
