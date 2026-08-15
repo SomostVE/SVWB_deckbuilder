@@ -37,7 +37,17 @@ assert.equal(immediate.futureEvaluated, false);
 assert.equal(immediate.sequence[0]?.kind, "play");
 assert.equal(immediate.sequence[0]?.card, "Greedy Body", "Without an opponent-response ply, the larger immediate body should win the static evaluation");
 
+const directStorm = inspectTurnPlan({
+  hand: [enemyStorm, inert], pp: 1, maxPp: 1, hp: 20, opponentHp: 8,
+  personalTurn: 1, strategy: { style: "aggro" },
+  board: [], opponentBoard: [{ name: "Greedy Body", attack: 10, defense: 10 }],
+  depth: 2, beamWidth: 2
+});
+console.log("Two-turn diagnostic direct Storm:", JSON.stringify(directStorm));
+
 const future = inspectTwoTurnPlan(common);
+console.log("Two-turn diagnostic immediate:", JSON.stringify(immediate));
+console.log("Two-turn diagnostic future:", JSON.stringify(future));
 assert.equal(future.futureEvaluated, true, "Forced QA mode should evaluate the opponent response and our following turn");
 assert.equal(future.sequence[0]?.kind, "play");
 assert.equal(future.sequence[0]?.card, "Future Ward", "Two-turn look-ahead should accept the weaker immediate play when it prevents next-turn lethal");
