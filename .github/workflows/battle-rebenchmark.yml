@@ -8,6 +8,7 @@ on:
       - "js/battle-rules*.js"
       - "js/battle-benchmark-core.js"
       - "scripts/rebenchmark-battle-v5.mjs"
+      - "scripts/audit-remaining-coverage.mjs"
       - ".github/workflows/battle-rebenchmark.yml"
 
 jobs:
@@ -23,5 +24,8 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Audit and rebenchmark focus rules after ability evolution
+      - name: Audit remaining partial cards
+        run: node scripts/audit-remaining-coverage.mjs
+
+      - name: Audit and rebenchmark focus rules
         run: node scripts/rebenchmark-battle-v5.mjs
