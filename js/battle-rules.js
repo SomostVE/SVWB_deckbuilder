@@ -33,6 +33,11 @@ export function executeGenericEffects(textValue, context) {
   if (hasEntryHook) text = stripHook(text, ENTRY_HOOK);
   if (hasSpellHook) text = stripHook(text, SPELL_HOOK);
 
+  const timed = resolveTimedAbilityHooks(text, context);
+  text = timed.text;
+  actions.push(...timed.actions);
+  applied ||= timed.applied;
+
   if (containsHook(text, DESTROY_HOOK)) {
     text = stripHook(text, DESTROY_HOOK);
     const destroyedActions = applyFollowerDestroyedEffects(context, context.sourceUnit);
@@ -66,6 +71,11 @@ export function executeGenericEffects(textValue, context) {
       applied = true;
     }
   }
+
+  const exact = resolveCardSpecificText(text, context);
+  text = exact.text;
+  actions.push(...exact.actions);
+  applied ||= exact.applied;
 
   const transform = resolveFieldTransform(text, context);
   if (transform.matched) {
@@ -249,6 +259,102 @@ export function applyTurnEndCrestEffects(context) {
   return actions;
 }
 
+function resolveTimedAbilityHooks(textValue, context) {
+  let text = String(textValue ?? "");
+  const actions = [];
+  let applied = false;
+
+  const crestHook = /\[\[battle-skybound-crest:(\d+):([^\]]+)\]\]/i;
+  const crest = text.match(crestHook);
+  if (crest) {
+    const threshold = Number(crest[1]);
+    const active = skyboundCount(context.player) >= threshold;
+    if (active && gainCrestDirect(context.player, crest[2].trim(), context.card)) {
+      actions.push(`Skybound Art · Crest: ${crest[2].trim()}`);
+      applied = true;
+    }
+    text = text.replace(crest[0], " ");
+  }
+
+  const superHook = /\[\[battle-super-skybound-self:(\d+)\]\]/i;
+  const superSelf = text.match(superHook);
+  if (superSelf) {
+    const threshold = Number(superSelf[1]);
+    if (skyboundCount(context.player) >= threshold && context.sourceUnit) {
+      actions.push(...superEvolveByAbility(context, context.sourceUnit));
+      applied = true;
+    }
+    text = text.replace(superSelf[0], " ");
+  }
+
+  return { text, actions, applied };
+}
+
+function resolveCardSpecificText(textValue, context) {
+  let text = String(textValue ?? "");
+  const actions = [];
+  let applied = false;
+  const cardName = normalize(context.card?.name);
+
+  if (cardName === "imari, dewdrop") {
+    const fanfare = /select a card in your hand and discard it\.\s*draw a spell\.?/i;
+    if (fanfare.test(text)) {
+      const discarded = chooseDiscard(context.player.hand);
+      if (discarded) {
+        context.player.hand = context.player.hand.filter(instance => instance.uid !== discarded.uid);
+        context.player.cemetery.push(discarded);
+        actions.push(`discard ${discarded.card.name}`);
+      }
+      const drawn = drawMatching(context, instance => instance.card.type === "Spell", new Set());
+      if (drawn) actions.push(`draw ${drawn.card.name}`);
+      text = text.replace(fanfare, " ");
+      applied = true;
+    }
+
+    const superDraw = /draw 2 differently named 1-cost spells\.?/i;
+    if (superDraw.test(text)) {
+      const names = new Set();
+      for (let index = 0; index < 2; index += 1) {
+        const drawn = drawMatching(context, instance => instance.card.type === "Spell" && Number(instance.card.cost) === 1, names);
+        if (!drawn) break;
+        names.add(normalize(drawn.card.name));
+        actions.push(`draw ${drawn.card.name}`);
+      }
+      text = text.replace(superDraw, " ");
+      applied = true;
+    }
+  }
+
+  if (cardName === "vira, luminous primal knight") {
+    const banishTwo = /select 2 enemy followers on the field and banish them\.?/i;
+    if (banishTwo.test(text)) {
+      let count = 0;
+      for (let index = 0; index < 2; index += 1) {
+        const target = context.chooseEnemyFollower(context.opponent.board);
+        if (!target) break;
+        context.banish(context.opponent, target);
+        actions.push(`banish ${target.name}`);
+        count += 1;
+      }
+      text = text.replace(banishTwo, " ");
+      applied ||= count > 0;
+    }
+  }
+
+  if (cardName === "lu woh, light personified") {
+    const handBuff = /give all followers in your opponent'?s hand \+1\/\+0\.?/i;
+    if (handBuff.test(text)) {
+      const targets = context.opponent.hand.filter(instance => instance.card.type === "Follower");
+      for (const target of targets) context.buffHand(target, 1, 0);
+      actions.push(`Lu Woh: +1/+0 to ${targets.length} enemy hand follower${targets.length === 1 ? "" : "s"}`);
+      text = text.replace(handBuff, " ");
+      applied = true;
+    }
+  }
+
+  return { text, actions, applied };
+}
+
 function applySummonedSelfEntry(context, unit) {
   const text = String(unit.card?.text ?? "");
   const match = text.match(/\bwhen this (?:card|follower) enters the field,\s*([^.]*)\.?/i);
@@ -284,9 +390,7 @@ function chooseTransformTarget(context) {
   let enemy = context.opponent.board.filter(unit => !unit.aura);
   const lloyd = enemy.filter(unit => normalize(unit.name) === "lloyd");
   if (lloyd.length) enemy = lloyd;
-  if (enemy.length) {
-    return { owner: context.opponent, unit: [...enemy].sort((a, b) => fieldValue(b) - fieldValue(a))[0] };
-  }
+  if (enemy.length) return { owner: context.opponent, unit: [...enemy].sort((a, b) => fieldValue(b) - fieldValue(a))[0] };
   const allied = context.player.board.filter(unit => unit !== context.sourceUnit);
   if (!allied.length) return null;
   return { owner: context.player, unit: [...allied].sort((a, b) => fieldValue(a) - fieldValue(b))[0] };
@@ -310,6 +414,49 @@ function transformedUnit(owner, oldUnit, card) {
     attacked: follower ? false : true, attacksMade: 0, maxAttacks: 1,
     evolved: false, superEvolved: false, reactedThisTurn: false, engagedThisTurn: false
   };
+}
+
+function chooseDiscard(hand) {
+  return [...hand]
+    .sort((a, b) => (Number(b.card.cost) || 0) - (Number(a.card.cost) || 0) || String(a.card.name).localeCompare(String(b.card.name)))[0] ?? null;
+}
+
+function drawMatching(context, predicate, excludedNames) {
+  const index = context.player.deck.findIndex(instance => predicate(instance) && !excludedNames.has(normalize(instance.card.name)));
+  if (index < 0) return null;
+  const [instance] = context.player.deck.splice(index, 1);
+  context.stats.draws[context.playerIndex] += 1;
+  if (context.player.hand.length >= 9) {
+    context.player.cemetery.push(instance);
+    context.stats.cardsBurned[context.playerIndex] += 1;
+  } else {
+    context.player.hand.push(instance);
+  }
+  return instance;
+}
+
+function superEvolveByAbility(context, unit) {
+  if (unit.superEvolved) return [];
+  unit.attack += 3;
+  unit.defense += 3;
+  unit.maxDefense += 3;
+  unit.canAttackFollower = true;
+  unit.evolved = true;
+  unit.superEvolved = true;
+  context.player.evolutionsThisMatch = (Number(context.player.evolutionsThisMatch) || 0) + 1;
+  context.stats.superEvolutions[context.playerIndex] += 1;
+  return [`Super Skybound Art · super-evolve ${unit.name}`];
+}
+
+function skyboundCount(player) {
+  return (Number(player.personalTurn) || 0) + (Number(player.evolutionsThisMatch) || 0);
+}
+
+function gainCrestDirect(player, name, card) {
+  if ((player.crests ?? []).some(crest => normalize(crest.name) === normalize(name))) return false;
+  if ((player.crests ?? []).length >= 5) return false;
+  player.crests.push({ name, card });
+  return true;
 }
 
 function healLeader(player, amount, stats, playerIndex) {
@@ -342,12 +489,8 @@ function giveUnitKeyword(unit, keyword) {
   return true;
 }
 
-function hasKeyword(unit, keyword) {
-  return (unit.keywords ?? []).some(value => normalize(value) === normalize(keyword));
-}
-function hasKeywordCard(card, keyword) {
-  return (card.keywords ?? []).some(value => normalize(value) === normalize(keyword));
-}
+function hasKeyword(unit, keyword) { return (unit.keywords ?? []).some(value => normalize(value) === normalize(keyword)); }
+function hasKeywordCard(card, keyword) { return (card.keywords ?? []).some(value => normalize(value) === normalize(keyword)); }
 function containsHook(text, hook) { return String(text).toLowerCase().includes(hook); }
 function stripHook(text, hook) { return String(text).replace(new RegExp(escapeRegex(hook), "gi"), " ").replace(/\s+/g, " ").trim(); }
 function normalize(value) { return String(value ?? "").toLowerCase().replace(/[’‘]/g, "'").replace(/\s+/g, " ").trim(); }
