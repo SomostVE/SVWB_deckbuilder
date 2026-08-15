@@ -36,3 +36,6 @@ jobs:
 
       - name: Run Battle Sim benchmark smoke test
         run: node scripts/check-battle-benchmark.mjs
+
+      - name: Run paired benchmark comparison smoke test
+        run: node scripts/check-battle-benchmark-compare.mjs
