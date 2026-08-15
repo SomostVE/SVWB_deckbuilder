@@ -1,0 +1,44 @@
+name: Materialize Battle Sim v5
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/materialize-battle-v5.mjs"
+      - "scripts/.battle-v5-part1"
+      - "scripts/.battle-v5-part2"
+      - "scripts/.battle-v5-part3"
+      - ".github/workflows/materialize-battle-v5.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Materialize engine
+        run: node scripts/materialize-battle-v5.mjs
+
+      - name: Validate generated engine
+        run: node --check js/battle-engine-v5.js
+
+      - name: Commit generated engine
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/battle-engine-v5.js
+          if git diff --cached --quiet; then
+            echo "No generated changes"
+            exit 0
+          fi
+          git commit -m "feat: add Battle Sim v5 rules engine"
+          git push
