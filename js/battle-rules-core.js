@@ -299,9 +299,11 @@ export function executeGenericEffects(textValue, context) {
     matched = true;
     const amount = wordNumber(match[1]);
     if (amount > 0) {
+      const beforeHp = context.opponent.hp;
       context.opponent.hp -= amount;
-      context.stats.damageDealt[context.playerIndex] += amount;
-      actions.push(`${amount} leader damage`);
+      const dealt = Math.max(0, beforeHp - context.opponent.hp);
+      context.stats.damageDealt[context.playerIndex] += dealt;
+      actions.push(`${dealt} leader damage`);
       applied = true;
     }
   }

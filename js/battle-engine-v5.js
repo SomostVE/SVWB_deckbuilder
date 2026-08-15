@@ -22,7 +22,24 @@ const FULL_OVERRIDES = new Map([
   ["neptune, arbiter of tides", "Marine-entry healing Crest and Megalorca summons are modeled"],
   ["galmieux, ardor manifest", "Self-damage trigger and allied-damage Crest are modeled"],
   ["burnite, anathema of ash", "Opponent Crest start-turn and heal-reactive damage are modeled"],
-  ["lu woh, light personified", "Storm-attack reduction Crest and Countdown are modeled"]
+  ["lu woh, light personified", "Storm-attack reduction Crest and Countdown are modeled"],
+  // [[battle-coverage-100-overrides]]
+  ["aryll, moonstruck vampire", "Bat-entry Storm and leader self-damage are modeled"],
+  ["fiole, devilish matriarch", "Bat-entry Rush is modeled"],
+  ["adahime, anathema of death", "Deck summons, Abysscraft-entry Rush and Super-Evolve board buff are modeled"],
+  ["ruflet, primeval fairy", "Once-per-turn buff trigger and Last Words are modeled"],
+  ["tia, eternal crystalian", "Enhance board buff and once-per-turn buff trigger are modeled"],
+  ["krulle, heir to unkilling", "Defense debuff reaction and Countdown Crest are modeled"],
+  ["bayle, luxglaive warrior", "Hand cost reduction on allied follower leaving the field is modeled"],
+  ["luminous lancetrooper", "Officer-entry Rush is modeled"],
+  ["yidmetra, eld sword", "Faith accumulation, Faith payment and persistent Enhance buff are modeled"],
+  ["gildaria, anathema of attunement", "Rally evolve, entry Rush, evolve summon and Countdown Crest are modeled"],
+  ["mars, conflagrant commander", "Officer-entry buffs and Super-Evolve summon are modeled"],
+  ["zooey, ally of the world", "Enhance max-defense and temporary leader damage prevention are modeled"],
+  ["galleon, earth personified", "Permanent attack lock and conditional end-turn evolution are modeled"],
+  ["sofina, inspiring strength", "Mode evolutions and evolved end-turn board debuff are modeled"],
+  ["aether, empyrean guardian", "Differently named deck summons and Super-Evolve Aura distribution are modeled"],
+  ["edeth, voice of heaven", "Last Words resummon without Last Words and Super-Evolve destruction are modeled"]
 ]);
 
 const HANDLED_REACTIVE_CLAUSES = [
@@ -250,18 +267,43 @@ function createStats() {
 function makePlayer(name, deck, strategy, cardMap, rng) {
   const player = {
     name, strategy: normStrategy(strategy), hp: 20, maxHp: 20, maxPp: 0, pp: 0, ep: 2, sep: 2,
-    shadows: 0, rally: 0, earthSigils: 0, crests: [], bonusPpAvailable: false, bonusPpUses: 0,
+    shadows: 0, rally: 0, earthSigils: 0, faith: 0, faithActive: false, faithEnhanceBuffs: 0, crests: [], bonusPpAvailable: false, bonusPpUses: 0,
+    leaderDamageCap: null, leaderDamageCapUntilOpponentTurnEnd: false,
     goingFirst: false, goingSecond: false, personalTurn: 0, cardsPlayedThisTurn: 0, spellsPlayedThisTurn: 0,
     evolutionsThisMatch: 0, evolutionActionUsed: false, nextSerial: 0, deck: [], hand: [], board: [], cemetery: [],
     banished: [], destroyedFollowers: [], deckOut: false, isActive: false
   };
+  // [[battle-leader-damage-guard-install]]
+  installLeaderDamageGuard(player);
   for (const [id, qty] of normalizeDeck(deck)) {
     const card = cardMap.get(Number(id));
     if (!card) continue;
     for (let index = 0; index < qty; index += 1) player.deck.push(instance(player, card));
   }
+  // [[battle-faith-initialization]]
+  player.faithActive = player.deck.some(item => norm(item.card?.name) === "yidmetra, eld sword");
   shuffle(player.deck, rng);
   return player;
+}
+
+// [[battle-leader-damage-guard]]
+function installLeaderDamageGuard(player) {
+  let value = Number(player.hp) || 0;
+  Object.defineProperty(player, "hp", {
+    enumerable: true,
+    configurable: true,
+    get() { return value; },
+    set(nextValue) {
+      const next = Number(nextValue);
+      if (!Number.isFinite(next)) return;
+      if (next < value && Number.isFinite(player.leaderDamageCap)) {
+        const requestedLoss = value - next;
+        value -= Math.min(requestedLoss, Math.max(0, Number(player.leaderDamageCap) || 0));
+        return;
+      }
+      value = next;
+    }
+  });
 }
 
 function instance(player, card) {
@@ -352,7 +394,7 @@ function modes(inst, player) {
   const enhance = [...text.matchAll(/Enhance\s*\(?\s*(\d+)\s*\)?\s*:/gi)].map(match => Number(match[1])).filter(cost => cost <= player.pp).sort((a,b)=>b-a);
   if (enhance.length) {
     const cost = enhance[0];
-    for (const choice of expandModes(section(text, `enhance ${cost}`))) out.push({ kind: choice.i ? "mode" : "enhance", cost, text: choice.text, modeIndex: choice.i, scoreBonus: 5 });
+    for (const choice of expandModes(section(text, `enhance ${cost}`))) out.push({ kind: choice.i ? "mode" : "enhance", cost, text: choice.text, modeIndex: choice.i, scoreBonus: 5, enhanced: true });
     return out;
   }
   if (base <= player.pp && (card.type === "Spell" || player.board.length < 5)) {
@@ -466,6 +508,11 @@ function playCard(inst, mode, player, opponent, playerIndex, enemyIndex, stats, 
     }
   }
 
+  // [[battle-enhance-play-event]]
+  if (mode.enhanced || mode.kind === "enhance") {
+    actions.push(...applyEnhancedCardPlayed({ card, instance: inst, sourceUnit: source, player, opponent, playerIndex, enemyIndex, stats, rng, cardMap }));
+  }
+
   if (mode.kind !== "crystallize") {
     const result = resolveText(mode.text || card.text, { card, instance: inst, sourceUnit: source, player, opponent, playerIndex, enemyIndex, stats, rng, cardMap });
     actions.push(...result.actions);
@@ -483,6 +530,26 @@ function playCard(inst, mode, player, opponent, playerIndex, enemyIndex, stats, 
 
   actions.push(...cleanup(player, opponent, playerIndex, enemyIndex, stats, rng, cardMap), ...cleanup(opponent, player, enemyIndex, playerIndex, stats, rng, cardMap));
   return { actions };
+}
+
+// [[battle-enhance-play-helper]]
+function applyEnhancedCardPlayed(ctx) {
+  const actions = [];
+  const player = ctx.player;
+  if (player.faithActive) {
+    player.faith += 1;
+    actions.push(`Faith +1 (${player.faith})`);
+  }
+  const stacks = Math.max(0, Number(player.faithEnhanceBuffs) || 0);
+  if (!stacks) return actions;
+  const context = effectContext(ctx);
+  for (const unit of player.board.filter(unit => unit.type === "Follower")) {
+    const before = { attack: unit.attack, defense: unit.defense };
+    context.buffUnit(unit, stacks, stacks);
+    actions.push(`Faith: +${stacks}/+${stacks} ${unit.name}`);
+    if ((Number(unit.attack) || 0) <= before.attack && (Number(unit.defense) || 0) <= before.defense) continue;
+  }
+  return uniq(actions);
 }
 
 function boardFollower(inst) {
@@ -516,6 +583,18 @@ function resolveText(raw, ctx) {
   let text = String(raw ?? "").trim();
   const actions = [];
   if (!text) return { actions, applied: false, unresolved: false };
+
+  // [[battle-gildaria-rally]]
+  if (norm(ctx.card?.name) === "gildaria, anathema of attunement") {
+    const gated = /Rally\s*\(?\s*20\s*\)?\s*-\s*Gain Crest\s*:\s*Gildaria, Anathema of Attunement\.\s*Evolve this follower\.?/i;
+    if (gated.test(text)) {
+      if (ctx.player.rally >= 20) {
+        if (gainCrest(ctx.player, "Gildaria, Anathema of Attunement", ctx.card)) actions.push("Gildaria Crest");
+        if (ctx.sourceUnit) evolveUnitByAbility(ctx, ctx.sourceUnit, actions);
+      } else actions.push(`Rally ${ctx.player.rally}/20`);
+      text = text.replace(gated, " ");
+    }
+  }
 
   const necromancy = text.match(/Necromancy\s*\(?\s*(\d+)\s*\)?\s*:\s*(.*)$/i);
   if (necromancy) {
@@ -727,6 +806,25 @@ function effectContext(ctx) {
     chooseEnemyFollower: board => chooseTarget(board, true),
     chooseAlliedFollower: (board, excluded) => board.filter(unit => unit.type === "Follower" && unit !== excluded).sort((a,b)=>b.attack+b.defense-a.attack-a.defense)[0] ?? excluded,
     chooseHandFollower: hand => hand.filter(item => item.card.type === "Follower").sort((a,b)=>(Number(b.card.cost)||0)-(Number(a.card.cost)||0))[0] ?? null,
+    // [[battle-coverage-100-context]]
+    gainCrest: (player, name, card) => gainCrest(player, name, card),
+    isSuperEvolutionUnlocked: () => ctx.player.personalTurn >= (ctx.player.goingFirst ? 7 : 6),
+    evolveRandomUnitByAbility: predicate => {
+      const candidates = ctx.player.board.filter(unit => unit.type === "Follower" && !unit.evolved && !unit.superEvolved && (!predicate || predicate(unit)));
+      if (!candidates.length) return null;
+      const unit = candidates[Math.floor(ctx.rng() * candidates.length)];
+      const sideActions = [];
+      evolveUnitByAbility(ctx, unit, sideActions);
+      if (sideActions.length) ctx.__sideActions?.push?.(...sideActions);
+      return unit;
+    },
+    summonFromDeckDifferentNames: (limit, predicate) => summonFromDeckDifferentNames(ctx, limit, predicate),
+    summonWithoutLastWords: card => summonWithoutLastWords(ctx, card),
+    setLeaderDamageCap: (player, cap) => {
+      player.leaderDamageCap = Math.max(0, Number(cap) || 0);
+      player.leaderDamageCapUntilOpponentTurnEnd = true;
+    },
+    notifyLeaveField: (player, unit) => notifyFollowerLeavesField(player, unit),
     // [[battle-ability-evolve-context-v5]]
     evolveUnitByAbility: unit => {
       const sideActions = [];
@@ -743,6 +841,16 @@ function effectContext(ctx) {
       const extra = applyBuffedFollowerEffects(effectContextBare(ctx), unit, before);
       if (ctx.player.hp > beforeHp) afterLeaderHeal(ctx.player, ctx.player.hp - beforeHp, ctx.stats, ctx.playerIndex);
       if (extra?.length) ctx.__sideActions?.push?.(...extra);
+
+      // [[battle-krulle-defense-reaction]]
+      if ((Number(defense) || 0) < 0 && ctx.opponent.board.includes(unit) && ctx.player.isActive) {
+        const krulle = ctx.player.board.find(source => source.type === "Follower" && norm(source.name) === "krulle, heir to unkilling");
+        if (krulle && krulle.__defenseReactionTurn !== ctx.player.personalTurn) {
+          krulle.__defenseReactionTurn = ctx.player.personalTurn;
+          const healed = healPlayer(ctx.player, 1, ctx.stats, ctx.playerIndex);
+          if (healed) ctx.__sideActions?.push?.(`Krulle: restore ${healed} leader defense`, ...afterLeaderHeal(ctx.player, healed, ctx.stats, ctx.playerIndex));
+        }
+      }
     },
     buffHand: (item, attack, defense) => {
       item.attackBonus = (Number(item.attackBonus) || 0) + (Number(attack) || 0);
@@ -840,6 +948,43 @@ function summonWithEvents(player, card, amount, index, ctx) {
   return units.length;
 }
 
+// [[battle-deck-summon-primitives]]
+function summonFromDeckDifferentNames(ctx, limit, predicate) {
+  const summoned = [];
+  const usedNames = new Set();
+  while (summoned.length < Number(limit) && ctx.player.board.length < 5) {
+    const eligible = ctx.player.deck.filter(item => {
+      if (item.card.type !== "Follower") return false;
+      if (usedNames.has(norm(item.card.name))) return false;
+      return !predicate || predicate(item.card);
+    });
+    if (!eligible.length) break;
+    const chosen = eligible[Math.floor(ctx.rng() * eligible.length)];
+    ctx.player.deck = ctx.player.deck.filter(item => item.uid !== chosen.uid);
+    usedNames.add(norm(chosen.card.name));
+    const unit = boardFollower(chosen);
+    ctx.player.board.push(unit);
+    ctx.player.rally += 1;
+    summoned.push(unit);
+    ctx.__sideActions?.push?.(`summon ${unit.name} from deck`, ...applyEntryEvents(ctx, unit));
+  }
+  return summoned;
+}
+
+function summonWithoutLastWords(ctx, card) {
+  if (!card || ctx.player.board.length >= 5) return null;
+  const inst = instance(ctx.player, card);
+  const unit = boardFollower(inst);
+  unit.overrideText = String(card.text ?? "")
+    .replace(/Last Words\s*:\s*[\s\S]*?(?=(?:Super-Evolve|Evolve|Strike|Clash|Fanfare|Enhance|Accelerate|Engage|At the start of your turn|At the end of your turn)\s*:|$)/i, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  ctx.player.board.push(unit);
+  ctx.player.rally += 1;
+  ctx.__sideActions?.push?.(`summon ${unit.name} without Last Words`, ...applyEntryEvents(ctx, unit));
+  return unit;
+}
+
 function addHand(player, card, amount, index, stats) {
   let count = 0;
   for (let i = 0; i < amount; i += 1) {
@@ -870,6 +1015,8 @@ function crestCountdown(name) {
   const normalized = norm(name);
   if (normalized === "sandalphon, primarch successor") return 2;
   if (normalized === "lu woh, light personified") return 2;
+  if (normalized === "krulle, heir to unkilling") return 2;
+  if (normalized === "gildaria, anathema of attunement") return 1;
   return null;
 }
 
@@ -980,6 +1127,12 @@ function turnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map) {
   actions.push(...applyCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map));
   restoreTemporaryAttack(player);
   actions.push(...cleanup(player, opponent, playerIndex, enemyIndex, stats, rng, map), ...cleanup(opponent, player, enemyIndex, playerIndex, stats, rng, map));
+  // [[battle-leader-cap-expiry]]
+  if (opponent.leaderDamageCapUntilOpponentTurnEnd) {
+    opponent.leaderDamageCap = null;
+    opponent.leaderDamageCapUntilOpponentTurnEnd = false;
+    actions.push("Leader damage prevention expired");
+  }
   return actions;
 }
 
@@ -1026,6 +1179,8 @@ function invokeCards(player, opponent, playerIndex, enemyIndex, stats, rng, map,
       actions.push(...result.actions);
     }
     if (/return this card to your hand/i.test(after)) {
+      // [[battle-cleanup-leave-hook]]
+      notifyFollowerLeavesField(player, unit);
       player.board = player.board.filter(item => item.uid !== unit.uid);
       if (player.hand.length < 9) player.hand.push(inst);
     }
@@ -1041,8 +1196,9 @@ function readyBoard(player) {
         unit.tempAttackPenalty = 0;
       }
       unit.summonedThisTurn = false;
-      unit.canAttackLeader = true;
-      unit.canAttackFollower = true;
+      const permanentlyLocked = /can't attack followers or leaders/i.test(String(unit.card?.text ?? ""));
+      unit.canAttackLeader = !permanentlyLocked;
+      unit.canAttackFollower = !permanentlyLocked;
       unit.attacked = false;
       unit.attacksMade = 0;
       unit.maxAttacks = unit.baseMaxAttacks ?? 1;
@@ -1091,7 +1247,8 @@ function maybeEvolve(player, opponent, playerIndex, enemyIndex, stats, rng, map)
   unit.attack += bonus;
   unit.defense += bonus;
   unit.maxDefense += bonus;
-  unit.canAttackFollower = true;
+  unit.canAttackFollower = !/can't attack followers or leaders/i.test(String(unit.card?.text ?? ""));
+  if (/can't attack followers or leaders/i.test(String(unit.card?.text ?? ""))) unit.canAttackLeader = false;
   unit.evolved = true;
   unit.superEvolved = superMode;
   player.evolutionsThisMatch += 1;
@@ -1114,7 +1271,8 @@ function evolveUnitByAbility(ctx, unit, actions) {
   unit.attack += 2;
   unit.defense += 2;
   unit.maxDefense += 2;
-  unit.canAttackFollower = true;
+  unit.canAttackFollower = !/can't attack followers or leaders/i.test(String(unit.card?.text ?? ""));
+  if (/can't attack followers or leaders/i.test(String(unit.card?.text ?? ""))) unit.canAttackLeader = false;
   unit.evolved = true;
   ctx.player.evolutionsThisMatch += 1;
   ctx.stats.evolutions[ctx.playerIndex] += 1;
@@ -1130,7 +1288,8 @@ function superEvolveUnitByAbility(ctx, unit, actions) {
   unit.attack += 3;
   unit.defense += 3;
   unit.maxDefense += 3;
-  unit.canAttackFollower = true;
+  unit.canAttackFollower = !/can't attack followers or leaders/i.test(String(unit.card?.text ?? ""));
+  if (/can't attack followers or leaders/i.test(String(unit.card?.text ?? ""))) unit.canAttackLeader = false;
   unit.evolved = true;
   unit.superEvolved = true;
   ctx.player.evolutionsThisMatch += 1;
@@ -1305,6 +1464,15 @@ function healPlayer(player, amount, stats, index) {
   return healed;
 }
 
+// [[battle-follower-leaves-field]]
+function notifyFollowerLeavesField(player, unit) {
+  if (!unit || unit.type !== "Follower") return;
+  for (const item of player.hand ?? []) {
+    if (norm(item.card?.name) !== "bayle, luxglaive warrior") continue;
+    item.costDelta = (Number(item.costDelta) || 0) - 1;
+  }
+}
+
 function cleanup(player, opponent, playerIndex, enemyIndex, stats, rng, map) {
   const actions = [];
   let guard = 0;
@@ -1329,6 +1497,8 @@ function cleanup(player, opponent, playerIndex, enemyIndex, stats, rng, map) {
 }
 
 function destroyObject(player, opponent, unit, playerIndex, enemyIndex, stats, rng, map, lastWordsEnabled) {
+  // [[battle-destroy-object-leave-hook]]
+  if (unit.type === "Follower") notifyFollowerLeavesField(player, unit);
   player.board = player.board.filter(item => item.uid !== unit.uid);
   toCemetery(player, { uid: unit.uid, card: unit.card }, true);
   if (unit.type === "Follower") {
@@ -1351,8 +1521,8 @@ function getUnitTriggeredText(unit, event) {
 
 function toCemetery(player, item, addShadow = false) { player.cemetery.push(item); if (addShadow) player.shadows += 1; }
 function destroyUnit(player, unit) { if (unit.superEvolved && player.isActive) return false; unit.defense = 0; return true; }
-function banish(player, unit) { if (unit.superEvolved && player.isActive) return false; player.board = player.board.filter(item => item.uid !== unit.uid); player.banished.push({ uid: unit.uid, card: unit.card }); return true; }
-function bounce(player, unit) { player.board = player.board.filter(item => item.uid !== unit.uid); const item = instance(player, unit.card); if (player.hand.length >= 9) { toCemetery(player, item, false); return false; } player.hand.push(item); return true; }
+function banish(player, unit) { if (unit.superEvolved && player.isActive) return false; if (unit.type === "Follower") notifyFollowerLeavesField(player, unit); player.board = player.board.filter(item => item.uid !== unit.uid); player.banished.push({ uid: unit.uid, card: unit.card }); return true; }
+function bounce(player, unit) { if (unit.type === "Follower") notifyFollowerLeavesField(player, unit); player.board = player.board.filter(item => item.uid !== unit.uid); const item = instance(player, unit.card); if (player.hand.length >= 9) { toCemetery(player, item, false); return false; } player.hand.push(item); return true; }
 
 function hasCrest(player, name) { const target = norm(name); return (player.crests ?? []).some(crest => norm(crest.name) === target); }
 function restoreTemporaryAttack(player) { for (const unit of player.board) if (unit.tempAttackPenalty) { unit.attack += unit.tempAttackPenalty; unit.tempAttackPenalty = 0; } }
