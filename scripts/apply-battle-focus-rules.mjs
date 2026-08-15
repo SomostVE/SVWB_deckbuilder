@@ -113,6 +113,10 @@ if (!rules.includes(marker)) {
   rules = rules.replace(anchor, `${anchor}${block}`);
 }
 
+const genericCall = "  const result = core.executeGenericEffects(text, wrappedContext);";
+const trimmedGenericCall = "  const result = core.executeGenericEffects(text.trim(), wrappedContext);";
+if (rules.includes(genericCall)) rules = rules.replace(genericCall, trimmedGenericCall);
+
 const removePartialNames = [
   "serene sanctuary",
   "jeanne, saintly knight",
