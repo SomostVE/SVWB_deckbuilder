@@ -52,6 +52,9 @@ jobs:
       - name: Run Battle Sim Fuse regression
         run: node scripts/check-battle-fuse.mjs
 
+      - name: Run Battle Sim target branching regression
+        run: node scripts/check-battle-target-branching.mjs
+
       - name: Run Battle Sim full coverage regression
         run: node scripts/check-battle-coverage-100.mjs
 
