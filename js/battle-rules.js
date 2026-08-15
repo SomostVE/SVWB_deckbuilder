@@ -9,11 +9,10 @@ const DESTROY_HOOK = "[[battle-follower-destroyed-hook]]";
 const TURN_END_HOOK = "[[battle-crest-turn-end-hook]]";
 
 export function getTriggeredText(card, event, mode = null) {
-  const base = core.getTriggeredText(card, event, mode);
-  const hooks = [];
-  if (event === "lastWords" && card?.type === "Follower") hooks.push(DESTROY_HOOK);
-  if (event === "turnEnd") hooks.push(TURN_END_HOOK);
-  return `${base ? `${base} ` : ""}${hooks.join(" ")}`.trim();
+  // Lifecycle events are emitted centrally by the battle engine. Injecting
+  // destruction/turn-end hooks here made those events run once per unit text
+  // and then again through the engine's explicit event dispatch.
+  return core.getTriggeredText(card, event, mode);
 }
 
 export function executeGenericEffects(textValue, context) {
