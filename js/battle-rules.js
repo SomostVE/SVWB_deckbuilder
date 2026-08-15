@@ -316,14 +316,10 @@ function resolveCardSpecificText(textValue, context) {
   }
 
   if (cardName === "scarlet, anathema of dislocation") {
-    const artifactDamage = /deal X damage to all enemy followers\.\s*X is the number of differently named allied Artifact followers that have entered the field this match\.?/i;
-    if (artifactDamage.test(text)) {
-      const amount = artifactEntryCount(context.player);
-      const targets = context.opponent.board.filter(unit => unit.type === "Follower");
-      for (const target of targets) target.defense -= amount;
-      if (targets.length) context.cleanup(context.opponent, context.enemyIndex);
-      actions.push(`Scarlet: ${amount} damage to ${targets.length} enemy follower${targets.length === 1 ? "" : "s"}`);
-      text = text.replace(artifactDamage, " ");
+    const artifactCountText = /X is the number of differently named allied Artifact followers that have entered the field this match\.?/i;
+    if (artifactCountText.test(text)) {
+      actions.push(`Scarlet: X=${artifactEntryCount(context.player)}`);
+      text = text.replace(artifactCountText, "").trim();
       applied = true;
     }
   }
@@ -512,6 +508,10 @@ function recordArtifactEntry(player, unit) {
   if (!Array.isArray(player.artifactFollowerNamesEntered)) player.artifactFollowerNamesEntered = [];
   const name = normalize(unit?.name ?? unit?.card?.name);
   if (name && !player.artifactFollowerNamesEntered.includes(name)) player.artifactFollowerNamesEntered.push(name);
+  const x = artifactEntryCount(player);
+  for (const instance of [...(player.hand ?? []), ...(player.deck ?? [])]) {
+    if (normalize(instance?.card?.name) === "scarlet, anathema of dislocation") instance.x = x;
+  }
 }
 
 function artifactEntryCount(player) {
