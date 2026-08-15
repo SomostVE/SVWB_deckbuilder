@@ -30,18 +30,21 @@ jobs:
         run: |
           node --check js/battle-rules.js
           node --check js/battle-engine-v4.js
+          node --check js/battle-engine-v5.js
 
       - name: Run focus rule regressions
-        run: node scripts/check-battle-focus-rules.mjs
+        run: |
+          node scripts/check-battle-focus-rules.mjs
+          node scripts/check-battle-ability-evolve.mjs
 
       - name: Commit tested rules
         run: |
-          if git diff --quiet -- js/battle-rules.js js/battle-engine-v4.js; then
+          if git diff --quiet -- js/battle-rules.js js/battle-engine-v4.js js/battle-engine-v5.js; then
             echo "No changes to commit."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add js/battle-rules.js js/battle-engine-v4.js
-          git commit -m "feat: model focus Battle Sim rules"
+          git add js/battle-rules.js js/battle-engine-v4.js js/battle-engine-v5.js
+          git commit -m "feat: add ability-driven evolution"
           git push origin HEAD:main
