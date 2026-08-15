@@ -71,6 +71,7 @@ async function inspectDeckShare(deck) {
   const response = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" }, redirect: "follow" });
   const html = await response.text();
   console.log(`Deck share ${deck.name}: status=${response.status} final=${response.url} html=${html.length}`);
+  console.log(`Deck share raw HTML: ${html.replace(/\s+/g, " ")}`);
   const imageRefs = [...html.matchAll(/uploads\/card_image\/[^\"'<>\s]+/gi)].map(match => match[0]);
   console.log(`Deck share image refs (${imageRefs.length}): ${JSON.stringify(imageRefs.slice(0, 8))}`);
   const cardSnippets = [...html.matchAll(/.{0,140}(?:card[_-]id|card_image|deck[_-]card|data-card).{0,260}/gi)].map(match => match[0].replace(/\s+/g, " "));
