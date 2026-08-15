@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/apply-battle-focus-rules.yml"
       - "scripts/apply-battle-focus-rules.mjs"
+      - "scripts/apply-battle-asher.mjs"
 
 permissions:
   contents: write
@@ -24,7 +25,9 @@ jobs:
           node-version: "24"
 
       - name: Materialize focus rules
-        run: node scripts/apply-battle-focus-rules.mjs
+        run: |
+          node scripts/apply-battle-focus-rules.mjs
+          node scripts/apply-battle-asher.mjs
 
       - name: Check changed JavaScript syntax
         run: |
@@ -36,6 +39,7 @@ jobs:
         run: |
           node scripts/check-battle-focus-rules.mjs
           node scripts/check-battle-ability-evolve.mjs
+          node scripts/check-battle-asher.mjs
 
       - name: Commit tested rules
         run: |
@@ -46,5 +50,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add js/battle-rules.js js/battle-engine-v4.js js/battle-engine-v5.js
-          git commit -m "feat: add ability-driven evolution"
+          git commit -m "feat: model Asher and Lydia rules"
           git push origin HEAD:main
