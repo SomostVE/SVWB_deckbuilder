@@ -6,6 +6,7 @@ on:
       - ".github/workflows/apply-battle-focus-rules.yml"
       - "scripts/apply-battle-focus-rules.mjs"
       - "scripts/apply-battle-asher.mjs"
+      - "scripts/check-battle-asher.mjs"
 
 permissions:
   contents: write
