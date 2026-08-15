@@ -71,8 +71,23 @@ function printCardDetails(name) {
   console.log(`text=${String(card.text ?? "").replace(/\s+/g, " ").trim() || "-"}`);
 }
 
+function auditFocusDeck(reference) {
+  console.log(`Focus deck rule audit: ${reference.name}`);
+  for (const entry of reference.cards) {
+    const card = cardMap.get(Number(entry.cardId));
+    if (!card) {
+      console.log(`  MISSING ${entry.cardId}`);
+      continue;
+    }
+    const support = analyzeCardSupport(card);
+    const text = String(card.text ?? "").replace(/\s+/g, " ").trim() || "-";
+    console.log(`  ${entry.qty ?? 1}x ${card.name} | ${support.level} | ${support.reason ?? "-"} | ${text}`);
+  }
+}
+
 printCardDetails("Freerunning");
 printCardDetails("Analyzing Artifact");
+for (const reference of focusDecks) auditFocusDeck(reference);
 
 for (const player of focusDecks) {
   console.log(`\n=== ${player.name} ===`);
