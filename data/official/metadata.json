@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-13T06:35:54.118Z",
+  "generatedAt": "2026-08-15T11:48:42.734Z",
   "source": "https://shadowverse-wb.com/web/CardList/cardList",
   "count": 826,
   "classes": [
@@ -80,5 +80,10 @@
     "40": "Mjerrabaine Deck",
     "41": "Skybound Art",
     "42": "Super Skybound Art"
+  },
+  "update": {
+    "added": 0,
+    "modified": 368,
+    "removed": 0
   }
 }
