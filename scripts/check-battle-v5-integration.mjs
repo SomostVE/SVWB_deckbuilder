@@ -20,21 +20,14 @@ function deckList(reference) {
 
 const expectedPartials = new Map([
   ["Ward Havencraft", [
-    "Serene Sanctuary",
     "Galleon, Earth Personified",
     "Sofina, Inspiring Strength",
-    "Jeanne, Saintly Knight",
     "Aether, Empyrean Guardian",
-    "Edeth, Voice of Heaven",
-    "Olivia, Proud Dark Angel"
+    "Edeth, Voice of Heaven"
   ]],
   ["Puppetry Portalcraft", [
-    "Puppet Cat",
-    "Lovestruck Puppeteer",
-    "Cool Courier",
     "Eudie, Your Dependable Mentor",
-    "Asher & Lydia, Paths Beyond",
-    "Odin, Twilit Fate"
+    "Asher & Lydia, Paths Beyond"
   ]]
 ]);
 
@@ -43,8 +36,8 @@ for (const name of ["Ward Havencraft", "Puppetry Portalcraft"]) {
   const deck = deckList(reference);
   const coverage = analyzeDeckCoverage(deck, cardMap);
   assert.equal(coverage.unsupported, 0, `${name}: unsupported copies must be zero`);
-  assert.deepEqual(coverage.partialCards, expectedPartials.get(name), `${name}: partial list must reflect known unmodeled clauses`);
-  assert.ok(coverage.partial > 0 && coverage.modeledPercent < 100, `${name}: honest coverage must remain below 100% until these clauses are implemented`);
+  assert.deepEqual(coverage.partialCards, expectedPartials.get(name), `${name}: partial list must reflect only the remaining known unmodeled clauses`);
+  assert.ok(coverage.partial > 0 && coverage.modeledPercent < 100, `${name}: honest coverage must remain below 100% until the remaining clauses are implemented`);
 
   const result = simulateBattle({
     playerDeck: deck,
@@ -61,14 +54,23 @@ for (const name of ["Ward Havencraft", "Puppetry Portalcraft"]) {
   console.log(`${name}: ${coverage.modeledPercent}% modeled · partial: ${coverage.partialCards.join(", ")} · ${result.summary.rounds} rounds`);
 }
 
-const analyzingArtifact = cards.find(card => card.name === "Analyzing Artifact");
-assert.ok(analyzingArtifact, "Analyzing Artifact must exist in the official card database");
-assert.equal(analyzeCardSupport(analyzingArtifact).level, "full", "Analyzing Artifact self-entry draw is fully modeled and must not emit a rule gap");
+const fullyModeledFocusCards = [
+  "Analyzing Artifact",
+  "Freerunning",
+  "Scarlet, Anathema of Dislocation",
+  "Serene Sanctuary",
+  "Jeanne, Saintly Knight",
+  "Olivia, Proud Dark Angel",
+  "Puppet Cat",
+  "Lovestruck Puppeteer",
+  "Cool Courier",
+  "Odin, Twilit Fate"
+];
 
-for (const name of ["Freerunning", "Scarlet, Anathema of Dislocation"]) {
+for (const name of fullyModeledFocusCards) {
   const card = cards.find(item => item.name === name);
   assert.ok(card, `${name} must exist in the official card database`);
-  assert.equal(analyzeCardSupport(card).level, "full", `${name} Artifact-history mechanics are explicitly modeled in v5`);
+  assert.equal(analyzeCardSupport(card).level, "full", `${name} is explicitly modeled and must not emit a rule gap`);
 }
 
 const dragon = byName("Ramp Dragoncraft");
