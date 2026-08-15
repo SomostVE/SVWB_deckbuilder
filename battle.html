@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Battle Sim · Deci Builder</title>
+  <link rel="stylesheet" href="./css/base.css">
+  <link rel="stylesheet" href="./css/tools.css">
+  <link rel="stylesheet" href="./css/battle.css">
+</head>
+<body class="tools-body battle-body">
+  <header class="tools-header battle-header">
+    <a class="button" href="./index.html">← Cards</a>
+    <a class="button" href="./engines.html">Engines</a>
+    <a class="button" href="./collection.html">Collection</a>
+    <a class="button" href="./lab.html">Deck Lab</a>
+    <span class="tools-title">Battle Sim</span>
+    <span class="battle-experimental">Experimental</span>
+  </header>
+
+  <main class="tools-page battle-page">
+    <section class="tools-panel battle-setup">
+      <div class="battle-title-row">
+        <div>
+          <h1>Battle Sim</h1>
+          <p class="tools-muted">Run an inspectable single-game simulation against locally stored reference decks. Ownership is ignored.</p>
+        </div>
+        <div class="battle-local-badge">Reference decks: local JSON</div>
+      </div>
+
+      <div class="battle-setup-grid">
+        <label>
+          <span>Your deck</span>
+          <select id="battle-your-deck"></select>
+        </label>
+        <label>
+          <span>Your play profile</span>
+          <select id="battle-player-strategy">
+            <option value="auto">Auto detect</option>
+            <option value="aggro">Aggro</option>
+            <option value="midrange">Midrange</option>
+            <option value="control">Control</option>
+            <option value="ramp">Ramp</option>
+            <option value="spell-combo">Spell / Combo</option>
+            <option value="buff-tempo">Buff / Tempo</option>
+            <option value="puppetry-tempo">Puppetry / Tempo</option>
+            <option value="ward-control">Ward / Control</option>
+          </select>
+        </label>
+        <label>
+          <span>Reference opponent</span>
+          <select id="battle-opponent"></select>
+        </label>
+        <label>
+          <span>Your side</span>
+          <select id="battle-side">
+            <option value="random">Random</option>
+            <option value="first">First</option>
+            <option value="second">Second</option>
+          </select>
+        </label>
+        <label class="battle-seed-field">
+          <span>Seed</span>
+          <div>
+            <input id="battle-seed" type="text" spellcheck="false">
+            <button id="battle-new-seed" class="button" type="button">New</button>
+          </div>
+        </label>
+      </div>
+
+      <div id="battle-opponent-meta" class="battle-opponent-meta"></div>
+      <div id="battle-coverage" class="battle-coverage"></div>
+      <div id="battle-status" class="battle-status" data-type="info"></div>
+
+      <div class="tools-actions">
+        <button id="battle-start" class="button battle-start" type="button">Simulate game</button>
+      </div>
+    </section>
+
+    <section id="battle-replay" class="tools-panel battle-replay" hidden>
+      <div class="battle-replay-head">
+        <div>
+          <h2>Replay</h2>
+          <p class="tools-muted">Every visible state is a deterministic snapshot from this seed.</p>
+        </div>
+        <div class="battle-replay-controls">
+          <button id="battle-prev" class="button" type="button">◀ Prev</button>
+          <button id="battle-auto" class="button" type="button">Auto</button>
+          <button id="battle-next" class="button" type="button">Next ▶</button>
+          <strong id="battle-frame-label"></strong>
+        </div>
+      </div>
+
+      <div id="battle-summary" class="battle-summary"></div>
+      <div id="battle-timeline" class="battle-timeline" aria-label="Replay timeline"></div>
+      <div id="battle-action" class="battle-action"></div>
+
+      <div class="battle-table">
+        <section id="battle-opponent-area" class="battle-side-area opponent"></section>
+        <div class="battle-center-line"><span>VS</span></div>
+        <section id="battle-player-area" class="battle-side-area player"></section>
+      </div>
+
+      <div class="battle-disclaimer">
+        This is the first rules-engine pass. Basic battle flow, followers, field/hand limits, PP, Ward/Rush/Storm/Bane/Drain, evolution, super-evolution and a small set of simple text effects are modeled. Complex card-specific mechanics are explicitly counted as unsupported instead of being treated as accurate.
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="./js/battle.js"></script>
+</body>
+</html>

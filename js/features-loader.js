@@ -10,3 +10,6 @@ if(document.querySelector('.engines-page')){
 if(document.querySelector('.sidebar')){
   import('./deck-only-view.js');
 }
+if(document.querySelector('.header-actions')){
+  import('./battle-link.js');
+}

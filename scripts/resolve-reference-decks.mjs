@@ -1,0 +1,143 @@
+import fs from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.resolve(__dirname, "..");
+const SOURCE_PATH = path.join(ROOT, "data", "custom", "reference-decks.source.json");
+const OUTPUT_PATH = path.join(ROOT, "data", "custom", "reference-decks.json");
+const API = "https://shadowverse-wb.com/web/CardList/cardList";
+
+const TYPE_NAMES = { 1: "Follower", 2: "Amulet", 3: "Amulet", 4: "Spell" };
+const RARITY_NAMES = { 1: "Bronze", 2: "Silver", 3: "Gold", 4: "Legendary" };
+
+async function fetchPage(offset) {
+  const url = new URL(API);
+  url.searchParams.set("offset", String(offset));
+  url.searchParams.set("class", "0,1,2,3,4,5,6,7");
+  url.searchParams.set("cost", "0,1,2,3,4,5,6,7,8,9,10");
+  url.searchParams.set("include_token", "1");
+
+  const response = await fetch(url, {
+    headers: {
+      lang: "en",
+      "X-Requested-With": "XMLHttpRequest",
+      "User-Agent": "Mozilla/5.0"
+    }
+  });
+  if (!response.ok) throw new Error(`Card API returned ${response.status} for offset ${offset}`);
+  return response.json();
+}
+
+function decodePortalToken(token) {
+  const normalized = String(token).replaceAll("-", "+").replaceAll("_", "/");
+  const buffer = Buffer.from(normalized, "base64");
+  if (buffer.length !== 3) throw new Error(`Unexpected portal token length for ${token}`);
+  return buffer.readUIntBE(0, 3);
+}
+
+function parseHash(hash) {
+  const parts = String(hash ?? "").split(".");
+  if (parts.length < 3) throw new Error(`Invalid Deck Portal hash: ${hash}`);
+  const [portalFormat, classId, ...tokens] = parts;
+  if (tokens.length !== 40) throw new Error(`Deck hash must contain 40 cards, got ${tokens.length}`);
+  return { portalFormat: Number(portalFormat), classId: Number(classId), tokens };
+}
+
+async function loadOfficialCards() {
+  const byResourceId = new Map();
+  let offset = 0;
+  let emptyPages = 0;
+
+  while (emptyPages < 2) {
+    const json = await fetchPage(offset);
+    const details = json?.data?.card_details ?? {};
+    const values = Object.values(details);
+    if (!values.length) emptyPages += 1;
+    else emptyPages = 0;
+
+    for (const detail of values) {
+      const common = detail?.common ?? {};
+      const resourceId = Number(common.card_resource_id ?? 0);
+      if (!resourceId) continue;
+      byResourceId.set(resourceId, common);
+    }
+
+    offset += 30;
+    if (offset > 3000) break;
+  }
+
+  if (byResourceId.size < 100) throw new Error(`Suspiciously small resource-ID map: ${byResourceId.size}`);
+  return byResourceId;
+}
+
+function countInOrder(values) {
+  const map = new Map();
+  for (const value of values) map.set(value, (map.get(value) ?? 0) + 1);
+  return map;
+}
+
+async function main() {
+  const source = JSON.parse(await fs.readFile(SOURCE_PATH, "utf8"));
+  const resourceMap = await loadOfficialCards();
+  const decks = [];
+
+  for (const deck of source.decks ?? []) {
+    const parsed = parseHash(deck.portalHash);
+    const counts = countInOrder(parsed.tokens);
+    const cards = [];
+
+    for (const [token, qty] of counts) {
+      const resourceId = decodePortalToken(token);
+      const common = resourceMap.get(resourceId);
+      if (!common) {
+        throw new Error(`${deck.name}: portal token ${token} decoded to resourceId ${resourceId}, but no official card matched it`);
+      }
+
+      cards.push({
+        cardId: Number(common.card_id),
+        baseCardId: Number(common.base_card_id ?? common.card_id),
+        resourceId,
+        portalToken: token,
+        qty,
+        name: common.name ?? "",
+        cost: Number(common.cost ?? 0),
+        type: TYPE_NAMES[Number(common.type)] ?? `Type ${common.type}`,
+        rarity: RARITY_NAMES[Number(common.rarity)] ?? `Rarity ${common.rarity}`
+      });
+    }
+
+    const total = cards.reduce((sum, card) => sum + card.qty, 0);
+    if (total !== 40) throw new Error(`${deck.name}: resolved ${total} cards instead of 40`);
+
+    decks.push({
+      id: deck.id,
+      name: deck.name,
+      class: deck.class,
+      format: deck.format,
+      strategy: deck.strategy,
+      sourceUrl: deck.sourceUrl,
+      portalHash: deck.portalHash,
+      portalFormat: parsed.portalFormat,
+      classId: parsed.classId,
+      cards
+    });
+  }
+
+  const output = {
+    format: "svwb-reference-decks",
+    version: 1,
+    generatedAt: new Date().toISOString(),
+    source: "Official Shadowverse: Worlds Beyond CardList API + stored Deck Portal hashes",
+    runtimeNetworkCalls: false,
+    decks
+  };
+
+  await fs.writeFile(OUTPUT_PATH, JSON.stringify(output, null, 2) + "\n");
+  console.log(`Resolved ${decks.length} reference decks (${decks.reduce((sum, deck) => sum + deck.cards.reduce((n, card) => n + card.qty, 0), 0)} card slots).`);
+}
+
+main().catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});
