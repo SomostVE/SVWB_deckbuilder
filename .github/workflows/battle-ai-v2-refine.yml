@@ -23,8 +23,8 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Materialize AI v2.2
-        run: python3 scripts/materialize-battle-ai-v22.py
+      - name: Materialize AI v2.3
+        run: python3 scripts/materialize-battle-ai-v23.py
 
       - name: Syntax and Battle Sim regressions
         run: |
@@ -54,5 +54,5 @@ jobs:
             echo "No changes to commit"
             exit 0
           fi
-          git commit -m "feat: refine Battle Sim attack ordering"
+          git commit -m "feat: improve Battle Sim tactical policy"
           git push
