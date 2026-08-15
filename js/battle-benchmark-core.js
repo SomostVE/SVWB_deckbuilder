@@ -34,18 +34,32 @@ export function runMatchupBenchmark({
 
   const playerCoverage = analyzeDeckCoverage(playerDeck, cardMap);
   const opponentCoverage = analyzeDeckCoverage(opponentDeck, cardMap);
+  const overall = finalizeAggregate(aggregate);
+  const first = finalizeAggregate(splits.first);
+  const second = finalizeAggregate(splits.second);
+  const minimumModeledPercent = Math.min(playerCoverage.modeledPercent, opponentCoverage.modeledPercent);
+  const unsupportedCopies = playerCoverage.unsupported + opponentCoverage.unsupported;
+  const partialCopies = playerCoverage.partial + opponentCoverage.partial;
 
   return {
     games: totalGames,
-    overall: finalizeAggregate(aggregate),
-    first: finalizeAggregate(splits.first),
-    second: finalizeAggregate(splits.second),
+    overall,
+    first,
+    second,
     coverage: {
       player: playerCoverage,
       opponent: opponentCoverage,
-      minimumModeledPercent: Math.min(playerCoverage.modeledPercent, opponentCoverage.modeledPercent),
-      unsupportedCopies: playerCoverage.unsupported + opponentCoverage.unsupported,
-      partialCopies: playerCoverage.partial + opponentCoverage.partial
+      minimumModeledPercent,
+      unsupportedCopies,
+      partialCopies
+    },
+    diagnostics: {
+      sideGap: Math.abs(first.winRate - second.winRate),
+      drawRate: overall.drawRate,
+      unresolvedTriggersPerGame: overall.unsupportedTriggersPerGame,
+      confidenceWidth: overall.winRate95.high - overall.winRate95.low,
+      sampleTier: sampleTier(totalGames),
+      rulesTier: rulesTier({ minimumModeledPercent, unsupportedCopies, partialCopies, unresolvedTriggersPerGame: overall.unsupportedTriggersPerGame })
     }
   };
 }
@@ -96,14 +110,19 @@ function addResult(bucket, result) {
 function finalizeAggregate(bucket) {
   const games = bucket.games || 0;
   const ppTotal = bucket.ppSpent + bucket.ppWasted;
+  const winRate = games ? bucket.wins / games * 100 : 0;
+  const winRate95 = wilsonInterval(bucket.wins, games);
   return {
     games,
     wins: bucket.wins,
     losses: bucket.losses,
     draws: bucket.draws,
-    winRate: games ? bucket.wins / games * 100 : 0,
+    decisiveGames: bucket.wins + bucket.losses,
+    winRate,
     lossRate: games ? bucket.losses / games * 100 : 0,
     drawRate: games ? bucket.draws / games * 100 : 0,
+    decisiveWinRate: bucket.wins + bucket.losses ? bucket.wins / (bucket.wins + bucket.losses) * 100 : 0,
+    winRate95,
     averageRounds: games ? bucket.rounds / games : 0,
     averageWinRound: bucket.wins ? bucket.winRounds / bucket.wins : 0,
     averageLossRound: bucket.losses ? bucket.lossRounds / bucket.losses : 0,
@@ -114,4 +133,29 @@ function finalizeAggregate(bucket) {
     ppEfficiency: ppTotal ? bucket.ppSpent / ppTotal * 100 : 0,
     unsupportedTriggersPerGame: games ? bucket.unsupportedTriggers / games : 0
   };
+}
+
+function wilsonInterval(successes, trials, z = 1.959963984540054) {
+  if (!trials) return { low: 0, high: 0 };
+  const p = successes / trials;
+  const z2 = z * z;
+  const denominator = 1 + z2 / trials;
+  const center = (p + z2 / (2 * trials)) / denominator;
+  const margin = z * Math.sqrt((p * (1 - p) + z2 / (4 * trials)) / trials) / denominator;
+  return {
+    low: Math.max(0, (center - margin) * 100),
+    high: Math.min(100, (center + margin) * 100)
+  };
+}
+
+function sampleTier(games) {
+  if (games >= 1000) return "high";
+  if (games >= 500) return "medium";
+  return "exploratory";
+}
+
+function rulesTier({ minimumModeledPercent, unsupportedCopies, partialCopies, unresolvedTriggersPerGame }) {
+  if (unsupportedCopies > 0 || minimumModeledPercent < 80 || unresolvedTriggersPerGame >= .5) return "low";
+  if (partialCopies > 12 || minimumModeledPercent < 92 || unresolvedTriggersPerGame >= .1) return "partial";
+  return "good";
 }
