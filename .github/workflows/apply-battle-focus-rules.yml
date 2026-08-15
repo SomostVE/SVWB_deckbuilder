@@ -7,8 +7,10 @@ on:
       - "scripts/apply-battle-focus-rules.mjs"
       - "scripts/apply-battle-asher.mjs"
       - "scripts/apply-battle-coverage-100.py"
+      - "scripts/apply-battle-combat-order-fix.mjs"
       - "scripts/check-battle-asher.mjs"
       - "scripts/check-battle-coverage-100.mjs"
+      - "scripts/check-battle-combat-order.mjs"
 
 permissions:
   contents: write
@@ -33,6 +35,7 @@ jobs:
           node scripts/apply-battle-focus-rules.mjs
           node scripts/apply-battle-asher.mjs
           python3 scripts/apply-battle-coverage-100.py
+          node scripts/apply-battle-combat-order-fix.mjs
 
       - name: Check changed JavaScript syntax
         run: |
@@ -47,6 +50,7 @@ jobs:
           node scripts/check-battle-ability-evolve.mjs
           node scripts/check-battle-asher.mjs
           node scripts/check-battle-coverage-100.mjs
+          node scripts/check-battle-combat-order.mjs
 
       - name: Commit tested rules
         run: |
@@ -57,5 +61,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add js/battle-rules-core.js js/battle-rules.js js/battle-engine-v4.js js/battle-engine-v5.js
-          git commit -m "feat: reach full Battle Sim rules coverage"
+          git commit -m "fix: resolve Strike before combat damage"
           git push origin HEAD:main
