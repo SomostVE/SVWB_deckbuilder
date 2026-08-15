@@ -427,6 +427,16 @@ function useBonusPpIfUseful(player, opponent) {
   const firstChargeDeadline = player.personalTurn === 5 && player.bonusPpUses === 0;
   const laterCharge = player.personalTurn >= 6 && player.bonusPpUses >= 1;
   const enemyBoard = opponent.board.filter(unit => unit.type === "Follower");
+  const boostedText = norm(boosted?.mode?.text || boosted?.instance?.card?.text || boosted?.text || "");
+  const boostedCard = boosted?.instance?.card ?? boosted?.unit?.card ?? null;
+  const rampUnlock = style === "ramp" && /maximum play points/.test(boostedText);
+  const controlUnlock = control && (/destroy|banish|draw|restore .*leader/.test(boostedText) || has(boostedCard ?? {}, "Ward"));
+  const earlyEmptyCurve = !current && player.personalTurn <= 3;
+
+  // Going second should not automatically burn its scarce extra-PP charge just
+  // to fill an otherwise empty early curve. Ramp/control save it for a real
+  // engine, answer or defensive breakpoint.
+  if (earlyEmptyCurve && (style === "ramp" || control) && !rampUnlock && !controlUnlock && enemyBoard.length < 2) return false;
 
   let threshold = 1.5;
   if (aggro) threshold = 1.0;
@@ -692,7 +702,7 @@ function scorePlay(item, player, opponent) {
   if (/maximum play points/.test(text)) score += style === "ramp" && player.maxPp < 7 ? 13 : player.maxPp < 5 ? 4 : 0;
 
   if (/summon/.test(text)) score += boardSlots >= 2 ? 3 : boardSlots === 1 ? .5 : -6;
-  if (has(card, "Ward")) score += (style === "ward-control" || style === "control") ? (player.hp <= 10 ? 4 : 2) : .5;
+  if (has(card, "Ward")) score += (style === "ward-control" || style === "control") ? (player.hp <= 10 ? 3 : .75) : .5;
 
   if (style === "aggro") {
     if (cost <= 3) score += 3;
@@ -1519,10 +1529,10 @@ function maybeEvolve(player, opponent, playerIndex, enemyIndex, stats, rng, map,
   if (options.phase === "pre-development") {
     const style = String(player.strategy?.style ?? "midrange");
     const foeCount = opponent.board.filter(unit => unit.type === "Follower").length;
-    const threshold = style === "ward-control" || style === "control" ? 5 : style === "aggro" ? 7 : 6;
+    const threshold = style === "ward-control" || style === "control" ? 7 : style === "aggro" ? 9 : 8;
     const highImpact = effectBest >= threshold;
-    const urgentClear = foeCount >= 3 && effectBest >= 4;
-    const crowdedSequence = player.board.length >= 4 && effectBest >= 5;
+    const urgentClear = foeCount >= 3 && effectBest >= 6;
+    const crowdedSequence = player.board.length >= 4 && effectBest >= 7;
     if (!highImpact && !urgentClear && !crowdedSequence) return null;
   }
 
