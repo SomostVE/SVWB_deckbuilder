@@ -124,9 +124,12 @@ function refreshSetup() {
     els.status.textContent = "The local reference deck is waiting for its official card-ID resolution workflow.";
   } else {
     const unsupported = playerCoverage.unsupported + opponentCoverage.unsupported;
-    els.status.textContent = unsupported
-      ? `${unsupported} card copies use mechanics that are not modeled yet. Replay is experimental; no win-rate benchmark is shown.`
-      : "Ready. This first Battle Sim version focuses on inspectable single-game replays.";
+    const partial = playerCoverage.partial + opponentCoverage.partial;
+    if (unsupported || partial) {
+      els.status.textContent = `${unsupported} unsupported · ${partial} partial card copies. Common effects are simulated, but win-rate benchmarking stays locked until rule coverage is stronger.`;
+    } else {
+      els.status.textContent = "Full modeled coverage for this matchup. Replay can be inspected action by action.";
+    }
   }
 }
 
@@ -266,6 +269,7 @@ function renderPlayer(player, opponent, active) {
         <span>PP ${player.pp}/${player.maxPp}</span>
         <span>EP ${player.ep}</span>
         <span>SEP ${player.sep}</span>
+        <span>Shadows ${player.shadows ?? 0}</span>
         ${player.bonusPpAvailable ? "<span>+PP ready</span>" : ""}
       </div>
     </div>
@@ -282,6 +286,7 @@ function renderHandCard(card) {
       ${card.image ? `<img src="${escapeAttr(card.image)}" alt="">` : ""}
       <span class="battle-card-cost">${card.cost}</span>
       <strong>${escapeHtml(card.name)}</strong>
+      ${card.spellboost ? `<small>Spellboost ${card.spellboost}</small>` : ""}
     </div>
   `;
 }
@@ -291,7 +296,8 @@ function renderBoardCard(unit) {
   const stateLabels = [
     unit.evolved ? "Evo" : "",
     unit.superEvolved ? "Super" : "",
-    unit.keywords?.includes("Ward") ? "Ward" : ""
+    unit.keywords?.includes("Ward") ? "Ward" : "",
+    Number.isFinite(unit.countdown) ? `Countdown ${unit.countdown}` : ""
   ].filter(Boolean).join(" · ");
 
   return `
@@ -307,17 +313,35 @@ function renderBoardCard(unit) {
 function renderSummary() {
   const s = simulation.summary;
   const stats = s.stats;
+  const ppEfficiency = (index) => {
+    const spent = Number(stats.ppSpent?.[index] ?? 0);
+    const wasted = Number(stats.ppWasted?.[index] ?? 0);
+    const total = spent + wasted;
+    return total ? Math.round(spent / total * 100) : 0;
+  };
+
   els.summary.innerHTML = `
     <div class="battle-stat"><strong>${escapeHtml(s.winner)}</strong><span>Result at turn limit / lethal</span></div>
     <div class="battle-stat"><strong>${s.rounds}</strong><span>Rounds</span></div>
     <div class="battle-stat"><strong>${stats.damageDealt[0]} / ${stats.damageDealt[1]}</strong><span>Damage · You / Opp.</span></div>
     <div class="battle-stat"><strong>${stats.cardsPlayed[0]} / ${stats.cardsPlayed[1]}</strong><span>Cards played</span></div>
     <div class="battle-stat"><strong>${stats.attacks[0]} / ${stats.attacks[1]}</strong><span>Attacks</span></div>
-    <div class="battle-stat ${stats.unsupportedEffects[0] + stats.unsupportedEffects[1] ? "warn" : ""}"><strong>${stats.unsupportedEffects[0] + stats.unsupportedEffects[1]}</strong><span>Unsupported effects triggered</span></div>
+    <div class="battle-stat"><strong>${stats.healing?.[0] ?? 0} / ${stats.healing?.[1] ?? 0}</strong><span>Healing</span></div>
+    <div class="battle-stat"><strong>${stats.cardsGenerated?.[0] ?? 0} / ${stats.cardsGenerated?.[1] ?? 0}</strong><span>Generated cards</span></div>
+    <div class="battle-stat"><strong>${stats.followersLost?.[0] ?? 0} / ${stats.followersLost?.[1] ?? 0}</strong><span>Followers lost</span></div>
+    <div class="battle-stat"><strong>${ppEfficiency(0)}% / ${ppEfficiency(1)}%</strong><span>PP efficiency</span></div>
+    <div class="battle-stat ${stats.unsupportedEffects[0] + stats.unsupportedEffects[1] ? "warn" : ""}"><strong>${stats.unsupportedEffects[0] + stats.unsupportedEffects[1]}</strong><span>Unresolved effects triggered</span></div>
   `;
 }
 
 function coverageCard(label, coverage) {
+  const mechanics = (coverage.mechanics ?? []).slice(0, 4).map(item => `${item.name} ${item.count}`).join(" · ");
+  const missing = coverage.unsupportedCards.length
+    ? `Not modeled: ${coverage.unsupportedCards.slice(0, 5).join(", ")}${coverage.unsupportedCards.length > 5 ? "…" : ""}`
+    : coverage.partialCards.length
+      ? `Partial: ${coverage.partialCards.slice(0, 4).join(", ")}${coverage.partialCards.length > 4 ? "…" : ""}`
+      : "";
+
   return `
     <div class="battle-coverage-card">
       <div class="battle-coverage-head"><strong>${escapeHtml(label)}</strong><span>${coverage.modeledPercent}% modeled</span></div>
@@ -327,7 +351,8 @@ function coverageCard(label, coverage) {
         <span>${coverage.partial} partial</span>
         <span class="${coverage.unsupported ? "warn" : ""}">${coverage.unsupported} unsupported</span>
       </div>
-      ${coverage.unsupportedCards.length ? `<small>Not modeled: ${escapeHtml(coverage.unsupportedCards.slice(0, 5).join(", "))}${coverage.unsupportedCards.length > 5 ? "…" : ""}</small>` : ""}
+      ${missing ? `<small>${escapeHtml(missing)}</small>` : ""}
+      ${mechanics ? `<small>Mechanics: ${escapeHtml(mechanics)}</small>` : ""}
     </div>
   `;
 }
