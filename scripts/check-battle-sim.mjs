@@ -1,5 +1,5 @@
 import fs from "node:fs/promises";
-import { analyzeDeckCoverage, simulateBattle } from "../js/battle-engine.js";
+import { analyzeCardSupport, analyzeDeckCoverage, simulateBattle } from "../js/battle-engine.js";
 
 const cards = JSON.parse(await fs.readFile(new URL("../data/official/cards.json", import.meta.url), "utf8"));
 const refs = JSON.parse(await fs.readFile(new URL("../data/custom/reference-decks.json", import.meta.url), "utf8"));
@@ -28,6 +28,15 @@ for (const deck of refs.decks ?? []) {
   }
 
   console.log(`${deck.name}: ${coverage.modeledPercent}% modeled · ${coverage.full} full · ${coverage.partial} partial · ${coverage.unsupported} unsupported · ${result.frames.length} replay frames`);
+
+  const gaps = [];
+  for (const [id, qty] of rows) {
+    const card = cardMap.get(id);
+    const support = analyzeCardSupport(card);
+    if (support.level === "full") continue;
+    gaps.push(`${qty}x ${card?.name ?? id} [${support.level}] ${support.reason}`);
+  }
+  if (gaps.length) console.log(`  Rule gaps: ${gaps.join(" | ")}`);
 }
 
 if (failed) process.exitCode = 1;
