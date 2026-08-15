@@ -5,9 +5,9 @@ const cards = JSON.parse(await fs.readFile(new URL("../data/official/cards.json"
 
 const groups = {
   current: [
-    "Abyll, Moonstruck Vampire",
+    "Moonstruck Vampire",
     "Fiole, Devilish Matriarch",
-    "Adhime, Anathema of Death"
+    "Anathema of Death"
   ],
   forest: [
     "Ruflet, Primeval Fairy",
@@ -21,9 +21,7 @@ const groups = {
     "Gildaria, Anathema of Attunement",
     "Mars, Conflagrant Commander"
   ],
-  dragon: [
-    "Zooey, Ally of the World"
-  ],
+  dragon: ["Zooey, Ally of the World"],
   ward: [
     "Galleon, Earth Personified",
     "Sofina, Inspiring Strength",
@@ -32,14 +30,21 @@ const groups = {
   ]
 };
 
+function resolve(name) {
+  const exact = cards.find(item => item.name === name);
+  if (exact) return exact;
+  const needle = name.toLowerCase();
+  const matches = cards.filter(item => String(item.name ?? "").toLowerCase().includes(needle));
+  if (matches.length === 1) return matches[0];
+  console.log(`MISSING/AMBIGUOUS | ${name} | matches=${matches.map(item => item.name).join(" | ") || "none"}`);
+  return null;
+}
+
 for (const [group, names] of Object.entries(groups)) {
   console.log(`\n=== ${group.toUpperCase()} ===`);
   for (const name of names) {
-    const card = cards.find(item => item.name === name);
-    if (!card) {
-      console.log(`MISSING | ${name}`);
-      continue;
-    }
+    const card = resolve(name);
+    if (!card) continue;
     const support = analyzeCardSupport(card);
     console.log(`\n${card.name}`);
     console.log(`id=${card.id} class=${card.class} type=${card.type} cost=${card.cost} traits=${(card.traits ?? []).join(",") || "-"}`);
