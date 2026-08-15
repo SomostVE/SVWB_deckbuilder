@@ -45,24 +45,27 @@ const directStorm = inspectTurnPlan({
   board: [], opponentBoard: [{ name: "Greedy Body", attack: 10, defense: 10 }],
   depth: 2, beamWidth: 2
 });
+assert.ok(directStorm.sequence.some(step => step.kind === "attack" && step.target === "leader"), "Opponent-response planner should recognize Storm lethal");
+
 const directStormIntoWard = inspectTurnPlan({
   hand: [enemyStorm, inert], pp: 1, maxPp: 1, hp: 20, opponentHp: 8,
   personalTurn: 1, strategy: { style: "aggro" },
   board: [], opponentBoard: [{ card: defensiveWard, name: defensiveWard.name, attack: 1, defense: 8, keywords: ["Ward"] }],
   depth: 2, beamWidth: 2
 });
-console.log("Two-turn diagnostic direct Storm:", JSON.stringify(directStorm));
-console.log("Two-turn diagnostic direct Storm into Ward:", JSON.stringify(directStormIntoWard));
+assert.ok(directStormIntoWard.sequence.some(step => step.kind === "attack" && step.target === "Future Ward"), "Opponent-response planner should respect Ward before leader attacks");
+assert.ok(!directStormIntoWard.sequence.some(step => step.kind === "attack" && step.target === "leader"), "Ward must prevent the sampled Storm lethal");
 
 const future = inspectTwoTurnPlan(common);
-console.log("Two-turn diagnostic immediate:", JSON.stringify(immediate));
-console.log("Two-turn diagnostic future:", JSON.stringify(future));
 assert.equal(future.futureEvaluated, true, "Forced QA mode should evaluate the opponent response and our following turn");
 assert.equal(future.sequence[0]?.kind, "play");
 assert.equal(future.sequence[0]?.card, "Future Ward", "Two-turn look-ahead should accept the weaker immediate play when it prevents next-turn lethal");
 assert.ok(Number.isFinite(future.futureScore));
 assert.ok(future.futureSamples >= 1);
 
+// Hidden-information invariant: only opponent hand count + remaining unknown
+// cards are visible to future search. Swapping the simulator's physical hand/deck
+// assignment must not change the decision or valuation.
 const swappedHidden = inspectTwoTurnPlan({
   ...common,
   opponentHand: [inert],
