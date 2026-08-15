@@ -28,21 +28,6 @@ jobs:
       - name: Materialize Fuse support
         run: python3 scripts/materialize-battle-fuse.py
 
-      - name: Keep Fuse regression in normal CI
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path('.github/workflows/validate-site.yml')
-          text = path.read_text()
-          anchor = '''      - name: Run Battle Sim tactical look-ahead regression\n        run: node scripts/check-battle-ai-lookahead.mjs\n'''
-          insert = anchor + '''\n      - name: Run Battle Sim Fuse regression\n        run: node scripts/check-battle-fuse.mjs\n'''
-          if 'Run Battle Sim Fuse regression' not in text:
-              if anchor not in text:
-                  raise SystemExit('validate-site anchor missing')
-              text = text.replace(anchor, insert, 1)
-              path.write_text(text)
-          PY
-
       - name: Validate Fuse and Battle Sim
         run: |
           node --check js/battle-engine-v5.js
@@ -68,7 +53,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add js/battle-engine-v5.js scripts/check-battle-fuse.mjs .github/workflows/validate-site.yml
-          git rm -f scripts/materialize-battle-fuse.py scripts/audit-fuse-cards.mjs .github/workflows/audit-fuse-cards.yml .github/workflows/apply-battle-fuse.yml
+          git add js/battle-engine-v5.js scripts/check-battle-fuse.mjs
+          git rm -f scripts/materialize-battle-fuse.py scripts/audit-fuse-cards.mjs
           git commit -m "feat: add Fuse action to Battle Sim"
           git push
