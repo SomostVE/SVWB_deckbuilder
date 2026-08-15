@@ -26,5 +26,23 @@ for (const opponent of decks) {
   if (result.first.games !== 5 || result.second.games !== 5) throw new Error(`${opponent.name}: first/second split is not balanced`);
   if (result.overall.wins + result.overall.losses + result.overall.draws !== 10) throw new Error(`${opponent.name}: invalid W-L-D total`);
 
-  console.log(`${opponent.name}: ${result.overall.winRate.toFixed(1)}% · first ${result.first.winRate.toFixed(1)}% · second ${result.second.winRate.toFixed(1)}% · coverage ${result.coverage.minimumModeledPercent}%`);
+  const interval = result.overall.winRate95;
+  if (!interval || interval.low > result.overall.winRate || interval.high < result.overall.winRate) {
+    throw new Error(`${opponent.name}: invalid 95% win-rate interval`);
+  }
+
+  const expectedGap = Math.abs(result.first.winRate - result.second.winRate);
+  if (Math.abs((result.diagnostics?.sideGap ?? -1) - expectedGap) > 1e-9) {
+    throw new Error(`${opponent.name}: side-gap diagnostic is inconsistent`);
+  }
+
+  if (result.diagnostics?.sampleTier !== "exploratory") {
+    throw new Error(`${opponent.name}: 10-game smoke sample must be exploratory`);
+  }
+
+  if (!["good", "partial", "low"].includes(result.diagnostics?.rulesTier)) {
+    throw new Error(`${opponent.name}: invalid rules reliability tier`);
+  }
+
+  console.log(`${opponent.name}: ${result.overall.winRate.toFixed(1)}% · CI ${interval.low.toFixed(1)}-${interval.high.toFixed(1)} · first ${result.first.winRate.toFixed(1)}% · second ${result.second.winRate.toFixed(1)}% · gap ${result.diagnostics.sideGap.toFixed(1)}% · unresolved ${result.diagnostics.unresolvedTriggersPerGame.toFixed(2)}/g · coverage ${result.coverage.minimumModeledPercent}%`);
 }
