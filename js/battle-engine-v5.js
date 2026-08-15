@@ -727,6 +727,13 @@ function effectContext(ctx) {
     chooseEnemyFollower: board => chooseTarget(board, true),
     chooseAlliedFollower: (board, excluded) => board.filter(unit => unit.type === "Follower" && unit !== excluded).sort((a,b)=>b.attack+b.defense-a.attack-a.defense)[0] ?? excluded,
     chooseHandFollower: hand => hand.filter(item => item.card.type === "Follower").sort((a,b)=>(Number(b.card.cost)||0)-(Number(a.card.cost)||0))[0] ?? null,
+    // [[battle-ability-evolve-context-v5]]
+    evolveUnitByAbility: unit => {
+      const sideActions = [];
+      const evolved = evolveUnitByAbility(ctx, unit, sideActions);
+      if (sideActions.length) ctx.__sideActions?.push?.(...sideActions);
+      return evolved;
+    },
     buffUnit: (unit, attack, defense) => {
       const before = { attack: Number(unit.attack) || 0, defense: Number(unit.defense) || 0 };
       unit.attack += Number(attack) || 0;
@@ -1099,6 +1106,23 @@ function maybeEvolve(player, opponent, playerIndex, enemyIndex, stats, rng, map)
   }
   actions.push(...cleanup(opponent, player, enemyIndex, playerIndex, stats, rng, map));
   return { super: superMode, action: compact(`${player.name} ${superMode ? "super-evolves" : "evolves"} ${unit.name}.`, actions) };
+}
+
+// [[battle-ability-evolve-helper-v5]]
+function evolveUnitByAbility(ctx, unit, actions) {
+  if (!unit || unit.type !== "Follower" || unit.evolved || unit.superEvolved) return false;
+  unit.attack += 2;
+  unit.defense += 2;
+  unit.maxDefense += 2;
+  unit.canAttackFollower = true;
+  unit.evolved = true;
+  ctx.player.evolutionsThisMatch += 1;
+  ctx.stats.evolutions[ctx.playerIndex] += 1;
+  actions.push(`evolve ${unit.name} by ability`);
+  const evolveText = getUnitTriggeredText(unit, "evolve");
+  if (evolveText) actions.push(...resolveText(evolveText, { ...ctx, card: unit.card, sourceUnit: unit }).actions);
+  actions.push(...cleanup(ctx.opponent, ctx.player, ctx.enemyIndex, ctx.playerIndex, ctx.stats, ctx.rng, ctx.cardMap));
+  return true;
 }
 
 function superEvolveUnitByAbility(ctx, unit, actions) {
