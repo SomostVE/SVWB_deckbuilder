@@ -9,6 +9,7 @@ on:
       - "scripts/apply-battle-coverage-100.py"
       - "scripts/apply-battle-combat-order-fix.mjs"
       - "scripts/apply-battle-ai-v1.mjs"
+      - "scripts/apply-battle-ai-v1-1.mjs"
       - "scripts/check-battle-asher.mjs"
       - "scripts/check-battle-coverage-100.mjs"
       - "scripts/check-battle-combat-order.mjs"
@@ -39,6 +40,7 @@ jobs:
           python3 scripts/apply-battle-coverage-100.py
           node scripts/apply-battle-combat-order-fix.mjs
           node scripts/apply-battle-ai-v1.mjs
+          node scripts/apply-battle-ai-v1-1.mjs
 
       - name: Check changed JavaScript syntax
         run: |
@@ -65,5 +67,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add js/battle-rules-core.js js/battle-rules.js js/battle-engine-v4.js js/battle-engine-v5.js
-          git commit -m "feat: improve baseline AI Extra PP decisions"
+          git commit -m "feat: make Extra PP AI profile-aware"
           git push origin HEAD:main
