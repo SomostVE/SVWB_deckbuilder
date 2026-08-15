@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - scripts/materialize-battle-turn-planner.py
+      - scripts/materialize-battle-turn-planner-tuning.py
       - scripts/check-battle-turn-planner.mjs
       - .github/workflows/apply-battle-turn-planner.yml
 
@@ -23,7 +24,9 @@ jobs:
           node-version: "24"
 
       - name: Materialize full-turn planner
-        run: python3 scripts/materialize-battle-turn-planner.py
+        run: |
+          python3 scripts/materialize-battle-turn-planner.py
+          python3 scripts/materialize-battle-turn-planner-tuning.py
 
       - name: Validate planner and Battle Sim
         run: |
@@ -50,6 +53,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add js/battle-engine-v5.js scripts/check-battle-turn-planner.mjs
-          git rm -f scripts/materialize-battle-turn-planner.py
+          git rm -f scripts/materialize-battle-turn-planner.py scripts/materialize-battle-turn-planner-tuning.py
           git commit -m "feat: add full-turn Battle Sim planner"
           git push
