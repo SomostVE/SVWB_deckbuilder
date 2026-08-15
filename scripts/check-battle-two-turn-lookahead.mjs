@@ -43,7 +43,14 @@ const directStorm = inspectTurnPlan({
   board: [], opponentBoard: [{ name: "Greedy Body", attack: 10, defense: 10 }],
   depth: 2, beamWidth: 2
 });
+const directStormIntoWard = inspectTurnPlan({
+  hand: [enemyStorm, inert], pp: 1, maxPp: 1, hp: 20, opponentHp: 8,
+  personalTurn: 1, strategy: { style: "aggro" },
+  board: [], opponentBoard: [{ card: defensiveWard, name: defensiveWard.name, attack: 1, defense: 8, keywords: ["Ward"] }],
+  depth: 2, beamWidth: 2
+});
 console.log("Two-turn diagnostic direct Storm:", JSON.stringify(directStorm));
+console.log("Two-turn diagnostic direct Storm into Ward:", JSON.stringify(directStormIntoWard));
 
 const future = inspectTwoTurnPlan(common);
 console.log("Two-turn diagnostic immediate:", JSON.stringify(immediate));
@@ -54,9 +61,6 @@ assert.equal(future.sequence[0]?.card, "Future Ward", "Two-turn look-ahead shoul
 assert.ok(Number.isFinite(future.futureScore));
 assert.ok(future.futureSamples >= 1);
 
-// Hidden-information invariant: only opponent hand count + the remaining
-// unknown-zone multiset are public to the planner. Swapping which hidden card is
-// physically in hand/deck must not change the decision.
 const swappedHidden = inspectTwoTurnPlan({
   ...common,
   opponentHand: [inert],
@@ -69,8 +73,6 @@ assert.deepEqual(
 );
 assert.equal(swappedHidden.futureScore, future.futureScore, "Same public information set should produce the same future valuation");
 
-// With enough HP to absorb the sampled Storm, the future layer is allowed to
-// keep the immediate-value line instead of becoming universally defensive.
 const safe = inspectTwoTurnPlan({ ...common, hp: 20 });
 assert.equal(safe.futureEvaluated, true);
 assert.equal(safe.sequence[0]?.card, "Greedy Body", "Look-ahead should not over-defend when the future line is survivable");
