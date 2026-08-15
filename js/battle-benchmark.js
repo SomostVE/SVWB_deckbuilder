@@ -72,7 +72,8 @@ function refreshStatus() {
     els.status.textContent = `Benchmark needs a 40-card Main Deck. Current: ${count}/40.`;
   } else {
     els.status.dataset.type = "info";
-    els.status.textContent = `${opponents.length} matchup${opponents.length === 1 ? "" : "s"} · ${games} games each · ${total.toLocaleString()} total simulations · Baseline AI.`;
+    const sample = games >= 1000 ? "high sample" : games >= 500 ? "medium sample" : "exploratory sample";
+    els.status.textContent = `${opponents.length} matchup${opponents.length === 1 ? "" : "s"} · ${games} games each · ${total.toLocaleString()} total simulations · ${sample} · Baseline AI.`;
   }
 }
 
@@ -108,7 +109,7 @@ function runBenchmark() {
       finishWorker();
       renderResults(message.results ?? []);
       els.status.dataset.type = "info";
-      els.status.textContent = `Benchmark complete · ${Number(message.totalGames || 0).toLocaleString()} simulations. Results are deterministic for this seed and still experimental while rules coverage is partial.`;
+      els.status.textContent = `Benchmark complete · ${Number(message.totalGames || 0).toLocaleString()} simulations. Confidence range, side gap and unresolved-rule rate are shown so noisy results are easier to identify.`;
       return;
     }
     if (message.type === "error") {
@@ -177,13 +178,14 @@ function renderResults(results) {
       ${metric(`${formatPct(overall.winRate)}`, "Overall win rate")}
       ${metric(`${overall.wins}-${overall.losses}-${overall.draws}`, "W-L-D")}
       ${metric(overall.averageRounds.toFixed(1), "Avg rounds")}
-      ${metric(`${overall.ppEfficiency.toFixed(1)}%`, "PP efficiency")}
+      ${metric(`${overall.averageSideGap.toFixed(1)}%`, "Avg side gap")}
+      ${metric(overall.unresolvedPerGame.toFixed(2), "Unresolved / game")}
     </div>
     <div class="benchmark-table-wrap">
       <table class="benchmark-table">
         <thead>
           <tr>
-            <th>Matchup</th><th>Win</th><th>First</th><th>Second</th><th>W-L-D</th><th>Avg end</th><th>Damage</th><th>PP</th><th>Coverage</th>
+            <th>Matchup</th><th>Win</th><th>95% CI</th><th>First</th><th>Second</th><th>Side gap</th><th>W-L-D</th><th>Avg end</th><th>Unresolved</th><th>Coverage</th>
           </tr>
         </thead>
         <tbody>
@@ -191,23 +193,26 @@ function renderResults(results) {
         </tbody>
       </table>
     </div>
-    <div class="benchmark-note">Same seed + same deck pool gives the same sample set, which makes later deck-variant comparisons reproducible. Win rates remain experimental until rules coverage is substantially higher.</div>
+    <div class="benchmark-note">100 games is exploratory. 500 is better for tuning; 1,000 is preferred before comparing small win-rate differences. Same seed + same pool remains deterministic, while the 95% interval shows sampling noise and Side gap helps expose first/second bias.</div>
   `;
 }
 
 function renderResultRow(result) {
   const o = result.overall;
-  const reliability = coverageLabel(result.coverage);
+  const diagnostics = result.diagnostics ?? {};
+  const reliability = diagnostics.rulesTier ? tierLabel(diagnostics.rulesTier) : coverageLabel(result.coverage);
+  const interval = o.winRate95 ?? { low: o.winRate, high: o.winRate };
   return `
     <tr>
-      <td><strong>${escapeHtml(result.name)}</strong><small>${escapeHtml(result.class || "")} · ${escapeHtml(result.format || "Unlimited")}</small></td>
+      <td><strong>${escapeHtml(result.name)}</strong><small>${escapeHtml(result.class || "")} · ${escapeHtml(result.format || "Unlimited")} · ${escapeHtml(diagnostics.sampleTier || "sample")}</small></td>
       <td class="benchmark-win">${formatPct(o.winRate)}</td>
+      <td>${formatRange(interval)}</td>
       <td>${formatPct(result.first.winRate)}</td>
       <td>${formatPct(result.second.winRate)}</td>
+      <td>${formatPct(diagnostics.sideGap ?? Math.abs(result.first.winRate - result.second.winRate))}</td>
       <td>${o.wins}-${o.losses}-${o.draws}</td>
       <td>T${o.averageRounds.toFixed(1)}</td>
-      <td>${o.averageDamage.toFixed(1)} / ${o.averageDamageTaken.toFixed(1)}</td>
-      <td>${o.ppEfficiency.toFixed(1)}%</td>
+      <td>${Number(diagnostics.unresolvedTriggersPerGame ?? o.unsupportedTriggersPerGame ?? 0).toFixed(2)}/g</td>
       <td><span class="benchmark-coverage ${reliability.className}">${reliability.label} · ${result.coverage.minimumModeledPercent}%</span></td>
     </tr>
   `;
@@ -219,14 +224,22 @@ function summarizeAll(results) {
   const losses = results.reduce((sum, row) => sum + row.overall.losses, 0);
   const draws = results.reduce((sum, row) => sum + row.overall.draws, 0);
   const weighted = key => results.reduce((sum, row) => sum + row.overall[key] * row.overall.games, 0) / totalGames;
+  const weightedDiagnostic = key => results.reduce((sum, row) => sum + Number(row.diagnostics?.[key] ?? 0) * row.overall.games, 0) / totalGames;
   return {
     wins,
     losses,
     draws,
     winRate: wins / totalGames * 100,
     averageRounds: weighted("averageRounds"),
-    ppEfficiency: weighted("ppEfficiency")
+    averageSideGap: weightedDiagnostic("sideGap"),
+    unresolvedPerGame: weightedDiagnostic("unresolvedTriggersPerGame")
   };
+}
+
+function tierLabel(tier) {
+  if (tier === "low") return { label: "Low", className: "low" };
+  if (tier === "partial") return { label: "Partial", className: "partial" };
+  return { label: "Good", className: "good" };
 }
 
 function coverageLabel(coverage) {
@@ -304,4 +317,5 @@ function metric(value, label) {
 }
 
 function formatPct(value) { return `${Number(value || 0).toFixed(1)}%`; }
+function formatRange(interval) { return `${Number(interval.low || 0).toFixed(1)}–${Number(interval.high || 0).toFixed(1)}%`; }
 function escapeHtml(value) { return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;"); }
