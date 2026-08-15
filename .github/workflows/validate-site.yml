@@ -58,6 +58,9 @@ jobs:
       - name: Run Battle Sim full-turn planner regression
         run: node scripts/check-battle-turn-planner.mjs
 
+      - name: Run Battle Sim two-turn look-ahead regression
+        run: node scripts/check-battle-two-turn-lookahead.mjs
+
       - name: Run Battle Sim full coverage regression
         run: node scripts/check-battle-coverage-100.mjs
 
