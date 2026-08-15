@@ -30,3 +30,6 @@ jobs:
 
       - name: Run Battle Sim smoke test
         run: node scripts/check-battle-sim.mjs
+
+      - name: Run Battle Sim benchmark smoke test
+        run: node scripts/check-battle-benchmark.mjs
