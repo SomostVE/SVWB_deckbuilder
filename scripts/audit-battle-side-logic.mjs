@@ -1,3 +1,4 @@
+// Calibration marker: rerun after Battle AI v1 Extra PP decisions.
 import fs from "node:fs/promises";
 import { simulateBattle } from "../js/battle-engine.js";
 
