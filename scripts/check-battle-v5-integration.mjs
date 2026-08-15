@@ -18,13 +18,33 @@ function deckList(reference) {
   return reference.cards.map(card => [Number(card.cardId), Number(card.qty ?? 1)]);
 }
 
+const expectedPartials = new Map([
+  ["Ward Havencraft", [
+    "Serene Sanctuary",
+    "Galleon, Earth Personified",
+    "Sofina, Inspiring Strength",
+    "Jeanne, Saintly Knight",
+    "Aether, Empyrean Guardian",
+    "Edeth, Voice of Heaven",
+    "Olivia, Proud Dark Angel"
+  ]],
+  ["Puppetry Portalcraft", [
+    "Puppet Cat",
+    "Lovestruck Puppeteer",
+    "Cool Courier",
+    "Eudie, Your Dependable Mentor",
+    "Asher & Lydia, Paths Beyond",
+    "Odin, Twilit Fate"
+  ]]
+]);
+
 for (const name of ["Ward Havencraft", "Puppetry Portalcraft"]) {
   const reference = byName(name);
   const deck = deckList(reference);
   const coverage = analyzeDeckCoverage(deck, cardMap);
   assert.equal(coverage.unsupported, 0, `${name}: unsupported copies must be zero`);
-  assert.equal(coverage.partial, 0, `${name}: v5 should fully model every reference-deck copy`);
-  assert.equal(coverage.modeledPercent, 100, `${name}: coverage must be 100%`);
+  assert.deepEqual(coverage.partialCards, expectedPartials.get(name), `${name}: partial list must reflect known unmodeled clauses`);
+  assert.ok(coverage.partial > 0 && coverage.modeledPercent < 100, `${name}: honest coverage must remain below 100% until these clauses are implemented`);
 
   const result = simulateBattle({
     playerDeck: deck,
@@ -37,13 +57,19 @@ for (const name of ["Ward Havencraft", "Puppetry Portalcraft"]) {
     recordFrames: false
   });
   assert.ok(result.summary.rounds > 0, `${name}: simulation must complete turns`);
-  assert.equal(result.summary.experimental, false, `${name}: fully modeled mirror should not be marked experimental`);
-  console.log(`${name}: ${coverage.modeledPercent}% modeled · ${result.summary.rounds} rounds`);
+  assert.equal(result.summary.experimental, true, `${name}: known partial rules must keep the simulation marked experimental`);
+  console.log(`${name}: ${coverage.modeledPercent}% modeled · partial: ${coverage.partialCards.join(", ")} · ${result.summary.rounds} rounds`);
 }
 
 const analyzingArtifact = cards.find(card => card.name === "Analyzing Artifact");
 assert.ok(analyzingArtifact, "Analyzing Artifact must exist in the official card database");
 assert.equal(analyzeCardSupport(analyzingArtifact).level, "full", "Analyzing Artifact self-entry draw is fully modeled and must not emit a rule gap");
+
+for (const name of ["Freerunning", "Scarlet, Anathema of Dislocation"]) {
+  const card = cards.find(item => item.name === name);
+  assert.ok(card, `${name} must exist in the official card database`);
+  assert.equal(analyzeCardSupport(card).level, "full", `${name} Artifact-history mechanics are explicitly modeled in v5`);
+}
 
 const dragon = byName("Ramp Dragoncraft");
 const dragonCoverage = analyzeDeckCoverage(deckList(dragon), cardMap);
