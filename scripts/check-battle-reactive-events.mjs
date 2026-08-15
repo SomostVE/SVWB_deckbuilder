@@ -2,12 +2,32 @@ import assert from "node:assert/strict";
 import {
   applyEntryCrestEffects,
   applyFollowerDestroyedEffects,
-  applySpellPlayedEffects
+  applySpellPlayedEffects,
+  executeGenericEffects
 } from "../js/battle-rules.js";
 
-const stats = { healing: [0, 0], cardsGenerated: [0, 0], unsupportedEffects: [0, 0] };
-const opponent = { name: "Opponent", hp: 20, maxHp: 20, board: [], nextSerial: 0 };
-const player = { name: "You", hp: 18, maxHp: 20, board: [], crests: [], nextSerial: 0 };
+const stats = {
+  healing: [0, 0],
+  cardsGenerated: [0, 0],
+  unsupportedEffects: [0, 0],
+  draws: [0, 0],
+  cardsBurned: [0, 0],
+  superEvolutions: [0, 0]
+};
+const opponent = { name: "Opponent", hp: 20, maxHp: 20, board: [], hand: [], nextSerial: 0 };
+const player = {
+  name: "You",
+  hp: 18,
+  maxHp: 20,
+  board: [],
+  hand: [],
+  deck: [],
+  cemetery: [],
+  crests: [],
+  nextSerial: 0,
+  personalTurn: 1,
+  evolutionsThisMatch: 0
+};
 const context = {
   player,
   opponent,
@@ -18,6 +38,16 @@ const context = {
     unit.attack += attack;
     unit.defense += defense;
     unit.maxDefense += defense;
+  },
+  buffHand(instance, attack, defense) {
+    instance.attackBonus = (Number(instance.attackBonus) || 0) + attack;
+    instance.defenseBonus = (Number(instance.defenseBonus) || 0) + defense;
+  },
+  chooseEnemyFollower(board) {
+    return board.find(unit => unit.type === "Follower" && !unit.aura) ?? null;
+  },
+  banish(owner, unit) {
+    owner.board = owner.board.filter(candidate => candidate !== unit);
   },
   cleanup() {},
   summon(owner, card, amount) {
@@ -129,5 +159,52 @@ player.board = [imari];
 applySpellPlayedEffects(context);
 assert.equal(player.board.filter(unit => unit.name === "Imari's Little Buddies").length, 1, "Evolved Imari must summon Little Buddies after a spell is played");
 assert.equal(stats.cardsGenerated[0], 1, "Imari-generated token must count as generated");
+
+const expensiveFollower = { uid: "discard", card: { id: 201, name: "Discard Me", type: "Follower", cost: 7 } };
+const cheapFollower = { uid: "keep", card: { id: 202, name: "Keep Me", type: "Follower", cost: 1 } };
+const searchedSpell = { uid: "spell", card: { id: 203, name: "Search Spell", type: "Spell", cost: 2 } };
+player.hand = [cheapFollower, expensiveFollower];
+player.deck = [searchedSpell];
+player.cemetery = [];
+const imariSearchContext = { ...context, card: { name: "Imari, Dewdrop" }, sourceUnit: imari };
+executeGenericEffects("Select a card in your hand and discard it. Draw a spell.", imariSearchContext);
+assert.equal(player.cemetery[0]?.card.name, "Discard Me", "Imari must discard a selected card without generating a Shadow");
+assert.ok(player.hand.some(instance => instance.card.name === "Search Spell"), "Imari must draw a spell from the deck");
+assert.equal(stats.draws[0], 1, "Imari spell search must count as a draw");
+
+const oneCostA = { uid: "one-a", card: { id: 204, name: "One A", type: "Spell", cost: 1 } };
+const oneCostACopy = { uid: "one-a2", card: { id: 204, name: "One A", type: "Spell", cost: 1 } };
+const oneCostB = { uid: "one-b", card: { id: 205, name: "One B", type: "Spell", cost: 1 } };
+player.deck = [oneCostA, oneCostACopy, oneCostB];
+player.hand = [];
+executeGenericEffects("Draw 2 differently named 1-cost spells.", imariSearchContext);
+assert.deepEqual(player.hand.map(instance => instance.card.name).sort(), ["One A", "One B"], "Imari Super-Evolve must draw two differently named 1-cost spells");
+
+const vira = {
+  uid: "vira",
+  name: "Vira, Luminous Primal Knight",
+  type: "Follower",
+  card: { name: "Vira, Luminous Primal Knight" },
+  attack: 6,
+  defense: 8,
+  maxDefense: 8,
+  keywords: ["Ward"],
+  evolved: false,
+  superEvolved: false,
+  canAttackFollower: false
+};
+const enemyA = { uid: "enemy-a", name: "Enemy A", type: "Follower", attack: 3, defense: 3, keywords: [] };
+const enemyB = { uid: "enemy-b", name: "Enemy B", type: "Follower", attack: 4, defense: 4, keywords: [] };
+opponent.board = [enemyA, enemyB];
+const viraContext = { ...context, card: vira.card, sourceUnit: vira };
+executeGenericEffects("Select 2 enemy followers on the field and banish them.", viraContext);
+assert.equal(opponent.board.length, 0, "Vira Fanfare must banish two enemy followers when two targets exist");
+
+player.personalTurn = 12;
+player.evolutionsThisMatch = 3;
+const viraSuper = executeGenericEffects("[[battle-super-skybound-self:15]]", viraContext);
+assert.equal(vira.superEvolved, true, "Vira Super Skybound Art must super-evolve herself without spending SEP");
+assert.deepEqual([vira.attack, vira.defense], [9, 11], "Ability-driven Super-Evolution grants +3/+3");
+assert.ok(viraSuper.actions.some(action => /super-evolve Vira/.test(action)), "Vira Super Skybound Art should be visible in resolved actions");
 
 console.log("Battle Sim reactive-event regressions: OK");
