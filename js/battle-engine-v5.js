@@ -100,6 +100,7 @@ export function simulateBattle({ playerDeck, opponentDeck, cardMap, playerStrate
       // Fuse is usable once per turn per current Fuse card. A transformed card
       // is a new Fuse card and resets this flag immediately in transformHandInstance.
       for (const item of p.hand) item.fusedThisTurn = false;
+      p.futureLookaheadUsedThisTurn = false;
       p.maxPp = Math.min(10, p.maxPp + 1);
       p.pp = p.maxPp;
       if (p.goingSecond && p.personalTurn === 6 && p.bonusPpUses < 2) p.bonusPpAvailable = true;
@@ -263,7 +264,7 @@ function makePlayer(name, deck, strategy, cardMap, rng) {
     name, strategy: normStrategy(strategy), hp: 20, maxHp: 20, maxPp: 0, pp: 0, ep: 2, sep: 2,
     shadows: 0, rally: 0, earthSigils: 0, faith: 0, faithActive: false, faithEnhanceBuffs: 0, crests: [], bonusPpAvailable: false, bonusPpUses: 0,
     leaderDamageCap: null, leaderDamageCapUntilOpponentTurnEnd: false,
-    goingFirst: false, goingSecond: false, personalTurn: 0, cardsPlayedThisTurn: 0, spellsPlayedThisTurn: 0,
+    goingFirst: false, goingSecond: false, personalTurn: 0, cardsPlayedThisTurn: 0, spellsPlayedThisTurn: 0, futureLookaheadUsedThisTurn: false,
     evolutionsThisMatch: 0, evolutionActionUsed: false, nextSerial: 0, deck: [], hand: [], board: [], cemetery: [],
     banished: [], fusedCards: [], destroyedFollowers: [], deckOut: false, isActive: false
   };
@@ -507,6 +508,7 @@ function runTurnAi({ player, opponent, playerIndex, enemyIndex, stats, frames, p
     }
 
     const plan = planCurrentTurn({ player, opponent, playerIndex, enemyIndex, stats, map });
+    if (plan.futureEvaluated) player.futureLookaheadUsedThisTurn = true;
     const decision = plan.sequence[0] ?? { kind: "end" };
     if (decision.kind === "end") {
       if (hasAnyPlannerAction(player, opponent, map)) {
@@ -962,7 +964,7 @@ function plannerNodeScore(node, ended = false) {
   return plannerStateValue(node.state, ended) + node.priorTotal * .14 - node.sequence.length * .04;
 }
 
-function planCurrentTurn({ player, opponent, playerIndex, enemyIndex, stats, map }, options = {}) {
+function planCurrentTurnBase({ player, opponent, playerIndex, enemyIndex, stats, map }, options = {}) {
   const { state: root, seed } = makePlanningRoot({ player, opponent, playerIndex, enemyIndex, stats });
   const depthLimit = Math.max(1, Number(options.depth ?? (player.personalTurn <= 2 ? 2 : 4)) || 4);
   const beamWidth = Math.max(2, Number(options.beamWidth ?? 4) || 4);
@@ -1003,8 +1005,297 @@ function planCurrentTurn({ player, opponent, playerIndex, enemyIndex, stats, map
   const finalists = [...terminal, ...beam.map(node => ({ ...node, score: plannerNodeScore(node, true) }))]
     .filter(node => node.sequence.length > 0)
     .sort((a,b)=>b.score-a.score || a.sequence.length-b.sequence.length);
-  const best = finalists[0] ?? { sequence: [{ kind: "end" }], score: plannerStateValue(root, true) };
-  return { sequence: best.sequence, score: best.score, explored: finalists.length };
+  const best = finalists[0] ?? { sequence: [{ kind: "end" }], score: plannerStateValue(root, true), state: root, priorTotal: 0 };
+  const candidateLimit = Math.max(1, Number(options.candidateLimit ?? 4) || 4);
+  const diverseCandidates = [];
+  const firstActionKeys = new Set();
+  for (const candidate of (finalists.length ? finalists : [best])) {
+    const key = actionKey(candidate.sequence?.[0] ?? { kind: "end" });
+    if (firstActionKeys.has(key)) continue;
+    firstActionKeys.add(key);
+    diverseCandidates.push(candidate);
+    if (diverseCandidates.length >= candidateLimit) break;
+  }
+  return {
+    sequence: best.sequence,
+    score: best.score,
+    explored: finalists.length,
+    candidates: diverseCandidates.length ? diverseCandidates : [best]
+  };
+}
+
+// [[battle-ai-two-turn-lookahead-v1]]
+function resetPlanningTurnState(player) {
+  player.cardsPlayedThisTurn = 0;
+  player.spellsPlayedThisTurn = 0;
+  player.evolutionActionUsed = false;
+  for (const item of player.hand) item.fusedThisTurn = false;
+}
+
+function beginPlanningTurn(player, opponent, playerIndex, enemyIndex, stats, rng, map) {
+  player.isActive = true;
+  opponent.isActive = false;
+  player.personalTurn += 1;
+  resetPlanningTurnState(player);
+  player.maxPp = Math.min(10, player.maxPp + 1);
+  player.pp = player.maxPp;
+  if (player.goingSecond && player.personalTurn === 6 && player.bonusPpUses < 2) player.bonusPpAvailable = true;
+  readyBoard(player);
+  turnStart(player, opponent, playerIndex, enemyIndex, stats, rng, map);
+  if (player.hp <= 0 || opponent.hp <= 0) return false;
+  drawCards(player, 1, stats, playerIndex);
+  if (player.deckOut) {
+    player.hp = 0;
+    return false;
+  }
+  useBonusPpIfUseful(player, opponent);
+  return player.hp > 0 && opponent.hp > 0;
+}
+
+function finishPlanningTurn(player, opponent, playerIndex, enemyIndex, stats, rng, map) {
+  turnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map);
+  stats.ppWasted[playerIndex] += Math.max(0, Math.min(player.pp, player.maxPp));
+  player.isActive = false;
+}
+
+function executePlannerSequence(state, sequence, map, seed) {
+  let steps = 0;
+  for (const action of sequence ?? []) {
+    if (action.kind === "end" || steps++ >= MAX_ACTIONS) break;
+    const outcome = executePlannerAction(state, action, map, createRng(`${seed}|${steps}|${actionKey(action)}`));
+    if (!outcome.applied || state.player.hp <= 0 || state.opponent.hp <= 0) break;
+  }
+  return state;
+}
+
+function resampleFutureScenario(candidateState, seed) {
+  const scenario = clonePlanningState(candidateState);
+  const rng = createRng(seed);
+
+  // Our hand is known to us, but the future draw order is not.
+  shuffle(scenario.player.deck, rng);
+
+  // Opponent hand identities are hidden. Only the public hand count and the
+  // remaining unknown-zone multiset are preserved; hand/deck identity is
+  // resampled independently for each future scenario.
+  const opponentHandCount = scenario.opponent.hand.length;
+  const unknown = [...scenario.opponent.hand, ...scenario.opponent.deck];
+  shuffle(unknown, rng);
+  scenario.opponent.hand = unknown.slice(0, opponentHandCount);
+  scenario.opponent.deck = unknown.slice(opponentHandCount);
+  return scenario;
+}
+
+function simulateOneOpponentResponse(candidateState, map, seed) {
+  const state = resampleFutureScenario(candidateState, `${seed}|unknown`);
+  const original = state.player;
+  const enemy = state.opponent;
+  const originalIndex = state.playerIndex;
+  const enemyIndex = state.enemyIndex;
+  const rng = createRng(`${seed}|future-events`);
+
+  finishPlanningTurn(original, enemy, originalIndex, enemyIndex, state.stats, rng, map);
+  if (original.hp <= 0) return { value: -100000, survived: false, state };
+  if (enemy.hp <= 0) return { value: 100000, survived: true, state };
+
+  if (!beginPlanningTurn(enemy, original, enemyIndex, originalIndex, state.stats, rng, map)) {
+    return { value: original.hp > 0 ? 100000 : -100000, survived: original.hp > 0, state };
+  }
+
+  const responseState = {
+    player: enemy,
+    opponent: original,
+    playerIndex: enemyIndex,
+    enemyIndex: originalIndex,
+    stats: state.stats
+  };
+  const responsePlan = planCurrentTurnBase(
+    { ...responseState, map },
+    { depth: 1, beamWidth: 1, candidateLimit: 1 }
+  );
+  executePlannerSequence(responseState, responsePlan.sequence, map, `${seed}|response`);
+  if (original.hp <= 0) return { value: -100000, survived: false, state };
+  if (enemy.hp <= 0) return { value: 100000, survived: true, state };
+
+  finishPlanningTurn(enemy, original, enemyIndex, originalIndex, state.stats, rng, map);
+  if (original.hp <= 0) return { value: -100000, survived: false, state };
+  if (enemy.hp <= 0) return { value: 100000, survived: true, state };
+
+  if (!beginPlanningTurn(original, enemy, originalIndex, enemyIndex, state.stats, rng, map)) {
+    return { value: original.hp > 0 ? 100000 : -100000, survived: original.hp > 0, state };
+  }
+
+  // Reaching our following turn is the second ply. Evaluate that real state and
+  // its best immediate option instead of launching another beam tree: this keeps
+  // future reasoning bounded while still valuing saved cards and next-turn plays.
+  const nextState = {
+    player: original,
+    opponent: enemy,
+    playerIndex: originalIndex,
+    enemyIndex,
+    stats: state.stats
+  };
+  const immediateOptions = [
+    ...scoredPlayOptions(original, enemy, false).slice(0, 1).map(option => option.score),
+    ...getFuseActions(original, enemy, map).slice(0, 1).map(option => option.score),
+    ...enumerateEvolutionDecisions(original, enemy).slice(0, 1).map(option => option.prior),
+    ...enumerateAttackDecisions(original, enemy).slice(0, 1).map(option => option.prior)
+  ];
+  const nextActionValue = immediateOptions.length ? Math.max(...immediateOptions) : scorePassDecision(original, enemy);
+  const nextScore = plannerStateValue(nextState, false) + Math.max(-10, Math.min(30, nextActionValue)) * .18;
+  return { value: nextScore, survived: original.hp > 0, state, responsePlan, nextPlan: null };
+}
+
+function uniqueFirstActionCandidates(candidates, limit = 3) {
+  const seen = new Set();
+  const out = [];
+  for (const candidate of candidates ?? []) {
+    const first = candidate.sequence?.[0] ?? { kind: "end" };
+    const key = actionKey(first);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(candidate);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+function buildFutureFirstActionCandidates({ player, opponent, playerIndex, enemyIndex, stats, map }, options = {}) {
+  const { state: root, seed } = makePlanningRoot({ player, opponent, playerIndex, enemyIndex, stats });
+  const rootActions = enumeratePlannerActions(root.player, root.opponent, map);
+  const limit = Math.max(2, Math.min(5, Number(options.futureCandidateLimit ?? 4) || 4));
+  const selected = [];
+  const seen = new Set();
+  for (const action of rootActions) {
+    const key = actionKey(action);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    selected.push(action);
+    if (selected.length >= limit) break;
+  }
+  if (!selected.some(action => action.kind === "end")) selected.push({ kind: "end", prior: scorePassDecision(root.player, root.opponent) });
+
+  const candidates = [];
+  for (const first of selected) {
+    if (first.kind === "end") {
+      candidates.push({
+        state: clonePlanningState(root),
+        sequence: [first],
+        priorTotal: Number(first.prior) || 0,
+        score: plannerStateValue(root, true)
+      });
+      continue;
+    }
+
+    const child = clonePlanningState(root);
+    const firstRng = createRng(`${seed}|future-first|${actionKey(first)}`);
+    const outcome = executePlannerAction(child, first, map, firstRng);
+    if (!outcome.applied) continue;
+    const sequence = [first];
+    let priorTotal = Math.max(-20, Math.min(40, Number(first.prior) || 0));
+
+    if (child.player.hp > 0 && child.opponent.hp > 0) {
+      const continuation = planCurrentTurnBase(
+        { ...child, map },
+        {
+          depth: Math.max(1, Math.min(3, Number(options.futureContinuationDepth ?? 2) || 2)),
+          beamWidth: 2,
+          candidateLimit: 1
+        }
+      );
+      const remaining = continuation.sequence ?? [];
+      executePlannerSequence(child, remaining, map, `${seed}|future-continuation|${actionKey(first)}`);
+      sequence.push(...remaining);
+    }
+
+    candidates.push({
+      state: child,
+      sequence,
+      priorTotal,
+      score: plannerStateValue(child, true) + priorTotal * .14
+    });
+  }
+  return candidates.sort((a,b)=>b.score-a.score);
+}
+
+function shouldUseTwoTurnLookahead(base, player, opponent, options) {
+  if (options.disableFuture) return false;
+  const candidates = uniqueFirstActionCandidates(base.candidates, 3);
+  if (candidates.length < 2) return false;
+  if (options.forceFuture) return true;
+  if (player.futureLookaheadUsedThisTurn) return false;
+  if (player.personalTurn < 4) return false;
+
+  const incoming = estimateVisibleIncomingDamage(player, opponent);
+  const margin = player.hp - incoming;
+  const topGap = Math.abs((candidates[0]?.score ?? 0) - (candidates[1]?.score ?? 0));
+  const style = String(player.strategy?.style ?? "midrange");
+  const resourceSensitive = style === "control" || style === "ward-control" || style === "spell-combo" || style === "ramp";
+
+  // Future search is a critical-decision layer, not something to run after every
+  // action. One deep check per real turn is enough; the full-turn beam planner
+  // handles ordinary sequencing. This keeps 100-1000 game benchmarks practical.
+  if (margin <= 4) return true;
+  return resourceSensitive && player.personalTurn >= 5 && player.hand.length >= 3 && topGap <= 2.5;
+}
+
+function evaluateCandidateFuture(candidate, player, opponent, map, options) {
+  if (candidate.state?.opponent?.hp <= 0) return { combined: 100000, future: 100000, worst: 100000, samples: 0 };
+  if (candidate.state?.player?.hp <= 0) return { combined: -100000, future: -100000, worst: -100000, samples: 0 };
+
+  const defaultSamples = options.forceFuture ? 2 : 1;
+  const sampleCount = Math.max(1, Math.min(2, Number(options.futureSamples ?? defaultSamples) || defaultSamples));
+  const seedBase = `${planningPublicSeed(player, opponent)}|${candidate.sequence.map(actionKey).join(">")}`;
+  const values = [];
+  for (let index = 0; index < sampleCount; index += 1) {
+    values.push(simulateOneOpponentResponse(candidate.state, map, `${seedBase}|scenario:${index}`).value);
+  }
+  const worst = Math.min(...values);
+  const average = values.reduce((sum, value) => sum + value, 0) / values.length;
+  if (worst <= -90000) {
+    return { combined: -90000 + candidate.score * .02, future: average, worst, samples: sampleCount };
+  }
+  const robustFuture = average * .65 + worst * .35;
+  const combined = candidate.score * .72 + robustFuture * .28;
+  return { combined, future: robustFuture, worst, samples: sampleCount };
+}
+
+function planCurrentTurn({ player, opponent, playerIndex, enemyIndex, stats, map }, options = {}) {
+  const input = { player, opponent, playerIndex, enemyIndex, stats, map };
+  const base = planCurrentTurnBase(
+    input,
+    { ...options, candidateLimit: Math.max(4, Number(options.candidateLimit ?? 4) || 4) }
+  );
+  const futureCandidates = buildFutureFirstActionCandidates(input, options);
+  const futureBase = { ...base, candidates: futureCandidates };
+  if (!shouldUseTwoTurnLookahead(futureBase, player, opponent, options)) {
+    return { ...base, futureEvaluated: false, immediateScore: base.score, futureScore: null, worstFutureScore: null, futureDiagnostics: [] };
+  }
+
+  const candidates = uniqueFirstActionCandidates(futureCandidates, 4);
+  const evaluated = candidates.map(candidate => ({
+    candidate,
+    ...evaluateCandidateFuture(candidate, player, opponent, map, options)
+  })).sort((a,b)=>b.combined-a.combined || b.candidate.score-a.candidate.score);
+  const best = evaluated[0];
+  return {
+    sequence: best?.candidate?.sequence ?? base.sequence,
+    score: best?.combined ?? base.score,
+    explored: base.explored,
+    candidates: futureCandidates,
+    futureEvaluated: true,
+    immediateScore: best?.candidate?.score ?? base.score,
+    futureScore: best?.future ?? null,
+    worstFutureScore: best?.worst ?? null,
+    futureSamples: best?.samples ?? 0,
+    futureDiagnostics: evaluated.map(entry => ({
+      firstAction: actionKey(entry.candidate.sequence?.[0] ?? { kind: "end" }),
+      immediate: entry.candidate.score,
+      future: entry.future,
+      worst: entry.worst,
+      combined: entry.combined
+    }))
+  };
 }
 
 function plannerActionView(action, state) {
@@ -1033,15 +1324,16 @@ function plannerActionView(action, state) {
 }
 
 export function inspectTurnPlan({
-  hand = [], board = [], opponentBoard = [], pp = 0, maxPp = pp, hp = 20, opponentHp = 20,
+  hand = [], deck = [], board = [], opponentBoard = [], opponentHand = [], opponentDeck = [], pp = 0, maxPp = pp, hp = 20, opponentHp = 20,
   personalTurn = 5, goingFirst = true, goingSecond = false, ep = 2, sep = 2,
-  strategy = {}, depth = 4, beamWidth = 4
+  opponentPersonalTurn = 0, opponentMaxPp = 0, opponentEp = 2, opponentSep = 2,
+  strategy = {}, opponentStrategy = {}, depth = 4, beamWidth = 4, future = false, futureSamples = 2
 } = {}) {
-  const allCards = [...hand, ...board.map(value => value.card).filter(Boolean), ...opponentBoard.map(value => value.card).filter(Boolean)];
+  const allCards = [...hand, ...deck, ...opponentHand, ...opponentDeck, ...board.map(value => value.card).filter(Boolean), ...opponentBoard.map(value => value.card).filter(Boolean)];
   const map = new Map(allCards.filter(Boolean).map(card => [Number(card.id), card]));
   const rng = createRng("inspect-turn-plan");
   const player = makePlayer("You", [], strategy, map, rng);
-  const opponent = makePlayer("Opponent", [], {}, map, rng);
+  const opponent = makePlayer("Opponent", [], opponentStrategy, map, rng);
   player.isActive = true;
   opponent.isActive = false;
   player.goingFirst = Boolean(goingFirst);
@@ -1053,8 +1345,18 @@ export function inspectTurnPlan({
   player.ep = Math.max(0, Number(ep) || 0);
   player.sep = Math.max(0, Number(sep) || 0);
   opponent.hp = Number(opponentHp) || 0;
+  opponent.goingFirst = !player.goingFirst;
+  opponent.goingSecond = !player.goingSecond;
+  opponent.personalTurn = Math.max(0, Number(opponentPersonalTurn) || 0);
+  opponent.maxPp = Math.max(0, Number(opponentMaxPp) || 0);
+  opponent.pp = opponent.maxPp;
+  opponent.ep = Math.max(0, Number(opponentEp) || 0);
+  opponent.sep = Math.max(0, Number(opponentSep) || 0);
 
   player.hand = hand.map(card => instance(player, card));
+  player.deck = deck.map(card => instance(player, card));
+  opponent.hand = opponentHand.map(card => instance(opponent, card));
+  opponent.deck = opponentDeck.map(card => instance(opponent, card));
   const makeUnit = (spec, owner, prefix, index) => {
     const card = spec.card ?? {
       id: spec.id ?? (-20000 - index), name: spec.name ?? `${prefix} ${index + 1}`, class: "Neutral", type: "Follower",
@@ -1078,7 +1380,7 @@ export function inspectTurnPlan({
   player.board = board.map((spec, index) => makeUnit(spec, player, "Ally", index));
   opponent.board = opponentBoard.map((spec, index) => makeUnit(spec, opponent, "Enemy", index));
   const state = { player, opponent, playerIndex: 0, enemyIndex: 1, stats: createStats() };
-  const plan = planCurrentTurn({ ...state, map }, { depth, beamWidth });
+  const plan = planCurrentTurn({ ...state, map }, { depth, beamWidth, disableFuture: !future, forceFuture: future, futureSamples });
 
   // Decode views against a cloned state as the plan advances, so transformed or
   // removed objects still produce useful QA labels.
@@ -1089,7 +1391,21 @@ export function inspectTurnPlan({
     if (action.kind === "end") break;
     executePlannerAction(viewState, action, map, createRng(`inspect-view:${views.length}`));
   }
-  return { sequence: views, score: plan.score, explored: plan.explored };
+  return {
+    sequence: views,
+    score: plan.score,
+    explored: plan.explored,
+    futureEvaluated: Boolean(plan.futureEvaluated),
+    immediateScore: plan.immediateScore ?? plan.score,
+    futureScore: plan.futureScore ?? null,
+    worstFutureScore: plan.worstFutureScore ?? null,
+    futureSamples: plan.futureSamples ?? 0,
+    futureDiagnostics: plan.futureDiagnostics ?? []
+  };
+}
+
+export function inspectTwoTurnPlan(options = {}) {
+  return inspectTurnPlan({ ...options, future: true });
 }
 
 // [[battle-fuse-v1]]
