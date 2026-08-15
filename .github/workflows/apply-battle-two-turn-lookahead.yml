@@ -7,6 +7,7 @@ on:
       - scripts/materialize-battle-two-turn-lookahead.py
       - scripts/materialize-battle-two-turn-lookahead-v2.py
       - scripts/materialize-battle-two-turn-lookahead-tuning.py
+      - scripts/materialize-battle-two-turn-performance.py
       - scripts/check-battle-two-turn-lookahead.mjs
       - .github/workflows/apply-battle-two-turn-lookahead.yml
 
@@ -16,6 +17,7 @@ permissions:
 jobs:
   apply:
     runs-on: ubuntu-latest
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v6
         with:
@@ -28,6 +30,7 @@ jobs:
         run: |
           python3 scripts/materialize-battle-two-turn-lookahead-v2.py
           python3 scripts/materialize-battle-two-turn-lookahead-tuning.py
+          python3 scripts/materialize-battle-two-turn-performance.py
 
       - name: Validate two-turn look-ahead and Battle Sim
         run: |
@@ -55,6 +58,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add js/battle-engine-v5.js scripts/check-battle-two-turn-lookahead.mjs
-          git rm -f scripts/materialize-battle-two-turn-lookahead.py scripts/materialize-battle-two-turn-lookahead-v2.py scripts/materialize-battle-two-turn-lookahead-tuning.py
-          git commit -m "feat: add two-turn Battle Sim look-ahead"
+          git rm -f scripts/materialize-battle-two-turn-lookahead.py scripts/materialize-battle-two-turn-lookahead-v2.py scripts/materialize-battle-two-turn-lookahead-tuning.py scripts/materialize-battle-two-turn-performance.py
+          git commit -m "feat: add bounded two-turn Battle Sim look-ahead"
           git push
