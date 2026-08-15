@@ -24,6 +24,16 @@ old_setup = '''  opponent.hp = Number(opponentHp) || 0;\n\n  player.hand = hand.
 new_setup = '''  opponent.hp = Number(opponentHp) || 0;\n  opponent.goingFirst = !player.goingFirst;\n  opponent.goingSecond = !player.goingSecond;\n  opponent.personalTurn = Math.max(0, Number(opponentPersonalTurn) || 0);\n  opponent.maxPp = Math.max(0, Number(opponentMaxPp) || 0);\n  opponent.pp = opponent.maxPp;\n  opponent.ep = Math.max(0, Number(opponentEp) || 0);\n  opponent.sep = Math.max(0, Number(opponentSep) || 0);\n\n  player.hand = hand.map(card => instance(player, card));\n  player.deck = deck.map(card => instance(player, card));\n  opponent.hand = opponentHand.map(card => instance(opponent, card));\n  opponent.deck = opponentDeck.map(card => instance(opponent, card));'''
 repl(old_setup, new_setup, 'QA future hidden zones and own deck')
 
+repl(
+'''  const plan = planCurrentTurn({ ...state, map }, { depth, beamWidth });''',
+'''  const plan = planCurrentTurn({ ...state, map }, { depth, beamWidth, disableFuture: !future, forceFuture: future, futureSamples });''',
+'QA future option')
+
+repl(
+'''  return { sequence: views, score: plan.score, explored: plan.explored };\n}\n\n// [[battle-fuse-v1]]''',
+'''  return {\n    sequence: views,\n    score: plan.score,\n    explored: plan.explored,\n    futureEvaluated: Boolean(plan.futureEvaluated),\n    immediateScore: plan.immediateScore ?? plan.score,\n    futureScore: plan.futureScore ?? null,\n    worstFutureScore: plan.worstFutureScore ?? null,\n    futureSamples: plan.futureSamples ?? 0\n  };\n}\n\nexport function inspectTwoTurnPlan(options = {}) {\n  return inspectTurnPlan({ ...options, future: true });\n}\n\n// [[battle-fuse-v1]]''',
+'QA future result')
+
 """
 source = source[:setup_start] + setup_patch + source[setup_end:]
 exec(compile(source, str(source_path), 'exec'))
