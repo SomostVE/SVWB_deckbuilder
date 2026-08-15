@@ -169,9 +169,6 @@ function shouldUseTwoTurnLookahead(base, player, opponent, options) {
   const style = String(player.strategy?.style ?? "midrange");
   const resourceSensitive = style === "control" || style === "ward-control" || style === "spell-combo" || style === "ramp";
 
-  // Expensive future simulation is reserved for genuinely strategic positions:
-  // survival pressure, close alternatives, or resource-sensitive decks with a
-  // nontrivial hand. Forced QA mode bypasses this gate.
   if (margin <= 7) return true;
   if (topGap <= 4.5 && player.hand.length >= 2) return true;
   return resourceSensitive && topGap <= 6.5 && player.hand.length >= 3 && player.personalTurn >= 4;
@@ -193,8 +190,6 @@ function evaluateCandidateFuture(candidate, player, opponent, map, options) {
     return { combined: -90000 + candidate.score * .02, future: average, worst, samples: sampleCount };
   }
   const robustFuture = average * .65 + worst * .35;
-  // Immediate tactics still dominate, but a future turn is valuable enough to
-  // reverse a greedy line when it walks into death or destroys a major setup.
   const combined = candidate.score * .72 + robustFuture * .28;
   return { combined, future: robustFuture, worst, samples: sampleCount };
 }
@@ -230,29 +225,17 @@ function planCurrentTurn({ player, opponent, playerIndex, enemyIndex, stats, map
 function plannerActionView'''
 repl(old_return, new_return, 'two-turn wrapper insertion')
 
-# Extend QA setup with hidden-zone inputs and future planning controls.
-old_sig = '''export function inspectTurnPlan({\n  hand = [], board = [], opponentBoard = [], pp = 0, maxPp = pp, hp = 20, opponentHp = 20,\n  personalTurn = 5, goingFirst = true, goingSecond = false, ep = 2, sep = 2,\n  strategy = {}, depth = 4, beamWidth = 4\n} = {}) {\n  const allCards = [...hand, ...board.map(value => value.card).filter(Boolean), ...opponentBoard.map(value => value.card).filter(Boolean)];'''
-new_sig = '''export function inspectTurnPlan({\n  hand = [], board = [], opponentBoard = [], opponentHand = [], opponentDeck = [], pp = 0, maxPp = pp, hp = 20, opponentHp = 20,\n  personalTurn = 5, goingFirst = true, goingSecond = false, ep = 2, sep = 2,\n  opponentPersonalTurn = 0, opponentMaxPp = 0, opponentEp = 2, opponentSep = 2,\n  strategy = {}, opponentStrategy = {}, depth = 4, beamWidth = 4, future = false, futureSamples = 2\n} = {}) {\n  const allCards = [...hand, ...opponentHand, ...opponentDeck, ...board.map(value => value.card).filter(Boolean), ...opponentBoard.map(value => value.card).filter(Boolean)];'''
-repl(old_sig, new_sig, 'QA future signature')
+old_sig = '''export function inspectTurnPlan({\n  hand = [], board = [], opponentBoard = [], opponentHand = [], opponentDeck = [], pp = 0, maxPp = pp, hp = 20, opponentHp = 20,\n  personalTurn = 5, goingFirst = true, goingSecond = false, ep = 2, sep = 2,\n  opponentPersonalTurn = 0, opponentMaxPp = 0, opponentEp = 2, opponentSep = 2,\n  strategy = {}, opponentStrategy = {}, depth = 4, beamWidth = 4, future = false, futureSamples = 2\n} = {}) {\n  const allCards = [...hand, ...opponentHand, ...opponentDeck, ...board.map(value => value.card).filter(Boolean), ...opponentBoard.map(value => value.card).filter(Boolean)];'''
+new_sig = '''export function inspectTurnPlan({\n  hand = [], deck = [], board = [], opponentBoard = [], opponentHand = [], opponentDeck = [], pp = 0, maxPp = pp, hp = 20, opponentHp = 20,\n  personalTurn = 5, goingFirst = true, goingSecond = false, ep = 2, sep = 2,\n  opponentPersonalTurn = 0, opponentMaxPp = 0, opponentEp = 2, opponentSep = 2,\n  strategy = {}, opponentStrategy = {}, depth = 4, beamWidth = 4, future = false, futureSamples = 2\n} = {}) {\n  const allCards = [...hand, ...deck, ...opponentHand, ...opponentDeck, ...board.map(value => value.card).filter(Boolean), ...opponentBoard.map(value => value.card).filter(Boolean)];'''
+if old_sig not in text:
+    raise SystemExit('QA own deck signature anchor missing')
+text = text.replace(old_sig, new_sig, 1)
 
-repl(
-'''  const opponent = makePlayer("Opponent", [], {}, map, rng);''',
-'''  const opponent = makePlayer("Opponent", [], opponentStrategy, map, rng);''',
-'QA opponent strategy')
-
-old_setup = '''  opponent.hp = Number(opponentHp) || 0;\n\n  player.hand = hand.map(card => instance(player, card));'''
-new_setup = '''  opponent.hp = Number(opponentHp) || 0;\n  opponent.goingFirst = !player.goingFirst;\n  opponent.goingSecond = !player.goingSecond;\n  opponent.personalTurn = Math.max(0, Number(opponentPersonalTurn) || 0);\n  opponent.maxPp = Math.max(0, Number(opponentMaxPp) || 0);\n  opponent.pp = opponent.maxPp;\n  opponent.ep = Math.max(0, Number(opponentEp) || 0);\n  opponent.sep = Math.max(0, Number(opponentSep) || 0);\n\n  player.hand = hand.map(card => instance(player, card));\n  opponent.hand = opponentHand.map(card => instance(opponent, card));\n  opponent.deck = opponentDeck.map(card => instance(opponent, card));'''
-repl(old_setup, new_setup, 'QA hidden zones')
-
-repl(
-'''  const plan = planCurrentTurn({ ...state, map }, { depth, beamWidth });''',
-'''  const plan = planCurrentTurn({ ...state, map }, { depth, beamWidth, disableFuture: !future, forceFuture: future, futureSamples });''',
-'QA future option')
-
-repl(
-'''  return { sequence: views, score: plan.score, explored: plan.explored };\n}\n\n// [[battle-fuse-v1]]''',
-'''  return {\n    sequence: views,\n    score: plan.score,\n    explored: plan.explored,\n    futureEvaluated: Boolean(plan.futureEvaluated),\n    immediateScore: plan.immediateScore ?? plan.score,\n    futureScore: plan.futureScore ?? null,\n    worstFutureScore: plan.worstFutureScore ?? null,\n    futureSamples: plan.futureSamples ?? 0\n  };\n}\n\nexport function inspectTwoTurnPlan(options = {}) {\n  return inspectTurnPlan({ ...options, future: true });\n}\n\n// [[battle-fuse-v1]]''',
-'QA future result')
+old_setup = '''  player.hand = hand.map(card => instance(player, card));\n  opponent.hand = opponentHand.map(card => instance(opponent, card));'''
+new_setup = '''  player.hand = hand.map(card => instance(player, card));\n  player.deck = deck.map(card => instance(player, card));\n  opponent.hand = opponentHand.map(card => instance(opponent, card));'''
+if old_setup not in text:
+    raise SystemExit('QA own deck setup anchor missing')
+text = text.replace(old_setup, new_setup, 1)
 
 path.write_text(text, encoding='utf-8')
 print('Battle Sim two-turn look-ahead materialized')
