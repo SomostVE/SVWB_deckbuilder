@@ -23,5 +23,5 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Rebenchmark Ward and Puppetry
+      - name: Audit and rebenchmark Ward and Puppetry
         run: node scripts/rebenchmark-battle-v5.mjs
