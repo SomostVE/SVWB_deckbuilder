@@ -814,9 +814,9 @@ function resolveText(raw, ctx) {
     if (candidates.length) {
       const target = candidates[Math.floor(ctx.rng() * candidates.length)];
       if (target.leader) {
-        ctx.opponent.hp -= Number(match[1]);
-        ctx.stats.damageDealt[ctx.playerIndex] += Number(match[1]);
-        actions.push(`${match[1]} to enemy leader`);
+        const dealt = damageLeader(ctx.opponent, Number(match[1]));
+        ctx.stats.damageDealt[ctx.playerIndex] += dealt;
+        actions.push(`${dealt} to enemy leader`);
       } else {
         damageUnit(target.unit, Number(match[1]), ctx.opponent, ctx.player, ctx, actions);
         actions.push(`${match[1]} to ${target.unit.name}`);
@@ -1428,14 +1428,14 @@ function attackPhase(player, opponent, playerIndex, enemyIndex, stats, frames, p
           break;
         }
         const damage = Math.max(0, attacker.attack);
-        opponent.hp -= damage;
-        stats.damageDealt[playerIndex] += damage;
+        const dealt = damageLeader(opponent, damage);
+        stats.damageDealt[playerIndex] += dealt;
         if (hasU(attacker, "Drain")) {
-          const healed = healPlayer(player, damage, stats, playerIndex);
+          const healed = healPlayer(player, dealt, stats, playerIndex);
           if (healed) actions.push(`Drain heals ${healed}`);
           actions.push(...afterLeaderHeal(player, healed, stats, playerIndex));
         }
-        snap(frames, players, { round, active: playerIndex, phase: "attack", action: compact(`${attacker.name} attacks ${opponent.name}'s leader for ${damage}.`, actions) }, stats, record);
+        snap(frames, players, { round, active: playerIndex, phase: "attack", action: compact(`${attacker.name} attacks ${opponent.name}'s leader for ${dealt}.`, actions) }, stats, record);
         if (opponent.hp <= 0) return;
         continue;
       }
@@ -1452,9 +1452,9 @@ function attackPhase(player, opponent, playerIndex, enemyIndex, stats, frames, p
         const targetAlive = opponent.board.includes(target);
         if (!attackerAlive || !targetAlive) {
           if (attackerAlive && attacker.superEvolved && !targetAlive && target.defense <= 0) {
-            opponent.hp -= 1;
-            stats.damageDealt[playerIndex] += 1;
-            actions.push("Super-Evolution deals 1 leader damage");
+            const dealt = damageLeader(opponent, 1);
+            stats.damageDealt[playerIndex] += dealt;
+            if (dealt) actions.push("Super-Evolution deals 1 leader damage");
           }
           snap(frames, players, { round, active: playerIndex, phase: "attack", action: compact(`${attacker.name} attacks ${target.name}.`, actions) }, stats, record);
           if (opponent.hp <= 0) return;
@@ -1464,20 +1464,20 @@ function attackPhase(player, opponent, playerIndex, enemyIndex, stats, frames, p
 
         const outgoing = Math.max(0, attacker.attack);
         const incoming = Math.max(0, target.attack);
-        damageUnit(target, outgoing, opponent, player, { player, opponent, playerIndex, enemyIndex, stats, rng, cardMap: map }, actions);
-        damageUnit(attacker, incoming, player, opponent, { player, opponent, playerIndex, enemyIndex, stats, rng, cardMap: map }, actions);
-        if (hasU(attacker, "Bane")) target.defense = 0;
-        if (hasU(target, "Bane")) attacker.defense = 0;
+        const dealtToTarget = damageUnit(target, outgoing, opponent, player, { player, opponent, playerIndex, enemyIndex, stats, rng, cardMap: map }, actions);
+        const dealtToAttacker = damageUnit(attacker, incoming, player, opponent, { player, opponent, playerIndex, enemyIndex, stats, rng, cardMap: map }, actions);
+        if (hasU(attacker, "Bane") && dealtToTarget > 0) target.defense = 0;
+        if (hasU(target, "Bane") && dealtToAttacker > 0) attacker.defense = 0;
         if (hasU(attacker, "Drain")) {
-          const healed = healPlayer(player, outgoing, stats, playerIndex);
+          const healed = healPlayer(player, dealtToTarget, stats, playerIndex);
           if (healed) actions.push(`Drain heals ${healed}`);
           actions.push(...afterLeaderHeal(player, healed, stats, playerIndex));
         }
         const targetDied = target.defense <= 0;
         if (attacker.superEvolved && targetDied) {
-          opponent.hp -= 1;
-          stats.damageDealt[playerIndex] += 1;
-          actions.push("Super-Evolution deals 1 leader damage");
+          const dealt = damageLeader(opponent, 1);
+          stats.damageDealt[playerIndex] += dealt;
+          if (dealt) actions.push("Super-Evolution deals 1 leader damage");
           if (opponent.hp <= 0) {
             snap(frames, players, { round, active: playerIndex, phase: "attack", action: compact(`${attacker.name} destroys ${target.name}.`, actions) }, stats, record);
             return;
@@ -1494,6 +1494,13 @@ function attackPhase(player, opponent, playerIndex, enemyIndex, stats, frames, p
 }
 
 function attackable(board) { return board.filter(unit => unit.type === "Follower" && !unit.intimidate && !unit.ambush); }
+
+// [[battle-actual-damage-v5]]
+function damageLeader(player, amountValue) {
+  const before = Number(player.hp) || 0;
+  player.hp -= Math.max(0, Number(amountValue) || 0);
+  return Math.max(0, before - (Number(player.hp) || 0));
+}
 
 function damageUnit(unit, amountValue, owner, sourceOwner, ctx, actions) {
   let amount = Math.max(0, Number(amountValue) || 0);
