@@ -1,0 +1,440 @@
+from pathlib import Path
+
+engine_path = Path("js/battle-engine-v5.js")
+rules_path = Path("js/battle-rules.js")
+test_path = Path("scripts/check-battle-rules.mjs")
+
+engine = engine_path.read_text()
+rules = rules_path.read_text()
+tests = test_path.read_text()
+
+
+def replace_once(text, old, new, label):
+    count = text.count(old)
+    if count != 1:
+        raise SystemExit(f"{label}: expected exactly one match, found {count}")
+    return text.replace(old, new, 1)
+
+
+engine = replace_once(engine, "const MAX_ROUNDS = 20;", "const MAX_ROUNDS = 60;", "turn safety cap")
+
+old_instance = '''    spellboost: 0,
+    costDelta: 0,
+    attackBonus: 0,
+    defenseBonus: 0,
+    x: initialX(card)
+'''
+new_instance = '''    spellboost: 0,
+    costDelta: 0,
+    attackBonus: 0,
+    defenseBonus: 0,
+    skyboundEvolutions: 0,
+    x: initialX(card)
+'''
+engine = replace_once(engine, old_instance, new_instance, "hand Skybound counter")
+
+old_modes = '''function modes(inst, player) {
+  const card = inst.card;
+  const text = String(card.text ?? "");
+  const base = costOf(inst);
+  const out = [];
+  const enhance = [...text.matchAll(/Enhance\\s*\\(?\\s*(\\d+)\\s*\\)?\\s*:/gi)].map(match => Number(match[1])).filter(cost => cost <= player.pp).sort((a,b)=>b-a);
+  if (enhance.length) {
+    const cost = enhance[0];
+    for (const choice of expandModes(section(text, `enhance ${cost}`))) out.push({ kind: choice.i ? "mode" : "enhance", cost, text: choice.text, modeIndex: choice.i, scoreBonus: 5, enhanced: true });
+    return out;
+  }
+  if (base <= player.pp && (card.type === "Spell" || player.board.length < 5)) {
+    for (const choice of expandModes(baseText(text))) out.push({ kind: choice.i ? "mode" : "base", cost: base, text: choice.text, modeIndex: choice.i, scoreBonus: 0 });
+  }
+  const crystallize = [...text.matchAll(/Crystallize\\s*\\(?\\s*(\\d+)\\s*\\)?\\s*:?/gi)].map(match => Number(match[1])).filter(cost => cost <= player.pp).sort((a,b)=>a-b)[0];
+  if (crystallize != null && player.board.length < 5) {
+    out.push({ kind: "crystallize", cost: crystallize, text: crystallizeText(text, crystallize), modeIndex: 0, scoreBonus: base > player.pp ? 5 : 0 });
+  }
+  const accelerate = [...text.matchAll(/Accelerate\\s*\\(?\\s*(\\d+)\\s*\\)?\\s*:/gi)].map(match => Number(match[1])).filter(cost => cost <= player.pp).sort((a,b)=>a-b)[0];
+  if (accelerate != null) {
+    for (const choice of expandModes(section(text, `accelerate ${accelerate}`))) out.push({ kind: "accelerate", cost: accelerate, text: choice.text, modeIndex: choice.i, scoreBonus: base > player.pp ? 4 : -1 });
+  }
+  return out;
+}
+'''
+new_modes = '''function modes(inst, player) {
+  const card = inst.card;
+  const text = String(card.text ?? "");
+  const base = costOf(inst);
+  const out = [];
+  const canUseFieldSlot = card.type === "Spell" || player.board.length < 5;
+  const enhance = [...text.matchAll(/Enhance\\s*\\(?\\s*(\\d+)\\s*\\)?\\s*:/gi)]
+    .map(match => Number(match[1]))
+    .filter(cost => cost <= player.pp)
+    .sort((a,b)=>b-a);
+  if (enhance.length) {
+    if (!canUseFieldSlot) return out;
+    const cost = enhance[0];
+    for (const choice of expandModes(section(text, `enhance ${cost}`))) out.push({ kind: choice.i ? "mode" : "enhance", cost, text: choice.text, modeIndex: choice.i, scoreBonus: 5, enhanced: true });
+    return out;
+  }
+
+  // Accelerate and Crystallize are fallback play modes: they are available only
+  // when the card itself cannot be paid at its current effective cost.
+  if (base <= player.pp) {
+    if (canUseFieldSlot) {
+      for (const choice of expandModes(baseText(text))) out.push({ kind: choice.i ? "mode" : "base", cost: base, text: choice.text, modeIndex: choice.i, scoreBonus: 0 });
+    }
+    return out;
+  }
+
+  const crystallizeCosts = [...text.matchAll(/Crystallize\\s*\\(?\\s*(\\d+)\\s*\\)?\\s*:?/gi)]
+    .map(match => Number(match[1]))
+    .filter(cost => cost <= player.pp);
+  const accelerateCosts = [...text.matchAll(/Accelerate\\s*\\(?\\s*(\\d+)\\s*\\)?\\s*:/gi)]
+    .map(match => Number(match[1]))
+    .filter(cost => cost <= player.pp);
+  const highestAlternativeCost = Math.max(-1, ...crystallizeCosts, ...accelerateCosts);
+  if (highestAlternativeCost < 0) return out;
+
+  if (player.board.length < 5 && crystallizeCosts.includes(highestAlternativeCost)) {
+    out.push({ kind: "crystallize", cost: highestAlternativeCost, text: crystallizeText(text, highestAlternativeCost), modeIndex: 0, scoreBonus: 5 });
+  }
+  if (accelerateCosts.includes(highestAlternativeCost)) {
+    for (const choice of expandModes(section(text, `accelerate ${highestAlternativeCost}`))) {
+      out.push({ kind: "accelerate", cost: highestAlternativeCost, text: choice.text, modeIndex: choice.i, scoreBonus: 4 });
+    }
+  }
+  return out;
+}
+'''
+engine = replace_once(engine, old_modes, new_modes, "Accelerate/Crystallize legality")
+
+old_skybound = '''  const superSkybound = text.match(/Super Skybound Art\\s*\\(?\\s*(\\d+)?\\s*\\)?\\s*:\\s*(.*)$/i);
+  if (superSkybound) {
+    const need = Number(superSkybound[1] ?? 15);
+    if (ctx.player.personalTurn + ctx.player.evolutionsThisMatch < need) return { actions: [], applied: false, unresolved: false };
+    text = superSkybound[2];
+    actions.push("Super Skybound Art");
+  }
+  const skybound = text.match(/Skybound Art\\s*\\(?\\s*(\\d+)?\\s*\\)?\\s*:\\s*(.*)$/i);
+  if (skybound && !/Super Skybound Art/i.test(text)) {
+    const need = Number(skybound[1] ?? 10);
+    if (ctx.player.personalTurn + ctx.player.evolutionsThisMatch < need) return { actions: [], applied: false, unresolved: false };
+    text = skybound[2];
+    actions.push("Skybound Art");
+  }
+'''
+new_skybound = '''  const superSkybound = text.match(/Super Skybound Art\\s*\\(?\\s*(\\d+)?\\s*\\)?\\s*:\\s*(.*)$/i);
+  if (superSkybound) {
+    const need = Number(superSkybound[1] ?? 15);
+    if (skyboundCountForInstance(ctx) < need) return { actions: [], applied: false, unresolved: false };
+    text = superSkybound[2];
+    actions.push("Super Skybound Art");
+  }
+  const skybound = text.match(/Skybound Art\\s*\\(?\\s*(\\d+)?\\s*\\)?\\s*:\\s*(.*)$/i);
+  if (skybound && !/Super Skybound Art/i.test(text)) {
+    const need = Number(skybound[1] ?? 10);
+    if (skyboundCountForInstance(ctx) < need) return { actions: [], applied: false, unresolved: false };
+    text = skybound[2];
+    actions.push("Skybound Art");
+  }
+'''
+engine = replace_once(engine, old_skybound, new_skybound, "generic Skybound gauge")
+
+old_effect_context_head = '''    card: ctx.card, sourceUnit: ctx.sourceUnit, player: ctx.player, opponent: ctx.opponent,
+    playerIndex: ctx.playerIndex, enemyIndex: ctx.enemyIndex, stats: ctx.stats, rng: ctx.rng,
+'''
+new_effect_context_head = '''    card: ctx.card, instance: ctx.instance, sourceUnit: ctx.sourceUnit, player: ctx.player, opponent: ctx.opponent,
+    playerIndex: ctx.playerIndex, enemyIndex: ctx.enemyIndex, stats: ctx.stats, rng: ctx.rng,
+    recordHandEvolution: () => recordHandEvolution(ctx.player),
+'''
+engine = replace_once(engine, old_effect_context_head, new_effect_context_head, "effect context Skybound tracking")
+
+old_manual_evo = '''  player.evolutionsThisMatch += 1;
+  if (superMode) stats.superEvolutions[playerIndex] += 1;
+'''
+new_manual_evo = '''  player.evolutionsThisMatch += 1;
+  recordHandEvolution(player);
+  if (superMode) stats.superEvolutions[playerIndex] += 1;
+'''
+engine = replace_once(engine, old_manual_evo, new_manual_evo, "manual evolution hand gauge")
+
+old_ability_evo = '''  unit.evolved = true;
+  ctx.player.evolutionsThisMatch += 1;
+  ctx.stats.evolutions[ctx.playerIndex] += 1;
+'''
+new_ability_evo = '''  unit.evolved = true;
+  ctx.player.evolutionsThisMatch += 1;
+  recordHandEvolution(ctx.player);
+  ctx.stats.evolutions[ctx.playerIndex] += 1;
+'''
+engine = replace_once(engine, old_ability_evo, new_ability_evo, "ability evolution hand gauge")
+
+old_super_ability = '''function superEvolveUnitByAbility(ctx, unit, actions) {
+  if (unit.superEvolved) return;
+'''
+new_super_ability = '''function superEvolveUnitByAbility(ctx, unit, actions) {
+  if (unit.evolved || unit.superEvolved) return;
+'''
+engine = replace_once(engine, old_super_ability, new_super_ability, "ability super-evolve guard")
+
+old_super_count = '''  ctx.player.evolutionsThisMatch += 1;
+  ctx.stats.superEvolutions[ctx.playerIndex] += 1;
+'''
+new_super_count = '''  ctx.player.evolutionsThisMatch += 1;
+  recordHandEvolution(ctx.player);
+  ctx.stats.superEvolutions[ctx.playerIndex] += 1;
+'''
+engine = replace_once(engine, old_super_count, new_super_count, "ability super-evolve hand gauge")
+
+old_attack_wards = '''      const allWards = opponent.board.filter(unit => unit.type === "Follower" && hasU(unit, "Ward"));
+      const attackableWards = attackable(opponent.board).filter(unit => hasU(unit, "Ward"));
+      const foes = attackable(opponent.board);
+      const canFollower = attacker.canAttackFollower;
+      const canLeader = attacker.canAttackLeader && !allWards.length;
+      let target = null, leader = false;
+      if (allWards.length) {
+        if (canFollower && attackableWards.length) target = tradeTarget(attacker, attackableWards, player.strategy);
+'''
+new_attack_wards = '''      const wards = activeWards(opponent.board);
+      const attackableWards = wards.filter(unit => !unit.intimidate && !unit.ambush);
+      const foes = attackable(opponent.board);
+      const canFollower = attacker.canAttackFollower;
+      const canLeader = attacker.canAttackLeader && !wards.length;
+      let target = null, leader = false;
+      if (wards.length) {
+        if (canFollower && attackableWards.length) target = tradeTarget(attacker, attackableWards, player.strategy);
+'''
+engine = replace_once(engine, old_attack_wards, new_attack_wards, "Ward precedence")
+
+old_bane = '''        if (hasU(attacker, "Bane") && dealtToTarget > 0) target.defense = 0;
+        if (hasU(target, "Bane") && dealtToAttacker > 0) attacker.defense = 0;
+'''
+new_bane = '''        // Bane is a combat destruction effect, not a damage threshold. It still
+        // applies when attack is 0 or combat damage is prevented.
+        if (hasU(attacker, "Bane")) destroyUnit(opponent, target);
+        if (hasU(target, "Bane")) destroyUnit(player, attacker);
+'''
+engine = replace_once(engine, old_bane, new_bane, "Bane combat semantics")
+
+old_attackable = '''function attackable(board) { return board.filter(unit => unit.type === "Follower" && !unit.intimidate && !unit.ambush); }
+'''
+new_attackable = '''function attackable(board) { return board.filter(unit => unit.type === "Follower" && !unit.intimidate && !unit.ambush); }
+function activeWards(board) { return board.filter(unit => unit.type === "Follower" && hasU(unit, "Ward") && !unit.intimidate && !unit.ambush); }
+'''
+engine = replace_once(engine, old_attackable, new_attackable, "active Ward helper")
+
+old_lethal_ward = '''  if (opponent.board.some(unit => unit.type === "Follower" && hasU(unit, "Ward"))) return false;
+'''
+new_lethal_ward = '''  if (activeWards(opponent.board).length) return false;
+'''
+engine = replace_once(engine, old_lethal_ward, new_lethal_ward, "lethal Ward helper")
+
+old_should_face = '''function shouldFace(attacker, player, opponent, foes, rng) {
+  if (attacker.attack >= opponent.hp || player.strategy.style === "aggro" || !foes.length) return true;
+  return player.strategy.faceBias >= .65 || rng() < player.strategy.faceBias;
+}
+'''
+new_should_face = '''function shouldFace(attacker, player, opponent, foes, rng) {
+  if (attacker.attack >= opponent.hp || !foes.length) return true;
+
+  const style = String(player.strategy?.style ?? "midrange");
+  const killable = foes.filter(target => canCombatRemove(attacker, target));
+  const enemyAttack = foes.reduce((sum, unit) => sum + Math.max(0, Number(unit.attack) || 0), 0);
+  const alliedAttack = player.board
+    .filter(unit => unit.type === "Follower")
+    .reduce((sum, unit) => sum + Math.max(0, Number(unit.attack) || 0), 0);
+  const defensiveEmergency = killable.length > 0 && enemyAttack >= Math.max(5, player.hp - 3);
+  const materiallyBehind = killable.length > 0 && enemyAttack >= alliedAttack + 4;
+  const highThreat = killable.some(target => (Number(target.attack) || 0) >= 4);
+
+  // Aggro should pressure, not blindly ignore every profitable or necessary
+  // trade. The previous unconditional face rule amplified first-player snowball.
+  if (style === "aggro") {
+    if (defensiveEmergency) return false;
+    if (materiallyBehind && opponent.hp > 8) return false;
+    if (highThreat && opponent.hp > 12) return false;
+    return true;
+  }
+
+  if (defensiveEmergency) return false;
+  const faceBias = clamp(Number(player.strategy?.faceBias ?? .5), 0, 1);
+  return faceBias >= .65 || rng() < faceBias;
+}
+
+function canCombatRemove(attacker, target) {
+  if (!attacker || !target) return false;
+  if (hasU(attacker, "Bane")) return true;
+  return Math.max(0, Number(attacker.attack) || 0) >= Math.max(0, Number(target.defense) || 0);
+}
+'''
+engine = replace_once(engine, old_should_face, new_should_face, "aggro face/trade baseline")
+
+old_trade = '''function tradeTarget(attacker, targets, strategy) {
+  return [...targets].sort((a,b) => {
+    const killA = attacker.attack >= a.defense ? 1 : 0;
+    const killB = attacker.attack >= b.defense ? 1 : 0;
+    if (killA !== killB) return killB - killA;
+    return strategy.tradeBias >= .65 ? (b.attack+b.defense)-(a.attack+a.defense) : a.defense-b.defense;
+  })[0] ?? null;
+}
+'''
+new_trade = '''function tradeTarget(attacker, targets, strategy) {
+  const tradeBias = clamp(Number(strategy?.tradeBias ?? .5), 0, 1);
+  const score = target => {
+    const kills = hasU(attacker, "Bane") || Math.max(0, Number(attacker.attack) || 0) >= Math.max(0, Number(target.defense) || 0);
+    const enemyBane = hasU(target, "Bane");
+    const invincible = attacker.superEvolved;
+    const survivesDamage = invincible || (Number(attacker.defense) || 0) > Math.max(0, Number(target.attack) || 0);
+    const survives = invincible || (!enemyBane && survivesDamage);
+    const threat = Math.max(0, Number(target.attack) || 0) * 3 + Math.max(0, Number(target.defense) || 0);
+    return (kills ? 100 : 0) + (survives ? 18 : 0) + threat * (0.45 + tradeBias) + (hasU(target, "Ward") ? 3 : 0);
+  };
+  return [...targets].sort((a,b) => score(b) - score(a))[0] ?? null;
+}
+'''
+engine = replace_once(engine, old_trade, new_trade, "trade target scoring")
+
+old_banish = '''function banish(player, unit) { if (unit.superEvolved && player.isActive) return false; if (unit.type === "Follower") notifyFollowerLeavesField(player, unit); player.board = player.board.filter(item => item.uid !== unit.uid); player.banished.push({ uid: unit.uid, card: unit.card }); return true; }
+'''
+new_banish = '''function banish(player, unit) { if (unit.type === "Follower") notifyFollowerLeavesField(player, unit); player.board = player.board.filter(item => item.uid !== unit.uid); player.banished.push({ uid: unit.uid, card: unit.card }); return true; }
+'''
+engine = replace_once(engine, old_banish, new_banish, "Super-Evolve banish semantics")
+
+marker = '''function initialX(card) {
+  const match = String(card?.text ?? "").match(/X starts at\\s*(-?\\d+)/i);
+  return match ? Number(match[1]) : 0;
+}
+'''
+addition = marker + '''
+function recordHandEvolution(player) {
+  for (const item of player.hand ?? []) item.skyboundEvolutions = (Number(item.skyboundEvolutions) || 0) + 1;
+}
+
+function skyboundCountForInstance(ctx) {
+  return (Number(ctx.player?.personalTurn) || 0) + (Number(ctx.instance?.skyboundEvolutions) || 0);
+}
+
+export function inspectPlayableModes(card, { pp = 0, boardSize = 0, spellboost = 0, costDelta = 0 } = {}) {
+  const inst = {
+    uid: "inspect-mode",
+    card,
+    spellboost: Number(spellboost) || 0,
+    costDelta: Number(costDelta) || 0,
+    attackBonus: 0,
+    defenseBonus: 0,
+    skyboundEvolutions: 0,
+    x: initialX(card)
+  };
+  const player = {
+    pp: Math.max(0, Number(pp) || 0),
+    board: Array.from({ length: Math.max(0, Number(boardSize) || 0) }, (_, index) => ({ uid: `inspect-${index}`, type: "Follower" }))
+  };
+  return modes(inst, player).map(mode => ({ kind: mode.kind, cost: mode.cost, modeIndex: mode.modeIndex ?? 0 }));
+}
+'''
+engine = replace_once(engine, marker, addition, "inspection helpers")
+
+rules = replace_once(
+    rules,
+    '''    const active = skyboundCount(context.player) >= threshold;\n''',
+    '''    const active = skyboundCount(context) >= threshold;\n''',
+    "rule Skybound Crest gauge",
+)
+rules = replace_once(
+    rules,
+    '''    if (skyboundCount(context.player) >= threshold && context.sourceUnit) {\n''',
+    '''    if (skyboundCount(context) >= threshold && context.sourceUnit) {\n''',
+    "rule Super Skybound gauge",
+)
+rules = replace_once(
+    rules,
+    '''function skyboundCount(player) {\n  return (Number(player.personalTurn) || 0) + (Number(player.evolutionsThisMatch) || 0);\n}\n''',
+    '''function skyboundCount(context) {\n  return (Number(context.player?.personalTurn) || 0) + (Number(context.instance?.skyboundEvolutions) || 0);\n}\n''',
+    "rule Skybound helper",
+)
+rules = replace_once(
+    rules,
+    '''function superEvolveByAbility(context, unit) {\n  if (unit.superEvolved) return [];\n''',
+    '''function superEvolveByAbility(context, unit) {\n  if (unit.evolved || unit.superEvolved) return [];\n''',
+    "rule ability super-evolve guard",
+)
+rules = replace_once(
+    rules,
+    '''  context.player.evolutionsThisMatch = (Number(context.player.evolutionsThisMatch) || 0) + 1;\n  context.stats.superEvolutions[context.playerIndex] += 1;\n''',
+    '''  context.player.evolutionsThisMatch = (Number(context.player.evolutionsThisMatch) || 0) + 1;\n  context.recordHandEvolution?.();\n  context.stats.superEvolutions[context.playerIndex] += 1;\n''',
+    "rule ability Super-Evolve hand gauge",
+)
+
+tests = replace_once(
+    tests,
+    '''import { BATTLE_RULES_VERSION, inspectEffectiveCost, simulateBattle } from "../js/battle-engine.js";\n''',
+    '''import { BATTLE_RULES_VERSION, inspectEffectiveCost, inspectPlayableModes, simulateBattle } from "../js/battle-engine.js";\n''',
+    "test import",
+)
+tests = replace_once(
+    tests,
+    '''assert.equal(\n  wardResult.frames.some(frame => /Storm Tester attacks Opponent's leader/.test(frame.action)),\n  false,\n  "Ward must block non-Ward attack targets even when the Ward follower has Intimidate"\n);\n''',
+    '''assert.equal(\n  wardResult.frames.some(frame => /Storm Tester attacks Opponent's leader/.test(frame.action)),\n  true,\n  "Ward must be inactive while that follower also has Intimidate"\n);\n''',
+    "Ward precedence regression",
+)
+
+before_console = '''console.log("Battle Sim exact-rule regressions: OK");\n'''
+extra_tests = r'''
+const altModeTester = {
+  id: 40,
+  name: "Alternative Mode Tester",
+  class: "Neutral",
+  type: "Follower",
+  cost: 5,
+  attack: 3,
+  defense: 3,
+  traits: [],
+  keywords: [],
+  text: "Accelerate (1): Draw a card. Crystallize (2): Countdown (1) Last Words: Draw a card."
+};
+assert.deepEqual(inspectPlayableModes(altModeTester, { pp: 5 }), [{ kind: "base", cost: 5, modeIndex: 0 }], "Accelerate/Crystallize must be unavailable when the base card is affordable");
+assert.deepEqual(inspectPlayableModes(altModeTester, { pp: 3 }), [{ kind: "crystallize", cost: 2, modeIndex: 0 }], "The highest affordable fallback play cost must be used");
+assert.deepEqual(inspectPlayableModes(altModeTester, { pp: 1 }), [{ kind: "accelerate", cost: 1, modeIndex: 0 }], "Accelerate must remain available when the base card is unaffordable");
+assert.deepEqual(inspectPlayableModes(altModeTester, { pp: 5, boardSize: 5 }), [], "A full field must not unlock fallback modes when the base follower is otherwise affordable");
+
+const baneAttacker = {
+  id: 50,
+  name: "Zero Attack Bane Tester",
+  class: "Neutral",
+  type: "Follower",
+  cost: 1,
+  attack: 0,
+  defense: 5,
+  traits: [],
+  keywords: ["Storm", "Bane"],
+  text: "Storm Bane"
+};
+const baneTarget = {
+  id: 51,
+  name: "Bane Ward Tester",
+  class: "Neutral",
+  type: "Follower",
+  cost: 1,
+  attack: 0,
+  defense: 10,
+  traits: [],
+  keywords: ["Ward", "Barrier"],
+  text: "Ward Barrier"
+};
+const baneResult = simulateBattle({
+  playerDeck: [[50, 40]],
+  opponentDeck: [[51, 40]],
+  cardMap: new Map([[50, baneAttacker], [51, baneTarget]]),
+  playerStrategy: { style: "aggro", mulliganMaxCost: 1, faceBias: 1, tradeBias: 0 },
+  opponentStrategy: { style: "control", mulliganMaxCost: 1, faceBias: 0, tradeBias: 1 },
+  seed: "rules-bane-zero-damage",
+  playerSide: "second"
+});
+const baneAttackFrame = baneResult.frames.find(frame => frame.active === 0 && frame.phase === "attack" && /Zero Attack Bane Tester attacks Bane Ward Tester/.test(frame.action));
+assert.ok(baneAttackFrame, "Bane regression must produce combat into Ward");
+assert.equal(baneAttackFrame.players[1].board.some(unit => unit.name === "Bane Ward Tester"), false, "Bane must destroy after combat even when actual combat damage is 0");
+
+'''
+tests = replace_once(tests, before_console, extra_tests + before_console, "new core rule regressions")
+
+engine_path.write_text(engine)
+rules_path.write_text(rules)
+test_path.write_text(tests)
