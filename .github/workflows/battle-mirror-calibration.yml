@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - "scripts/benchmark-reference-mirrors.mjs"
+      - "scripts/audit-battle-side-logic.mjs"
       - ".github/workflows/battle-mirror-calibration.yml"
   workflow_dispatch:
 
@@ -19,6 +20,9 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: "24"
+
+      - name: Audit side compensation logic
+        run: node scripts/audit-battle-side-logic.mjs
 
       - name: Run 1000-game mirrors
         run: node scripts/benchmark-reference-mirrors.mjs
