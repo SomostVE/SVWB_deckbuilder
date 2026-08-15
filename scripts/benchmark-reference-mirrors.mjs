@@ -1,3 +1,4 @@
+// Calibration marker: effect-aware evolution AI.
 import fs from "node:fs/promises";
 import { runMatchupBenchmark } from "../js/battle-benchmark-core.js";
 
