@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="./css/base.css">
   <link rel="stylesheet" href="./css/tools.css">
   <link rel="stylesheet" href="./css/battle.css">
+  <link rel="stylesheet" href="./css/battle-benchmark.css">
 </head>
 <body class="tools-body battle-body">
   <header class="tools-header battle-header">
@@ -77,6 +78,43 @@
       </div>
     </section>
 
+    <section class="tools-panel battle-benchmark">
+      <div class="benchmark-head">
+        <div>
+          <h2>Benchmark</h2>
+          <p class="tools-muted">Run repeatable matchups with the current rules engine. The benchmark uses the baseline AI for now; rules coverage is the priority.</p>
+        </div>
+        <div class="battle-local-badge">Worker · deterministic seeds</div>
+      </div>
+
+      <div class="benchmark-controls">
+        <label>
+          <span>Opponent pool</span>
+          <select id="benchmark-scope">
+            <option value="selected">Selected opponent</option>
+            <option value="all">All 7 reference decks</option>
+          </select>
+        </label>
+        <label>
+          <span>Games / matchup</span>
+          <select id="benchmark-games">
+            <option value="100">100</option>
+            <option value="500">500</option>
+            <option value="1000">1,000</option>
+          </select>
+        </label>
+        <button id="benchmark-run" class="button" type="button">Run benchmark</button>
+        <button id="benchmark-cancel" class="button" type="button" hidden>Cancel</button>
+      </div>
+
+      <div id="benchmark-status" class="battle-status" data-type="info">Loading benchmark data...</div>
+      <div class="benchmark-progress-row">
+        <progress id="benchmark-progress" value="0" max="100" hidden></progress>
+        <span id="benchmark-progress-label"></span>
+      </div>
+      <div id="benchmark-results"></div>
+    </section>
+
     <section id="battle-replay" class="tools-panel battle-replay" hidden>
       <div class="battle-replay-head">
         <div>
@@ -102,11 +140,12 @@
       </div>
 
       <div class="battle-disclaimer">
-        This is the first rules-engine pass. Basic battle flow, followers, field/hand limits, PP, Ward/Rush/Storm/Bane/Drain, evolution, super-evolution and a small set of simple text effects are modeled. Complex card-specific mechanics are explicitly counted as unsupported instead of being treated as accurate.
+        Battle Sim is still experimental. Generic battle flow and an expanding set of card mechanics are modeled, while unresolved card-specific mechanics are explicitly tracked instead of being presented as accurate.
       </div>
     </section>
   </main>
 
   <script type="module" src="./js/battle.js"></script>
+  <script type="module" src="./js/battle-benchmark.js"></script>
 </body>
 </html>
