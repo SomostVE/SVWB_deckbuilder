@@ -45,7 +45,12 @@ function parseHash(hash) {
 }
 
 async function loadOfficialCards() {
-  const byResourceId = new Map();
+  const maps = {
+    resource: new Map(),
+    card: new Map(),
+    base: new Map()
+  };
+  const samples = [];
   let offset = 0;
   let emptyPages = 0;
 
@@ -59,16 +64,27 @@ async function loadOfficialCards() {
     for (const detail of values) {
       const common = detail?.common ?? {};
       const resourceId = Number(common.card_resource_id ?? 0);
-      if (!resourceId) continue;
-      byResourceId.set(resourceId, common);
+      const cardId = Number(common.card_id ?? 0);
+      const baseCardId = Number(common.base_card_id ?? common.card_id ?? 0);
+      if (resourceId) maps.resource.set(resourceId, common);
+      if (cardId) maps.card.set(cardId, common);
+      if (baseCardId) maps.base.set(baseCardId, common);
+      if (samples.length < 5) {
+        samples.push({
+          card_id: common.card_id,
+          base_card_id: common.base_card_id,
+          card_resource_id: common.card_resource_id,
+          name: common.name
+        });
+      }
     }
 
     offset += 30;
     if (offset > 3000) break;
   }
 
-  if (byResourceId.size < 100) throw new Error(`Suspiciously small resource-ID map: ${byResourceId.size}`);
-  return byResourceId;
+  if (maps.card.size < 100) throw new Error(`Suspiciously small official card map: ${maps.card.size}`);
+  return { maps, samples };
 }
 
 function countInOrder(values) {
@@ -77,10 +93,22 @@ function countInOrder(values) {
   return map;
 }
 
+function resolveCommon(identifier, maps) {
+  return maps.resource.get(identifier) ?? maps.card.get(identifier) ?? maps.base.get(identifier) ?? null;
+}
+
+function range(map) {
+  const values = [...map.keys()].filter(Number.isFinite).sort((a, b) => a - b);
+  return values.length ? `${values[0]}..${values[values.length - 1]}` : "empty";
+}
+
 async function main() {
   const source = JSON.parse(await fs.readFile(SOURCE_PATH, "utf8"));
-  const resourceMap = await loadOfficialCards();
+  const { maps, samples } = await loadOfficialCards();
   const decks = [];
+
+  console.log(`Official identifier ranges: resource=${range(maps.resource)} card=${range(maps.card)} base=${range(maps.base)}`);
+  console.log(`Official identifier samples: ${JSON.stringify(samples)}`);
 
   for (const deck of source.decks ?? []) {
     const parsed = parseHash(deck.portalHash);
@@ -88,16 +116,17 @@ async function main() {
     const cards = [];
 
     for (const [token, qty] of counts) {
-      const resourceId = decodePortalToken(token);
-      const common = resourceMap.get(resourceId);
+      const portalIdentifier = decodePortalToken(token);
+      const common = resolveCommon(portalIdentifier, maps);
       if (!common) {
-        throw new Error(`${deck.name}: portal token ${token} decoded to resourceId ${resourceId}, but no official card matched it`);
+        throw new Error(`${deck.name}: portal token ${token} decoded to ${portalIdentifier}; no match in resource/card/base identifiers`);
       }
 
       cards.push({
         cardId: Number(common.card_id),
         baseCardId: Number(common.base_card_id ?? common.card_id),
-        resourceId,
+        resourceId: Number(common.card_resource_id ?? 0),
+        portalIdentifier,
         portalToken: token,
         qty,
         name: common.name ?? "",
