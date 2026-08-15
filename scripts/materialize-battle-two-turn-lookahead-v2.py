@@ -15,7 +15,7 @@ setup_end = source.find("path.write_text(text, encoding='utf-8')", setup_start)
 if setup_start < 0 or setup_end < 0:
     raise SystemExit('two-turn materializer setup bridge anchor missing')
 
-setup_patch = r'''repl(
+setup_patch = r"""repl(
 '''  const opponent = makePlayer("Opponent", [], {}, map, rng);''',
 '''  const opponent = makePlayer("Opponent", [], opponentStrategy, map, rng);''',
 'QA opponent strategy')
@@ -24,6 +24,6 @@ old_setup = '''  opponent.hp = Number(opponentHp) || 0;\n\n  player.hand = hand.
 new_setup = '''  opponent.hp = Number(opponentHp) || 0;\n  opponent.goingFirst = !player.goingFirst;\n  opponent.goingSecond = !player.goingSecond;\n  opponent.personalTurn = Math.max(0, Number(opponentPersonalTurn) || 0);\n  opponent.maxPp = Math.max(0, Number(opponentMaxPp) || 0);\n  opponent.pp = opponent.maxPp;\n  opponent.ep = Math.max(0, Number(opponentEp) || 0);\n  opponent.sep = Math.max(0, Number(opponentSep) || 0);\n\n  player.hand = hand.map(card => instance(player, card));\n  player.deck = deck.map(card => instance(player, card));\n  opponent.hand = opponentHand.map(card => instance(opponent, card));\n  opponent.deck = opponentDeck.map(card => instance(opponent, card));'''
 repl(old_setup, new_setup, 'QA future hidden zones and own deck')
 
-'''
+"""
 source = source[:setup_start] + setup_patch + source[setup_end:]
 exec(compile(source, str(source_path), 'exec'))
