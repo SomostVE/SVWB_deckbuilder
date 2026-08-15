@@ -1,1 +1,1 @@
-export * from "./battle-engine-v2.js";
+export * from "./battle-engine-v3.js";
