@@ -9,6 +9,7 @@ const els = {
   seed: document.getElementById("battle-seed"),
   scope: document.getElementById("benchmark-scope"),
   games: document.getElementById("benchmark-games"),
+  compare: document.getElementById("benchmark-compare"),
   run: document.getElementById("benchmark-run"),
   cancel: document.getElementById("benchmark-cancel"),
   progress: document.getElementById("benchmark-progress"),
@@ -41,6 +42,7 @@ async function init() {
 
     if (!refsResponse.ok) throw new Error("Unable to load local reference decks");
     referenceData = await refsResponse.json();
+    populateCompareDecks();
     ready = true;
     bindEvents();
     refreshStatus();
@@ -53,47 +55,73 @@ async function init() {
 function bindEvents() {
   els.run.addEventListener("click", runBenchmark);
   els.cancel.addEventListener("click", cancelBenchmark);
-  for (const element of [els.yourDeck, els.playerStrategy, els.opponent, els.scope, els.games]) {
+  for (const element of [els.yourDeck, els.playerStrategy, els.opponent, els.scope, els.games, els.compare]) {
     element?.addEventListener("change", refreshStatus);
   }
+}
+
+function populateCompareDecks() {
+  if (!els.compare) return;
+  const options = ['<option value="">Off</option>', '<option value="__current__">Current deck</option>'];
+  for (const name of Object.keys(state.savedDecks ?? {}).sort((a, b) => a.localeCompare(b))) {
+    options.push(`<option value="${escapeAttr(name)}">${escapeHtml(name)}</option>`);
+  }
+  els.compare.innerHTML = options.join("");
 }
 
 function refreshStatus() {
   if (!ready) return;
   const player = getSelectedPlayerDeck();
+  const compare = getCompareDeck();
   const opponents = getSelectedOpponents();
   const count = deckSize(player.deck);
+  const compareCount = compare ? deckSize(compare.deck) : 40;
+  const sameDeck = compare ? deckFingerprint(compare.deck) === deckFingerprint(player.deck) : false;
   const games = Number(els.games.value) || 100;
-  const total = games * opponents.length;
-  els.run.disabled = count !== 40 || opponents.length === 0 || Boolean(worker);
+  const runsPerMatchup = compare ? 2 : 1;
+  const total = games * opponents.length * runsPerMatchup;
+  els.run.disabled = count !== 40 || compareCount !== 40 || sameDeck || opponents.length === 0 || Boolean(worker);
 
   if (count !== 40) {
     els.status.dataset.type = "warn";
     els.status.textContent = `Benchmark needs a 40-card Main Deck. Current: ${count}/40.`;
+  } else if (compare && compareCount !== 40) {
+    els.status.dataset.type = "warn";
+    els.status.textContent = `Compare deck needs 40 cards. Current: ${compareCount}/40.`;
+  } else if (sameDeck) {
+    els.status.dataset.type = "warn";
+    els.status.textContent = "Compare deck is identical to the primary deck.";
   } else {
     els.status.dataset.type = "info";
     const sample = games >= 1000 ? "high sample" : games >= 500 ? "medium sample" : "exploratory sample";
-    els.status.textContent = `${opponents.length} matchup${opponents.length === 1 ? "" : "s"} · ${games} games each · ${total.toLocaleString()} total simulations · ${sample} · Baseline AI.`;
+    const mode = compare ? `paired comparison vs ${compare.name}` : "single deck";
+    els.status.textContent = `${opponents.length} matchup${opponents.length === 1 ? "" : "s"} · ${games} games each · ${total.toLocaleString()} total simulations · ${sample} · ${mode} · Baseline AI.`;
   }
 }
 
 function runBenchmark() {
   if (!ready || worker) return;
   const player = getSelectedPlayerDeck();
+  const compare = getCompareDeck();
   const opponents = getSelectedOpponents();
   if (deckSize(player.deck) !== 40 || !opponents.length) return;
+  if (compare && (deckSize(compare.deck) !== 40 || deckFingerprint(compare.deck) === deckFingerprint(player.deck))) return;
 
   const games = Number(els.games.value) || 100;
   const seed = String(els.seed.value || "deci-benchmark").trim() || "deci-benchmark";
   const strategy = getPlayerStrategy(player.deck);
+  const compareStrategy = compare ? getPlayerStrategy(compare.deck) : null;
+  const runsPerMatchup = compare ? 2 : 1;
 
   els.results.innerHTML = "";
   els.progress.hidden = false;
-  els.progress.max = games * opponents.length;
+  els.progress.max = games * opponents.length * runsPerMatchup;
   els.progress.value = 0;
   els.progressLabel.textContent = `0 / ${els.progress.max.toLocaleString()}`;
   els.status.dataset.type = "info";
-  els.status.textContent = "Benchmark running in a background worker. The page remains usable.";
+  els.status.textContent = compare
+    ? "Paired benchmark running. Both deck variants use the same matchup seeds and First/Second split."
+    : "Benchmark running in a background worker. The page remains usable.";
   els.run.disabled = true;
   els.cancel.hidden = false;
 
@@ -102,14 +130,17 @@ function runBenchmark() {
     const message = event.data ?? {};
     if (message.type === "progress") {
       els.progress.value = Number(message.completed) || 0;
-      els.progressLabel.textContent = `${Number(message.completed).toLocaleString()} / ${Number(message.total).toLocaleString()} · ${message.opponentName || ""}`;
+      const deckLabel = message.deckLabel ? ` · ${message.deckLabel}` : "";
+      els.progressLabel.textContent = `${Number(message.completed).toLocaleString()} / ${Number(message.total).toLocaleString()} · ${message.opponentName || ""}${deckLabel}`;
       return;
     }
     if (message.type === "complete") {
       finishWorker();
-      renderResults(message.results ?? []);
+      renderResults(message.results ?? [], message.comparison ?? null);
       els.status.dataset.type = "info";
-      els.status.textContent = `Benchmark complete · ${Number(message.totalGames || 0).toLocaleString()} simulations. Confidence range, side gap and unresolved-rule rate are shown so noisy results are easier to identify.`;
+      els.status.textContent = message.comparison
+        ? `Comparison complete · ${Number(message.totalGames || 0).toLocaleString()} simulations. Deltas use identical seeds and side splits for both variants.`
+        : `Benchmark complete · ${Number(message.totalGames || 0).toLocaleString()} simulations. Confidence range, side gap and unresolved-rule rate are shown so noisy results are easier to identify.`;
       return;
     }
     if (message.type === "error") {
@@ -127,8 +158,12 @@ function runBenchmark() {
   worker.postMessage({
     type: "run",
     cards: state.cards,
+    playerName: player.name,
     playerDeck: player.deck,
     playerStrategy: strategy,
+    compareName: compare?.name ?? null,
+    compareDeck: compare?.deck ?? null,
+    compareStrategy: compareStrategy ?? null,
     opponents: opponents.map(deck => ({
       id: deck.id,
       name: deck.name,
@@ -163,12 +198,19 @@ function finishWorker() {
 
 function refreshRunOnly() {
   const player = getSelectedPlayerDeck();
-  els.run.disabled = deckSize(player.deck) !== 40 || getSelectedOpponents().length === 0 || Boolean(worker);
+  const compare = getCompareDeck();
+  const invalidCompare = compare && (deckSize(compare.deck) !== 40 || deckFingerprint(compare.deck) === deckFingerprint(player.deck));
+  els.run.disabled = deckSize(player.deck) !== 40 || invalidCompare || getSelectedOpponents().length === 0 || Boolean(worker);
 }
 
-function renderResults(results) {
+function renderResults(results, comparison) {
   if (!results.length) {
     els.results.innerHTML = '<div class="tools-muted">No benchmark results.</div>';
+    return;
+  }
+
+  if (comparison && results.some(result => result.compare)) {
+    renderComparisonResults(results, comparison);
     return;
   }
 
@@ -194,6 +236,62 @@ function renderResults(results) {
       </table>
     </div>
     <div class="benchmark-note">100 games is exploratory. 500 is better for tuning; 1,000 is preferred before comparing small win-rate differences. Same seed + same pool remains deterministic, while the 95% interval shows sampling noise and Side gap helps expose first/second bias.</div>
+  `;
+}
+
+function renderComparisonResults(results, comparison) {
+  const primaryOverall = summarizeAll(results);
+  const compareRows = results.map(result => ({
+    overall: result.compare.overall,
+    diagnostics: result.compare.diagnostics
+  }));
+  const compareOverall = summarizeAll(compareRows);
+  const delta = compareOverall.winRate - primaryOverall.winRate;
+  const primaryName = comparison.primaryName || "Primary deck";
+  const compareName = comparison.compareName || "Compare deck";
+
+  els.results.innerHTML = `
+    <div class="benchmark-overall">
+      ${metric(formatPct(primaryOverall.winRate), primaryName)}
+      ${metric(formatPct(compareOverall.winRate), compareName)}
+      ${metric(formatSignedPct(delta), "Overall delta")}
+      ${metric(`${primaryOverall.averageSideGap.toFixed(1)}% / ${compareOverall.averageSideGap.toFixed(1)}%`, "Side gap · A / B")}
+      ${metric(`${primaryOverall.unresolvedPerGame.toFixed(2)} / ${compareOverall.unresolvedPerGame.toFixed(2)}`, "Unresolved · A / B")}
+    </div>
+    <div class="benchmark-table-wrap">
+      <table class="benchmark-table">
+        <thead>
+          <tr>
+            <th>Matchup</th><th>A Win</th><th>B Win</th><th>Δ</th><th>A 95% CI</th><th>B 95% CI</th><th>A First/Second</th><th>B First/Second</th><th>Coverage A/B</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${results.map(renderComparisonRow).join("")}
+        </tbody>
+      </table>
+    </div>
+    <div class="benchmark-note"><strong>A:</strong> ${escapeHtml(primaryName)} · <strong>B:</strong> ${escapeHtml(compareName)}. Both variants run against the same opponents with the same deterministic seeds and alternating First/Second split. The raw Δ is useful for direction; use 500–1,000 games before treating small differences as meaningful.</div>
+  `;
+}
+
+function renderComparisonRow(result) {
+  const a = result.overall;
+  const b = result.compare.overall;
+  const delta = result.compare.deltaWinRate ?? (b.winRate - a.winRate);
+  const aTier = tierLabel(result.diagnostics?.rulesTier || "partial");
+  const bTier = tierLabel(result.compare.diagnostics?.rulesTier || "partial");
+  return `
+    <tr>
+      <td><strong>${escapeHtml(result.name)}</strong><small>${escapeHtml(result.class || "")} · ${escapeHtml(result.format || "Unlimited")}</small></td>
+      <td class="benchmark-win">${formatPct(a.winRate)}</td>
+      <td class="benchmark-win">${formatPct(b.winRate)}</td>
+      <td><strong>${formatSignedPct(delta)}</strong></td>
+      <td>${formatRange(a.winRate95)}</td>
+      <td>${formatRange(b.winRate95)}</td>
+      <td>${formatPct(result.first.winRate)} / ${formatPct(result.second.winRate)}</td>
+      <td>${formatPct(result.compare.first.winRate)} / ${formatPct(result.compare.second.winRate)}</td>
+      <td><span class="benchmark-coverage ${aTier.className}">A ${result.coverage.minimumModeledPercent}%</span> <span class="benchmark-coverage ${bTier.className}">B ${result.compare.coverage.minimumModeledPercent}%</span></td>
+    </tr>
   `;
 }
 
@@ -249,11 +347,24 @@ function coverageLabel(coverage) {
 }
 
 function getSelectedPlayerDeck() {
-  if (els.yourDeck.value === "__current__") {
-    return { name: "Current deck", deck: mainDeckFrom(state.deck) };
+  return getDeckByKey(els.yourDeck.value);
+}
+
+function getCompareDeck() {
+  const key = els.compare?.value || "";
+  return key ? getDeckByKey(key) : null;
+}
+
+function getDeckByKey(key) {
+  if (key === "__current__") {
+    return { key, name: "Current deck", deck: mainDeckFrom(state.deck) };
   }
-  const variant = state.savedDecks?.[els.yourDeck.value];
-  return { name: els.yourDeck.value, deck: mainDeckFrom(new Map((variant?.deck ?? []).map(([id, qty]) => [Number(id), Number(qty)]))) };
+  const variant = state.savedDecks?.[key];
+  return {
+    key,
+    name: key || "Saved deck",
+    deck: mainDeckFrom(new Map((variant?.deck ?? []).map(([id, qty]) => [Number(id), Number(qty)])))
+  };
 }
 
 function getSelectedOpponents() {
@@ -308,6 +419,14 @@ function strategyPreset(style) {
   return presets[style] ?? presets.midrange;
 }
 
+function deckFingerprint(deck) {
+  return (deck ?? [])
+    .map(([id, qty]) => [Number(id), Number(qty)])
+    .sort((a, b) => a[0] - b[0])
+    .map(([id, qty]) => `${id}:${qty}`)
+    .join("|");
+}
+
 function deckSize(deck) {
   return (deck ?? []).reduce((sum, entry) => sum + Number(Array.isArray(entry) ? entry[1] : entry.qty ?? entry.quantity ?? 1), 0);
 }
@@ -317,5 +436,7 @@ function metric(value, label) {
 }
 
 function formatPct(value) { return `${Number(value || 0).toFixed(1)}%`; }
-function formatRange(interval) { return `${Number(interval.low || 0).toFixed(1)}–${Number(interval.high || 0).toFixed(1)}%`; }
+function formatSignedPct(value) { const n = Number(value || 0); return `${n > 0 ? "+" : ""}${n.toFixed(1)}%`; }
+function formatRange(interval) { return `${Number(interval?.low || 0).toFixed(1)}–${Number(interval?.high || 0).toFixed(1)}%`; }
 function escapeHtml(value) { return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;"); }
+function escapeAttr(value) { return escapeHtml(value); }
