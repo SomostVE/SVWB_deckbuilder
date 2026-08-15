@@ -1,4 +1,4 @@
-// Calibration marker: rerun after Battle AI v1.1 profile-aware Extra PP decisions.
+// Calibration marker: rerun after Bane/Drain/actual-damage combat fixes.
 import fs from "node:fs/promises";
 import { simulateBattle } from "../js/battle-engine.js";
 
