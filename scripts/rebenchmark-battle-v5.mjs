@@ -1,11 +1,16 @@
 // Reproducible Battle Sim v5 matrix for Ward Havencraft and Puppetry Portalcraft.
 import fs from "node:fs/promises";
 import { runMatchupBenchmark } from "../js/battle-benchmark-core.js";
+import { analyzeCardSupport } from "../js/battle-engine.js";
 
 const cards = JSON.parse(await fs.readFile(new URL("../data/official/cards.json", import.meta.url), "utf8"));
 const refs = JSON.parse(await fs.readFile(new URL("../data/custom/reference-decks.json", import.meta.url), "utf8"));
 const cardMap = new Map(cards.map(card => [Number(card.id), card]));
 const decks = refs.decks ?? [];
+
+for (const card of cardMap.values()) {
+  card.__relatedNames = (card.relatedCards ?? []).map(id => cardMap.get(Number(id))?.name).filter(Boolean);
+}
 
 const focusIds = new Set(["ward-havencraft", "puppetry-portalcraft"]);
 const focusDecks = decks.filter(deck => focusIds.has(deck.id));
@@ -22,8 +27,49 @@ function fmt(value, digits = 1) {
   return Number(value ?? 0).toFixed(digits);
 }
 
+function generatedDependencies(reference) {
+  const deckIds = new Set(reference.cards.map(card => Number(card.cardId)));
+  const visited = new Set(deckIds);
+  const queue = [...deckIds];
+  const dependencies = [];
+
+  while (queue.length) {
+    const id = queue.shift();
+    const card = cardMap.get(Number(id));
+    if (!card) continue;
+    for (const relatedIdValue of card.relatedCards ?? []) {
+      const relatedId = Number(relatedIdValue);
+      if (!relatedId || visited.has(relatedId)) continue;
+      visited.add(relatedId);
+      queue.push(relatedId);
+      const related = cardMap.get(relatedId);
+      if (!related || deckIds.has(relatedId)) continue;
+      const support = analyzeCardSupport(related);
+      dependencies.push({
+        source: card.name,
+        card: related.name,
+        level: support.level,
+        reason: support.reason ?? ""
+      });
+    }
+  }
+
+  return dependencies;
+}
+
 for (const player of focusDecks) {
   console.log(`\n=== ${player.name} ===`);
+  const dependencies = generatedDependencies(player);
+  const nonFullDependencies = dependencies.filter(item => item.level !== "full");
+  if (nonFullDependencies.length) {
+    console.log("Generated / related cards with incomplete rules:");
+    for (const item of nonFullDependencies) {
+      console.log(`  ${item.card} <- ${item.source} | ${item.level} | ${item.reason}`);
+    }
+  } else {
+    console.log("Generated / related cards: all discovered dependencies fully modeled.");
+  }
+
   let totalWins = 0;
   let totalGames = 0;
   let totalDraws = 0;
