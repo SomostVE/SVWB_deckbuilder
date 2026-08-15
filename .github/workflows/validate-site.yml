@@ -37,6 +37,9 @@ jobs:
       - name: Run Battle Sim Artifact history regressions
         run: node scripts/check-battle-artifact-history.mjs
 
+      - name: Run Battle Sim focus deck regressions
+        run: node scripts/check-battle-focus-rules.mjs
+
       - name: Run Battle Sim v5 integration
         run: node scripts/check-battle-v5-integration.mjs
 
