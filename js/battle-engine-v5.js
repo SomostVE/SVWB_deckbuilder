@@ -104,7 +104,6 @@ export function simulateBattle({ playerDeck, opponentDeck, cardMap, playerStrate
       }
       snap(frames, players, { round, active, phase: "draw", action: `${p.name} draws a card.` }, stats, recordFrames);
 
-      useBonusPpIfUseful(p, o);
       runTurnAi({
         player: p, opponent: o, playerIndex: active, enemyIndex: enemy,
         stats, frames, players, round, rng, map: simulationMap, record: recordFrames
@@ -481,6 +480,11 @@ function runTurnAi({ player, opponent, playerIndex, enemyIndex, stats, frames, p
   let setupAttempts = 0;
 
   while (safety++ < MAX_ACTIONS) {
+    // Extra PP is a turn action in Worlds Beyond, not a start-of-turn trigger.
+    // Re-evaluate it after every action so the second player can spend it at
+    // the actual tactical breakpoint instead of blindly firing it up front.
+    useBonusPpIfUseful(player, opponent);
+
     // Never develop past a lethal already available on board.
     if (hasCollectiveBoardLethal(player, opponent)) {
       attackPhase(player, opponent, playerIndex, enemyIndex, stats, frames, players, round, rng, map, record);
@@ -1695,9 +1699,12 @@ function superEvolveUnitByAbility(ctx, unit, actions) {
 
 function attackPhase(player, opponent, playerIndex, enemyIndex, stats, frames, players, round, rng, map, record, options = {}) {
   const setupOnly = Boolean(options.setupOnly);
-  const attackers = setupOnly ? rankSetupAttackers(player, opponent) : [...player.board].filter(unit => unit.type === "Follower");
-  for (const attacker of attackers) {
+  let attackGuard = 0;
+  while (attackGuard++ < MAX_ACTIONS) {
     if (setupOnly && player.board.length < 5) return;
+    const attackers = setupOnly ? rankSetupAttackers(player, opponent) : rankAttackers(player, opponent);
+    const attacker = attackers[0];
+    if (!attacker) return;
     while (player.board.includes(attacker) && attacker.attacksMade < attacker.maxAttacks) {
       if (setupOnly && player.board.length < 5) return;
       const wards = activeWards(opponent.board);
@@ -1819,6 +1826,60 @@ function attackPhase(player, opponent, playerIndex, enemyIndex, stats, frames, p
 
 function attackable(board) { return board.filter(unit => unit.type === "Follower" && !unit.intimidate && !unit.ambush); }
 function activeWards(board) { return board.filter(unit => unit.type === "Follower" && hasU(unit, "Ward") && !unit.intimidate && !unit.ambush); }
+
+// [[battle-ai-v2-2-attack-order]]
+function rankAttackers(player, opponent) {
+  const wards = activeWards(opponent.board);
+  const foes = attackable(opponent.board);
+  const lethal = hasCollectiveBoardLethal(player, opponent);
+  return player.board
+    .filter(unit => unit.type === "Follower" && unit.attacksMade < unit.maxAttacks && canAttackCurrentState(unit, wards, foes))
+    .map(unit => ({ unit, score: attackPriorityScore(unit, player, opponent, wards, foes, lethal) }))
+    .sort((a, b) => b.score - a.score || String(a.unit.uid).localeCompare(String(b.unit.uid)))
+    .map(entry => entry.unit);
+}
+
+function canAttackCurrentState(unit, wards, foes) {
+  if (wards.length) return Boolean(unit.canAttackFollower && wards.length);
+  return Boolean(unit.canAttackLeader || (unit.canAttackFollower && foes.length));
+}
+
+function attackPriorityScore(attacker, player, opponent, wards, foes, lethal) {
+  const attack = Math.max(0, Number(attacker.attack) || 0);
+  const defense = Math.max(0, Number(attacker.defense) || 0);
+  if (lethal && attacker.canAttackLeader && !wards.length) return 1000 + attack * 10;
+
+  const targets = wards.length ? wards : foes;
+  const removable = attacker.canAttackFollower
+    ? targets.filter(target => canCombatRemove(attacker, target))
+    : [];
+  let score = 0;
+
+  // Rush-only bodies must cash in their combat utility before versatile
+  // attackers. Among valid trades, prefer the smallest sufficient body so a
+  // large follower is not wasted into a tiny target.
+  if (attacker.canAttackFollower && !attacker.canAttackLeader) score += 18;
+  if (removable.length) {
+    const bestTarget = tradeTarget(attacker, removable, player.strategy);
+    const threat = Math.max(0, Number(bestTarget?.attack) || 0) * 2.5 + Math.max(0, Number(bestTarget?.defense) || 0);
+    const overkill = hasU(attacker, "Bane") ? 0 : Math.max(0, attack - Math.max(0, Number(bestTarget?.defense) || 0));
+    const survives = !willFollowerDieInCombat(attacker, bestTarget, player);
+    score += 22 + threat + (survives ? 8 : 0) - overkill * 1.5;
+  }
+
+  const strikeText = getUnitTriggeredText(attacker, "strike");
+  if (strikeText) score += 5 + evolutionTextValue(strikeText, player, opponent, attacker) * .5;
+  if (attacker.canAttackLeader && !wards.length) {
+    const style = String(player.strategy?.style ?? "midrange");
+    const faceWeight = style === "aggro" ? 1.8 : style === "buff-tempo" || style === "puppetry-tempo" ? 1.1 : .55;
+    score += attack * faceWeight;
+    if (opponent.hp <= attack) score += 500;
+  }
+  if (hasU(attacker, "Bane") && removable.length) score += 3;
+  if (attacker.superEvolved && removable.length) score += 2;
+  score -= defense * .03;
+  return score;
+}
 
 function rankSetupAttackers(player, opponent) {
   const wards = activeWards(opponent.board);
