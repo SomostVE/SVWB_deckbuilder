@@ -7,7 +7,6 @@ const ROOT = path.resolve(__dirname, "..");
 const SOURCE_PATH = path.join(ROOT, "data", "custom", "reference-decks.source.json");
 const OUTPUT_PATH = path.join(ROOT, "data", "custom", "reference-decks.json");
 const API = "https://shadowverse-wb.com/web/CardList/cardList";
-
 const TYPE_NAMES = { 1: "Follower", 2: "Amulet", 3: "Amulet", 4: "Spell" };
 const RARITY_NAMES = { 1: "Bronze", 2: "Silver", 3: "Gold", 4: "Legendary" };
 
@@ -64,21 +63,18 @@ async function loadOfficialCards() {
   return maps;
 }
 
-async function inspectDeckShare(deck) {
-  const url = new URL("https://shadowverse-wb.com/web/Deck/share");
-  url.searchParams.set("hash", deck.portalHash);
-  url.searchParams.set("lang", "en");
-  const response = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" }, redirect: "follow" });
+async function inspectDeckDetail(deck) {
+  const response = await fetch(deck.sourceUrl, { headers: { "User-Agent": "Mozilla/5.0", "Accept-Language": "en" }, redirect: "follow" });
   const html = await response.text();
-  console.log(`Deck share ${deck.name}: status=${response.status} final=${response.url} html=${html.length}`);
-  console.log(`Deck share raw HTML: ${html.replace(/\s+/g, " ")}`);
+  console.log(`Deck detail ${deck.name}: status=${response.status} final=${response.url} html=${html.length}`);
   const imageRefs = [...html.matchAll(/uploads\/card_image\/[^\"'<>\s]+/gi)].map(match => match[0]);
-  console.log(`Deck share image refs (${imageRefs.length}): ${JSON.stringify(imageRefs.slice(0, 8))}`);
-  const cardSnippets = [...html.matchAll(/.{0,140}(?:card[_-]id|card_image|deck[_-]card|data-card).{0,260}/gi)].map(match => match[0].replace(/\s+/g, " "));
-  console.log(`Deck share card snippets (${cardSnippets.length}): ${JSON.stringify(cardSnippets.slice(0, 8))}`);
+  console.log(`Deck detail image refs (${imageRefs.length}): ${JSON.stringify(imageRefs.slice(0, 30))}`);
+  const cardSnippets = [...html.matchAll(/.{0,180}(?:card[_-]id|card_image|deck[_-]card|data-card).{0,360}/gi)].map(match => match[0].replace(/\s+/g, " "));
+  console.log(`Deck detail card snippets (${cardSnippets.length}): ${JSON.stringify(cardSnippets.slice(0, 15))}`);
   const numericIds = [...new Set(html.match(/\b\d{8,9}\b/g) ?? [])];
-  console.log(`Deck share numeric IDs (${numericIds.length}): ${JSON.stringify(numericIds.slice(0, 40))}`);
-  return html;
+  console.log(`Deck detail numeric IDs (${numericIds.length}): ${JSON.stringify(numericIds.slice(0, 80))}`);
+  const scripts = [...html.matchAll(/<script[^>]+src=["']([^"']+)["']/gi)].map(match => match[1]);
+  console.log(`Deck detail scripts (${scripts.length}): ${JSON.stringify(scripts.slice(-20))}`);
 }
 
 function countInOrder(values) {
@@ -96,7 +92,6 @@ async function main() {
   const maps = await loadOfficialCards();
   const decks = [];
   let inspected = false;
-
   for (const deck of source.decks ?? []) {
     const parsed = parseHash(deck.portalHash);
     const counts = countInOrder(parsed.tokens);
@@ -107,27 +102,15 @@ async function main() {
       if (!common) {
         if (!inspected) {
           inspected = true;
-          await inspectDeckShare(deck);
+          await inspectDeckDetail(deck);
         }
         throw new Error(`${deck.name}: portal token ${token} decoded to ${portalIdentifier}; no match in resource/card/base identifiers`);
       }
-      cards.push({
-        cardId: Number(common.card_id),
-        baseCardId: Number(common.base_card_id ?? common.card_id),
-        resourceId: Number(common.card_resource_id ?? 0),
-        portalIdentifier,
-        portalToken: token,
-        qty,
-        name: common.name ?? "",
-        cost: Number(common.cost ?? 0),
-        type: TYPE_NAMES[Number(common.type)] ?? `Type ${common.type}`,
-        rarity: RARITY_NAMES[Number(common.rarity)] ?? `Rarity ${common.rarity}`
-      });
+      cards.push({ cardId: Number(common.card_id), baseCardId: Number(common.base_card_id ?? common.card_id), resourceId: Number(common.card_resource_id ?? 0), portalIdentifier, portalToken: token, qty, name: common.name ?? "", cost: Number(common.cost ?? 0), type: TYPE_NAMES[Number(common.type)] ?? `Type ${common.type}`, rarity: RARITY_NAMES[Number(common.rarity)] ?? `Rarity ${common.rarity}` });
     }
     if (cards.reduce((sum, card) => sum + card.qty, 0) !== 40) throw new Error(`${deck.name}: resolved deck is not 40 cards`);
     decks.push({ id: deck.id, name: deck.name, class: deck.class, format: deck.format, strategy: deck.strategy, sourceUrl: deck.sourceUrl, portalHash: deck.portalHash, portalFormat: parsed.portalFormat, classId: parsed.classId, cards });
   }
-
   const output = { format: "svwb-reference-decks", version: 1, generatedAt: new Date().toISOString(), source: "Official Shadowverse: Worlds Beyond CardList API + stored Deck Portal hashes", runtimeNetworkCalls: false, decks };
   await fs.writeFile(OUTPUT_PATH, JSON.stringify(output, null, 2) + "\n");
   console.log(`Resolved ${decks.length} reference decks.`);
