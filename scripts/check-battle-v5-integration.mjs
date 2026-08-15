@@ -25,9 +25,7 @@ const expectedPartials = new Map([
     "Aether, Empyrean Guardian",
     "Edeth, Voice of Heaven"
   ]],
-  ["Puppetry Portalcraft", [
-    "Asher & Lydia, Paths Beyond"
-  ]]
+  ["Puppetry Portalcraft", []]
 ]);
 
 for (const name of ["Ward Havencraft", "Puppetry Portalcraft"]) {
@@ -36,7 +34,14 @@ for (const name of ["Ward Havencraft", "Puppetry Portalcraft"]) {
   const coverage = analyzeDeckCoverage(deck, cardMap);
   assert.equal(coverage.unsupported, 0, `${name}: unsupported copies must be zero`);
   assert.deepEqual(coverage.partialCards, expectedPartials.get(name), `${name}: partial list must reflect only the remaining known unmodeled clauses`);
-  assert.ok(coverage.partial > 0 && coverage.modeledPercent < 100, `${name}: honest coverage must remain below 100% until the remaining clauses are implemented`);
+
+  const fullyModeled = expectedPartials.get(name).length === 0;
+  if (fullyModeled) {
+    assert.equal(coverage.partial, 0, `${name}: fully modeled deck must have zero partial copies`);
+    assert.equal(coverage.modeledPercent, 100, `${name}: fully modeled deck must report 100% coverage`);
+  } else {
+    assert.ok(coverage.partial > 0 && coverage.modeledPercent < 100, `${name}: honest coverage must remain below 100% until the remaining clauses are implemented`);
+  }
 
   const result = simulateBattle({
     playerDeck: deck,
@@ -49,8 +54,8 @@ for (const name of ["Ward Havencraft", "Puppetry Portalcraft"]) {
     recordFrames: false
   });
   assert.ok(result.summary.rounds > 0, `${name}: simulation must complete turns`);
-  assert.equal(result.summary.experimental, true, `${name}: known partial rules must keep the simulation marked experimental`);
-  console.log(`${name}: ${coverage.modeledPercent}% modeled · partial: ${coverage.partialCards.join(", ")} · ${result.summary.rounds} rounds`);
+  assert.equal(result.summary.experimental, !fullyModeled, `${name}: experimental flag must match known rules coverage`);
+  console.log(`${name}: ${coverage.modeledPercent}% modeled · partial: ${coverage.partialCards.join(", ") || "none"} · ${result.summary.rounds} rounds`);
 }
 
 const fullyModeledFocusCards = [
@@ -64,6 +69,7 @@ const fullyModeledFocusCards = [
   "Lovestruck Puppeteer",
   "Cool Courier",
   "Eudie, Your Dependable Mentor",
+  "Asher & Lydia, Paths Beyond",
   "Odin, Twilit Fate"
 ];
 
