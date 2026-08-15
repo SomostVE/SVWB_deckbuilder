@@ -558,7 +558,7 @@ function runTurnAi({ player, opponent, playerIndex, enemyIndex, stats, frames, p
       const result = resolveEngage(engage.unit, player, opponent, playerIndex, enemyIndex, stats, rng, map);
       snap(frames, players, { round, active: playerIndex, phase: "play", action: compact(`${player.name} engages ${engage.unit.name}${engage.cost ? ` (${engage.cost} PP)` : ""}.`, result.actions) }, stats, record);
     } else if (play) {
-      const result = playCard(play.instance, play.mode, player, opponent, playerIndex, enemyIndex, stats, rng, map);
+      const result = playCard(play.instance, play.mode, player, opponent, playerIndex, enemyIndex, stats, rng, map, { targetPlan: play.targetPlan });
       snap(frames, players, { round, active: playerIndex, phase: "play", action: compact(`${player.name} plays ${play.instance.card.name} (${play.mode.cost} PP${play.mode.kind !== "base" ? ` · ${cap(play.mode.kind)}` : ""}).`, result.actions) }, stats, record);
     } else if (fuse) {
       const result = resolveFuseAction(fuse, player, opponent, playerIndex, enemyIndex, stats, rng, map);
@@ -1063,10 +1063,82 @@ function section(textValue, label) {
   return text.slice(hit.end, next?.start ?? text.length).trim();
 }
 
+function targetableEnemyFollowers(board) {
+  return board.filter(unit => unit.type === "Follower" && !unit.aura && !unit.ambush);
+}
+
+function targetEffectSpec(item) {
+  const text = String(item?.mode?.text || item?.instance?.card?.text || "");
+  let match = text.match(/deal\s+(\d+)\s+damage to (?:an|a|the) enemy follower/i);
+  if (match) return { kind: "damage", amount: Number(match[1]) || 0 };
+  if (/destroy (?:an|a|the) enemy follower/i.test(text)) return { kind: "destroy", amount: 0 };
+  if (/banish (?:an|a|the) enemy follower/i.test(text)) return { kind: "banish", amount: 0 };
+  if (/return (?:an|a|the) enemy follower to (?:its owner'?s|their) hand/i.test(text)) return { kind: "return", amount: 0 };
+  if (/deal X damage to (?:an|a|the) enemy follower/i.test(text)) return { kind: "damage", amount: Math.max(0, Number(item?.instance?.x) || 0), x: true };
+
+  match = text.match(/select an enemy follower(?: on the field)? and deal it\s+(\d+)\s+damage/i);
+  if (match) return { kind: "damage", amount: Number(match[1]) || 0, selectedGrammar: true };
+  if (/select an enemy follower(?: on the field)? and destroy it/i.test(text)) return { kind: "destroy", amount: 0, selectedGrammar: true };
+  if (/select an enemy follower(?: on the field)? and banish it/i.test(text)) return { kind: "banish", amount: 0, selectedGrammar: true };
+  return null;
+}
+
+function followerThreatValue(unit) {
+  if (!unit) return 0;
+  const attack = Math.max(0, Number(unit.attack) || 0);
+  const defense = Math.max(0, Number(unit.defense) || 0);
+  const text = norm(unit.card?.text ?? "");
+  return attack * 2.5 + defense
+    + (hasU(unit, "Ward") ? 2.5 : 0)
+    + (hasU(unit, "Bane") ? 2.5 : 0)
+    + (hasU(unit, "Storm") ? 2 : 0)
+    + (unit.evolved ? 1.5 : 0)
+    + (unit.superEvolved ? 2.5 : 0)
+    + (/at the (?:start|end) of your turn|whenever|once on each/.test(text) ? 2 : 0);
+}
+
+function targetBranchValue(plan, opponent) {
+  if (!plan?.enemyUid) return 0;
+  const unit = opponent.board.find(item => item.uid === plan.enemyUid);
+  if (!unit) return -6;
+  const threat = followerThreatValue(unit);
+  const text = norm(unit.card?.text ?? "");
+  const lastWords = /last words\s*:/.test(text);
+  const fanfare = /fanfare\s*:/.test(text);
+  if (plan.kind === "banish") return 8 + threat + (lastWords ? 7 : 0);
+  if (plan.kind === "destroy") return 8 + threat - (lastWords ? 4 : 0);
+  if (plan.kind === "return") return 5 + threat + Math.max(0, Number(unit.card?.cost) || 0) * .6 - (fanfare ? 3 : 0);
+  if (plan.kind === "damage") {
+    const amount = Math.max(0, Number(plan.amount) || 0);
+    const barrier = Math.max(0, Number(unit.barrier) || 0) > 0;
+    const kill = !barrier && amount >= Math.max(1, Number(unit.defense) || 1);
+    const effective = barrier ? 0 : Math.min(amount, Math.max(0, Number(unit.defense) || 0));
+    const overkill = kill ? Math.max(0, amount - Math.max(0, Number(unit.defense) || 0)) : 0;
+    return (kill ? 12 + threat : effective * .9 + threat * .16) - overkill * .35;
+  }
+  return 0;
+}
+
+function expandPlayTargetBranches(item, opponent) {
+  const spec = targetEffectSpec(item);
+  if (!spec) return [{ ...item, targetPlan: null }];
+  const targets = targetableEnemyFollowers(opponent.board);
+  if (!targets.length) return [{ ...item, targetPlan: null }];
+  return targets.map(unit => ({
+    ...item,
+    targetPlan: { enemyUid: unit.uid, enemyName: unit.name, kind: spec.kind, amount: spec.amount, selectedGrammar: Boolean(spec.selectedGrammar) }
+  }));
+}
+
+function scoredPlayOptions(player, opponent, includeContinuation = true) {
+  return getModesForHand(player)
+    .flatMap(item => expandPlayTargetBranches(item, opponent))
+    .map(item => ({ ...item, score: scorePlay(item, player, opponent, includeContinuation) }))
+    .sort((a,b)=>b.score-a.score || b.mode.cost-a.mode.cost || String(a.targetPlan?.enemyUid ?? "").localeCompare(String(b.targetPlan?.enemyUid ?? "")));
+}
+
 function bestPlay(player, opponent) {
-  const options = getModesForHand(player)
-    .map(item => ({ ...item, score: scorePlay(item, player, opponent) }))
-    .sort((a,b)=>b.score-a.score || b.mode.cost-a.mode.cost);
+  const options = scoredPlayOptions(player, opponent, true);
   const best = options[0] ?? null;
   if (!best) return null;
   return best.score > scorePassDecision(player, opponent) ? best : null;
@@ -1093,8 +1165,9 @@ export function inspectAiPlayChoice({
     defense: Math.max(0, Number(unit.defense) || 0),
     maxDefense: Math.max(0, Number(unit.maxDefense ?? unit.defense) || 0),
     keywords: [...(unit.keywords ?? unit.card?.keywords ?? [])],
-    ambush: Boolean(unit.ambush),
-    intimidate: Boolean(unit.intimidate),
+    aura: Boolean(unit.aura) || (unit.keywords ?? unit.card?.keywords ?? []).some(keyword => norm(keyword) === "aura"),
+    ambush: Boolean(unit.ambush) || (unit.keywords ?? unit.card?.keywords ?? []).some(keyword => norm(keyword) === "ambush"),
+    intimidate: Boolean(unit.intimidate) || (unit.keywords ?? unit.card?.keywords ?? []).some(keyword => norm(keyword) === "intimidate"),
     permanentAttackLock: Boolean(unit.permanentAttackLock),
     evolved: Boolean(unit.evolved),
     superEvolved: Boolean(unit.superEvolved)
@@ -1115,9 +1188,7 @@ export function inspectAiPlayChoice({
     hp: Number(opponentHp) || 0,
     board: opponentBoard.map((unit, index) => toUnit(unit, index, "enemy"))
   };
-  const options = getModesForHand(player)
-    .map(item => ({ ...item, score: scorePlay(item, player, opponent) }))
-    .sort((a,b)=>b.score-a.score || b.mode.cost-a.mode.cost);
+  const options = scoredPlayOptions(player, opponent, true);
   const best = options[0] ?? null;
   const passScore = scorePassDecision(player, opponent);
   const selected = best && best.score > passScore ? best : null;
@@ -1125,11 +1196,27 @@ export function inspectAiPlayChoice({
     decision: selected ? "play" : "pass",
     cardName: selected?.instance?.card?.name ?? null,
     mode: selected?.mode?.kind ?? null,
+    targetName: selected?.targetPlan?.enemyName ?? null,
+    targetKind: selected?.targetPlan?.kind ?? null,
     score: selected ? selected.score : passScore,
     bestPlayScore: best?.score ?? null,
     passScore,
     projectedIncomingDamage: estimateVisibleIncomingDamage(player, opponent)
   };
+}
+
+export function inspectRandomEnemyTargets(board = [], seeds = []) {
+  const units = board.map((unit, index) => ({
+    uid: unit.uid ?? `random-${index}`,
+    type: "Follower",
+    name: unit.name ?? `Follower ${index + 1}`,
+    attack: Math.max(0, Number(unit.attack) || 0),
+    defense: Math.max(1, Number(unit.defense) || 1),
+    card: { name: unit.name ?? `Follower ${index + 1}`, text: unit.text ?? "", keywords: [...(unit.keywords ?? [])] },
+    keywords: [...(unit.keywords ?? [])],
+    aura: Boolean(unit.aura), ambush: Boolean(unit.ambush)
+  }));
+  return seeds.map(seed => chooseRandomTarget(units, createRng(String(seed)))?.name ?? null);
 }
 
 function scorePassDecision(player, opponent) {
@@ -1194,8 +1281,14 @@ function projectedSurvivalAfterPlay(item, player, opponent) {
 
   const enemyFollowers = projectedOpponent.board.filter(unit => unit.type === "Follower");
   const allRemoval = /(?:destroy|banish|return)[^.]*all enemy followers/.test(text);
+  const planned = item.targetPlan?.enemyUid ? enemyFollowers.find(unit => unit.uid === item.targetPlan.enemyUid) : null;
   if (allRemoval) {
     projectedOpponent.board = projectedOpponent.board.filter(unit => unit.type !== "Follower");
+  } else if (planned && ["destroy", "banish", "return"].includes(item.targetPlan.kind)) {
+    projectedOpponent.board = projectedOpponent.board.filter(unit => unit !== planned);
+  } else if (planned && item.targetPlan.kind === "damage") {
+    const damage = Math.max(0, Number(item.targetPlan.amount) || 0);
+    if (!(Number(planned.barrier) > 0) && damage >= (Number(planned.defense) || 0)) projectedOpponent.board = projectedOpponent.board.filter(unit => unit !== planned);
   } else if (/(?:destroy|banish|return)[^.]*enemy follower/.test(text) && enemyFollowers.length) {
     const target = [...enemyFollowers].sort((a,b)=>(Number(b.attack)||0)-(Number(a.attack)||0))[0];
     projectedOpponent.board = projectedOpponent.board.filter(unit => unit !== target);
@@ -1314,6 +1407,7 @@ function scorePlay(item, player, opponent, includeContinuation = true) {
   if (style === "spell-combo" && (card.type === "Spell" || item.mode.kind === "accelerate")) score += 5;
   if (/select a mode/i.test(card.text)) score += 1.5;
 
+  score += targetBranchValue(item.targetPlan, opponent);
   score += timingLookaheadValue(item, player, opponent);
   score += survivalLookaheadValue(item, player, opponent);
   if (includeContinuation) score += continuationValue(item, player, opponent);
@@ -1331,9 +1425,7 @@ function continuationValue(item, player, opponent) {
   let bestFollowUp = null;
   let followUpPass = 0;
   try {
-    bestFollowUp = getModesForHand(player)
-      .map(other => ({ ...other, score: scorePlay(other, player, opponent, false) }))
-      .sort((a,b)=>b.score-a.score || b.mode.cost-a.mode.cost)[0] ?? null;
+    bestFollowUp = scoredPlayOptions(player, opponent, false)[0] ?? null;
     followUpPass = scorePassDecision(player, opponent);
   } finally {
     player.pp = previousPp;
@@ -1354,7 +1446,7 @@ function strongestFollowerThreat(foes) {
   ), 0);
 }
 
-function playCard(inst, mode, player, opponent, playerIndex, enemyIndex, stats, rng, cardMap) {
+function playCard(inst, mode, player, opponent, playerIndex, enemyIndex, stats, rng, cardMap, options = {}) {
   player.hand = player.hand.filter(item => item.uid !== inst.uid);
   player.pp -= mode.cost;
   player.cardsPlayedThisTurn += 1;
@@ -1389,7 +1481,7 @@ function playCard(inst, mode, player, opponent, playerIndex, enemyIndex, stats, 
   applyLootPlayedTrigger(player, opponent, card, playerIndex, enemyIndex, stats, rng, cardMap, actions);
 
   if (mode.kind !== "crystallize") {
-    const result = resolveText(mode.text || card.text, { card, instance: inst, sourceUnit: source, player, opponent, playerIndex, enemyIndex, stats, rng, cardMap });
+    const result = resolveText(mode.text || card.text, { card, instance: inst, sourceUnit: source, player, opponent, playerIndex, enemyIndex, stats, rng, cardMap, targetPlan: options.targetPlan ?? null });
     actions.push(...result.actions);
   }
 
@@ -1630,7 +1722,7 @@ function resolveText(raw, ctx) {
 
   for (const match of [...text.matchAll(/deal (\d+) damage to (a random|random|an|a|the) enemy follower/gi)]) {
     const random = /random/i.test(match[2]);
-    const target = chooseTarget(ctx.opponent.board, !random);
+    const target = random ? chooseRandomTarget(ctx.opponent.board, ctx.rng) : choosePlannedTarget(ctx, ctx.opponent.board);
     if (target) {
       damageUnit(target, Number(match[1]), ctx.opponent, ctx.player, ctx, actions);
       actions.push(`${match[1]} to ${target.name}`);
@@ -1658,28 +1750,28 @@ function resolveText(raw, ctx) {
     text = text.replace(match[0], "");
   }
   if (/destroy (?:an|a|the) enemy follower/i.test(text)) {
-    const unit = chooseTarget(ctx.opponent.board, true);
+    const unit = choosePlannedTarget(ctx, ctx.opponent.board);
     if (unit && destroyUnit(ctx.opponent, unit)) actions.push(`destroy ${unit.name}`);
     text = text.replace(/destroy (?:an|a|the) enemy follower\.?/i, "");
   }
   if (/destroy (?:a random|random) enemy follower/i.test(text)) {
-    const unit = chooseTarget(ctx.opponent.board, false);
+    const unit = chooseRandomTarget(ctx.opponent.board, ctx.rng);
     if (unit && destroyUnit(ctx.opponent, unit)) actions.push(`destroy ${unit.name}`);
     text = text.replace(/destroy (?:a random|random) enemy follower\.?/i, "");
   }
   if (/banish (?:an|a|the) enemy follower/i.test(text)) {
-    const unit = chooseTarget(ctx.opponent.board, true);
+    const unit = choosePlannedTarget(ctx, ctx.opponent.board);
     if (unit) { banish(ctx.opponent, unit); actions.push(`banish ${unit.name}`); }
     text = text.replace(/banish (?:an|a|the) enemy follower\.?/i, "");
   }
   if (/return (?:an|a|the) enemy follower to (?:its owner'?s|their) hand/i.test(text)) {
-    const unit = chooseTarget(ctx.opponent.board, true);
+    const unit = choosePlannedTarget(ctx, ctx.opponent.board);
     if (unit) { bounce(ctx.opponent, unit); actions.push(`return ${unit.name}`); }
     text = text.replace(/return (?:an|a|the) enemy follower to (?:its owner'?s|their) hand\.?/i, "");
   }
   const xDamage = text.match(/deal X damage to (?:an|a|the) enemy follower/i);
   if (xDamage) {
-    const target = chooseTarget(ctx.opponent.board, true);
+    const target = choosePlannedTarget(ctx, ctx.opponent.board);
     if (target) { damageUnit(target, x, ctx.opponent, ctx.player, ctx, actions); actions.push(`${x} to ${target.name}`); }
     text = text.replace(xDamage[0], "");
   }
@@ -1717,7 +1809,7 @@ function effectContext(ctx) {
     playerIndex: ctx.playerIndex, enemyIndex: ctx.enemyIndex, stats: ctx.stats, rng: ctx.rng,
     recordHandEvolution: () => recordHandEvolution(ctx.player),
     draw: (player, amount, index) => drawCards(player, amount, ctx.stats, index),
-    chooseEnemyFollower: board => chooseTarget(board, true),
+    chooseEnemyFollower: board => choosePlannedTarget(ctx, board),
     chooseAlliedFollower: (board, excluded) => board.filter(unit => unit.type === "Follower" && unit !== excluded).sort((a,b)=>b.attack+b.defense-a.attack-a.defense)[0] ?? excluded,
     chooseHandFollower: hand => hand.filter(item => item.card.type === "Follower").sort((a,b)=>(Number(b.card.cost)||0)-(Number(a.card.cost)||0))[0] ?? null,
     // [[battle-coverage-100-context]]
@@ -2603,6 +2695,18 @@ function reactDamage(unit, owner, opponent, ctx, actions) {
 
 function chooseTarget(board, targeted) {
   return board.filter(unit => unit.type === "Follower" && (!targeted || (!unit.aura && !unit.ambush))).sort((a,b)=>b.attack+b.defense-a.attack-a.defense)[0] ?? null;
+}
+
+function choosePlannedTarget(ctx, board) {
+  const legal = targetableEnemyFollowers(board);
+  const planned = ctx?.targetPlan?.enemyUid ? legal.find(unit => unit.uid === ctx.targetPlan.enemyUid) : null;
+  return planned ?? legal.sort((a,b)=>followerThreatValue(b)-followerThreatValue(a))[0] ?? null;
+}
+
+function chooseRandomTarget(board, rng) {
+  const eligible = board.filter(unit => unit.type === "Follower");
+  if (!eligible.length) return null;
+  return eligible[Math.floor(rng() * eligible.length)] ?? eligible[0];
 }
 
 function tradeTarget(attacker, targets, strategy) {
