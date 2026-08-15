@@ -23,7 +23,8 @@ export function runMatchupBenchmark({
       playerStrategy,
       opponentStrategy,
       seed: `${seed}:${index}`,
-      playerSide: side
+      playerSide: side,
+      recordFrames: false
     });
 
     addResult(aggregate, result);
