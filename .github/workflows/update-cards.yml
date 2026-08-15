@@ -36,6 +36,7 @@ jobs:
       - name: Validate card data
         run: |
           node -e "const fs=require('fs');const cards=JSON.parse(fs.readFileSync('data/official/cards.json','utf8'));if(!Array.isArray(cards)||cards.length<100)throw new Error('Card update returned an invalid or suspiciously small database');console.log(cards.length+' cards validated')"
+          node -e "const fs=require('fs');const log=JSON.parse(fs.readFileSync('data/official/changelog.json','utf8'));if(!log.counts||!Array.isArray(log.added)||!Array.isArray(log.modified)||!Array.isArray(log.removed))throw new Error('Card changelog is invalid');console.log('changelog validated: +'+log.counts.added+' · ~'+log.counts.modified+' · -'+log.counts.removed)"
           node -e "const fs=require('fs');const data=JSON.parse(fs.readFileSync('data/custom/reference-decks.json','utf8'));if(!Array.isArray(data.decks)||data.decks.length<7)throw new Error('Reference deck pool is incomplete');for(const d of data.decks){const n=(d.cards||[]).reduce((s,c)=>s+Number(c.qty||0),0);if(n!==40)throw new Error(d.name+': '+n+'/40 cards');if(!(d.cards||[]).every(c=>Number(c.cardId)>0))throw new Error(d.name+': unresolved card IDs')}console.log(data.decks.length+' reference decks validated')"
 
       - name: Commit changes
@@ -47,6 +48,6 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/official/cards.json data/official/metadata.json data/custom/reference-decks.json
+          git add data/official/cards.json data/official/metadata.json data/official/changelog.json data/custom/reference-decks.json
           git commit -m "chore: update Shadowverse card and reference deck data"
           git push
