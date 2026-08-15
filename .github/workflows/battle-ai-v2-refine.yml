@@ -24,7 +24,7 @@ jobs:
           node-version: "24"
 
       - name: Materialize AI refinement
-        run: python3 scripts/materialize-battle-ai-v2.py
+        run: python3 scripts/materialize-battle-ai-v21.py
 
       - name: Syntax and Battle Sim regressions
         run: |
@@ -54,5 +54,5 @@ jobs:
             echo "No changes to commit"
             exit 0
           fi
-          git commit -m "feat: refine Battle Sim AI sequencing"
+          git commit -m "feat: tune Battle Sim AI v2.1"
           git push
