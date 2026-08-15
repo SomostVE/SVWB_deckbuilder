@@ -24,8 +24,8 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Audit remaining partial cards
+      - name: Verify remaining partial-card audit
         run: node scripts/audit-remaining-coverage.mjs
 
-      - name: Audit and rebenchmark focus rules
+      - name: Rebenchmark 100 percent rule coverage
         run: node scripts/rebenchmark-battle-v5.mjs
