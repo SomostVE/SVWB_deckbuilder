@@ -1,0 +1,46 @@
+name: Apply Battle Sim focus rules
+
+on:
+  push:
+    paths:
+      - ".github/workflows/apply-battle-focus-rules.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Materialize focus rules
+        run: node scripts/apply-battle-focus-rules.mjs
+
+      - name: Check changed JavaScript syntax
+        run: |
+          node --check js/battle-rules.js
+          node --check js/battle-engine-v4.js
+
+      - name: Run focus rule regressions
+        run: node scripts/check-battle-focus-rules.mjs
+
+      - name: Commit tested rules
+        run: |
+          if git diff --quiet -- js/battle-rules.js js/battle-engine-v4.js; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/battle-rules.js js/battle-engine-v4.js
+          git commit -m "feat: model focus Battle Sim rules"
+          git push origin HEAD:main
