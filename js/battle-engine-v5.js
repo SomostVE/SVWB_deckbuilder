@@ -14,6 +14,7 @@ export const BATTLE_RULES_VERSION = 5;
 const MAX_ROUNDS = 60;
 const MAX_ACTIONS = 24;
 const GAP_HOOK = "[[battle-rule-gap-hook]]";
+const SIMULATION_CARD_MAP_CACHE = new WeakMap();
 const FULL_OVERRIDES = new Map([
   ["prostrating coward", "Crystallize, Countdown, entry healing and Last Words are modeled"],
   ["sandalphon, primarch successor", "Invoke, timed Crest and Super Skybound Art are modeled"],
@@ -185,6 +186,9 @@ export function inspectEffectiveCost(card, { spellboost = 0, costDelta = 0 } = {
 }
 
 function prepareSimulationCardMap(cardMap) {
+  const cached = cardMap && typeof cardMap === "object" ? SIMULATION_CARD_MAP_CACHE.get(cardMap) : null;
+  if (cached) return cached;
+
   prepareOriginalCardMap(cardMap);
   const prepared = new Map();
   for (const [id, original] of cardMap.entries()) {
@@ -206,6 +210,7 @@ function prepareSimulationCardMap(cardMap) {
     card.__relatedCardObjects = (card.relatedCards ?? []).map(id => prepared.get(Number(id))).filter(Boolean);
     card.__relatedNames = card.__relatedCardObjects.map(item => item.name);
   }
+  if (cardMap && typeof cardMap === "object") SIMULATION_CARD_MAP_CACHE.set(cardMap, prepared);
   return prepared;
 }
 
