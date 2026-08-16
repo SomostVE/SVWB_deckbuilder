@@ -13,8 +13,9 @@
   margin-bottom: .15rem;
 }
 
-.benchmark-head p {
-  margin-bottom: 0;
+.benchmark-head p,
+.benchmark-note {
+  display: none;
 }
 
 .benchmark-controls {
@@ -157,13 +158,6 @@
 .benchmark-coverage.low {
   color: #f18d8d;
   border-color: rgba(241, 141, 141, .45);
-}
-
-.benchmark-note {
-  margin-top: .55rem;
-  color: var(--muted);
-  font-size: .62rem;
-  line-height: 1.4;
 }
 
 @media (max-width: 760px) {
