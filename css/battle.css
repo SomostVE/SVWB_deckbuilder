@@ -3,6 +3,7 @@
 }
 
 .battle-header .battle-experimental {
+  display: none;
   flex: 0 0 auto;
   border: 1px solid rgba(230, 198, 117, .5);
   border-radius: 999px;
@@ -30,7 +31,13 @@
   font-size: 1.45rem;
 }
 
-.battle-title-row p { margin-bottom: 0; }
+.battle-title-row p,
+.battle-local-badge,
+.battle-opponent-meta,
+.battle-replay-head p,
+.battle-disclaimer {
+  display: none;
+}
 
 .battle-local-badge {
   flex: 0 0 auto;
@@ -77,7 +84,6 @@
 .battle-seed-field .button { padding: .42rem .6rem; }
 
 .battle-opponent-meta {
-  display: flex;
   flex-wrap: wrap;
   gap: .35rem .7rem;
   margin-top: .75rem;
@@ -144,6 +150,10 @@
   padding: .55rem .65rem;
   color: var(--muted);
   font-size: .72rem;
+}
+
+.battle-status[data-type="info"] {
+  display: none;
 }
 
 .battle-status[data-type="warn"] {
