@@ -34,7 +34,8 @@ jobs:
       - name: Run Battle Sim regressions
         run: |
           node scripts/check-battle-v5-integration.mjs
-          node scripts/check-battle-smoke.mjs
+          node scripts/check-battle-sim.mjs
+          node scripts/check-battle-benchmark.mjs
           node scripts/check-battle-benchmark-calibration.mjs
 
       - name: Commit tested engine change
