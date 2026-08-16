@@ -12,28 +12,16 @@
 <body class="tools-body battle-body">
   <header class="tools-header battle-header">
     <a class="button" href="./index.html">← Cards</a>
-    <a class="button" href="./engines.html">Engines</a>
     <a class="button" href="./collection.html">Collection</a>
-    <a class="button" href="./lab.html">Deck Lab</a>
     <span class="tools-title">Battle Sim</span>
-    <span class="battle-experimental">Experimental</span>
   </header>
 
   <main class="tools-page battle-page">
     <section class="tools-panel battle-setup">
-      <div class="battle-title-row">
-        <div>
-          <h1>Battle Sim</h1>
-          <p class="tools-muted">Run an inspectable single-game simulation against locally stored reference decks. Ownership is ignored.</p>
-        </div>
-        <div class="battle-local-badge">Reference decks: local JSON</div>
-      </div>
+      <div class="battle-title-row"><div><h1>Battle Sim</h1></div></div>
 
       <div class="battle-setup-grid">
-        <label>
-          <span>Your deck</span>
-          <select id="battle-your-deck"></select>
-        </label>
+        <label><span>Your deck</span><select id="battle-your-deck"></select></label>
         <label>
           <span>Your play profile</span>
           <select id="battle-player-strategy">
@@ -48,10 +36,7 @@
             <option value="ward-control">Ward / Control</option>
           </select>
         </label>
-        <label>
-          <span>Reference opponent</span>
-          <select id="battle-opponent"></select>
-        </label>
+        <label><span>Reference opponent</span><select id="battle-opponent"></select></label>
         <label>
           <span>Your side</span>
           <select id="battle-side">
@@ -62,31 +47,18 @@
         </label>
         <label class="battle-seed-field">
           <span>Seed</span>
-          <div>
-            <input id="battle-seed" type="text" spellcheck="false">
-            <button id="battle-new-seed" class="button" type="button">New</button>
-          </div>
+          <div><input id="battle-seed" type="text" spellcheck="false"><button id="battle-new-seed" class="button" type="button">New</button></div>
         </label>
       </div>
 
       <div id="battle-opponent-meta" class="battle-opponent-meta"></div>
       <div id="battle-coverage" class="battle-coverage"></div>
       <div id="battle-status" class="battle-status" data-type="info"></div>
-
-      <div class="tools-actions">
-        <button id="battle-start" class="button battle-start" type="button">Simulate game</button>
-      </div>
+      <div class="tools-actions"><button id="battle-start" class="button battle-start" type="button">Simulate game</button></div>
     </section>
 
     <section class="tools-panel battle-benchmark">
-      <div class="benchmark-head">
-        <div>
-          <h2>Benchmark</h2>
-          <p class="tools-muted">Test your current or saved deck against the reference decks with the production Battle Sim AI. Rules coverage, confidence range and First/Second split stay visible.</p>
-        </div>
-        <div class="battle-local-badge">Worker · deterministic seeds</div>
-      </div>
-
+      <div class="benchmark-head"><div><h2>Benchmark</h2></div></div>
       <div class="benchmark-controls">
         <label>
           <span>Opponent pool</span>
@@ -101,22 +73,17 @@
             <option value="25">25 · quick</option>
             <option value="50">50</option>
             <option value="100" selected>100</option>
-            <option value="250">250</option>
-            <option value="500">500</option>
-            <option value="1000">1,000</option>
           </select>
         </label>
         <label>
           <span>Compare deck</span>
-          <select id="benchmark-compare">
-            <option value="">Off</option>
-          </select>
+          <select id="benchmark-compare"><option value="">Off</option></select>
         </label>
         <button id="benchmark-run" class="button" type="button">Run benchmark</button>
         <button id="benchmark-cancel" class="button" type="button" hidden>Cancel</button>
       </div>
 
-      <div id="benchmark-status" class="battle-status" data-type="info">Loading benchmark data...</div>
+      <div id="benchmark-status" class="battle-status" data-type="info"></div>
       <div class="benchmark-progress-row">
         <progress id="benchmark-progress" value="0" max="100" hidden></progress>
         <span id="benchmark-progress-label"></span>
@@ -126,10 +93,7 @@
 
     <section id="battle-replay" class="tools-panel battle-replay" hidden>
       <div class="battle-replay-head">
-        <div>
-          <h2>Replay</h2>
-          <p class="tools-muted">Every visible state is a deterministic snapshot from this seed.</p>
-        </div>
+        <div><h2>Replay</h2></div>
         <div class="battle-replay-controls">
           <button id="battle-prev" class="button" type="button">◀ Prev</button>
           <button id="battle-auto" class="button" type="button">Auto</button>
@@ -137,25 +101,18 @@
           <strong id="battle-frame-label"></strong>
         </div>
       </div>
-
       <div id="battle-summary" class="battle-summary"></div>
       <div id="battle-timeline" class="battle-timeline" aria-label="Replay timeline"></div>
       <div id="battle-action" class="battle-action"></div>
-
       <div class="battle-table">
         <section id="battle-opponent-area" class="battle-side-area opponent"></section>
         <div class="battle-center-line"><span>VS</span></div>
         <section id="battle-player-area" class="battle-side-area player"></section>
       </div>
-
-      <div class="battle-disclaimer">
-        Battle Sim is still experimental. Generic battle flow and an expanding set of card mechanics are modeled, while unresolved card-specific mechanics are explicitly tracked instead of being presented as accurate.
-      </div>
     </section>
   </main>
 
   <script type="module" src="./js/battle.js"></script>
-  <script type="module" src="./js/battle-benchmark.js"></script>
-  <script type="module" src="./js/battle-benchmark-ui.js"></script>
+  <script type="module" src="./js/battle-benchmark-fast.js"></script>
 </body>
 </html>
