@@ -4,16 +4,17 @@
 
 .card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, var(--card-width));
-  column-gap: .35rem;
-  row-gap: .45rem;
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-width), 1fr));
+  column-gap: .22rem;
+  row-gap: .3rem;
   align-content: start;
-  justify-content: space-between;
+  justify-content: stretch;
 }
 
 .card-tile {
   position: relative;
-  width: var(--card-width);
+  width: 100%;
+  min-width: 0;
   overflow: visible;
   border: 0;
   border-radius: .35rem;
