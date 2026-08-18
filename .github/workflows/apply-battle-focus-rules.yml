@@ -1,3 +1,4 @@
+# Validation branch for materializing the remaining Havencraft rules.
 name: Apply Battle Sim focus rules
 
 on:
