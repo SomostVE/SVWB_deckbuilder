@@ -1,5 +1,5 @@
 import fs from "node:fs/promises";
-import { analyzeCardSupport } from "../js/battle-engine.js";
+import { analyzeCardSupport } from "../js/battle-engine-v5.js";
 
 const requestedClass = String(process.argv[2] ?? "Runecraft").trim();
 const cards = JSON.parse(await fs.readFile(new URL("../data/official/cards.json", import.meta.url), "utf8"));
@@ -53,12 +53,12 @@ function printRow(row, includeRelatedDetails = false) {
   }
 }
 
-console.log(`=== ${requestedClass} Battle Sim class audit ===`);
+console.log(`=== ${requestedClass} Battle Sim v5 class audit ===`);
 console.log(`Cards: ${rows.length} · Full: ${counts.full ?? 0} · Partial: ${counts.partial ?? 0} · Unsupported: ${counts.unsupported ?? 0}`);
 
 const gaps = rows.filter(row => row.support !== "full");
 console.log("\n=== Partial / Unsupported ===");
-if (!gaps.length) console.log("None reported by analyzeCardSupport().");
+if (!gaps.length) console.log("None reported by Battle Sim v5 analyzeCardSupport().");
 for (const row of gaps) printRow(row, true);
 
 console.log("\n=== All cards ===");
