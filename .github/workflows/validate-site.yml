@@ -5,12 +5,18 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: write
+
 jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -32,7 +38,7 @@ jobs:
 
       - name: Check JSON
         run: |
-          node -e "const fs=require('fs');for(const file of ['data/official/cards.json','data/official/metadata.json','data/official/changelog.json','data/custom/reference-decks.json','data/custom/reference-decks.source.json','data/custom/packages.json','data/custom/tags.json','data/custom/exclusions.json']){JSON.parse(fs.readFileSync(file,'utf8'));console.log('OK '+file)}"
+n          node -e "const fs=require('fs');for(const file of ['data/official/cards.json','data/official/metadata.json','data/official/changelog.json','data/custom/reference-decks.json','data/custom/reference-decks.source.json','data/custom/packages.json','data/custom/tags.json','data/custom/exclusions.json']){JSON.parse(fs.readFileSync(file,'utf8'));console.log('OK '+file)}"
 
       - name: Verify Runecraft Battle Sim class pass
         run: |
@@ -92,3 +98,17 @@ jobs:
 
       - name: Run paired benchmark comparison smoke test
         run: node scripts/check-battle-benchmark-compare.mjs
+
+      - name: Commit tested Runecraft engine
+        if: github.event_name == 'pull_request'
+        run: |
+          if git diff --quiet -- js/battle-engine-v5.js; then
+            echo "No engine changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/battle-engine-v5.js
+          git commit -m "feat: materialize tested Runecraft rules"
+          git pull --rebase origin "${{ github.head_ref }}"
+          git push origin HEAD:"${{ github.head_ref }}"
