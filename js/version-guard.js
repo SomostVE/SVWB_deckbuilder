@@ -53,8 +53,9 @@ async function registerWorker(version) {
   try {
     const workerUrl = new URL("../sw.js", MODULE_URL);
     workerUrl.searchParams.set("v", version);
+    const scopeUrl = new URL("../", MODULE_URL);
     const registration = await navigator.serviceWorker.register(workerUrl, {
-      scope: "../",
+      scope: scopeUrl.href,
       updateViaCache: "none"
     });
     await registration.update().catch(() => {});
