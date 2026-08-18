@@ -7,12 +7,14 @@ on:
       - ".github/workflows/audit-battle-dragoncraft.yml"
       - "scripts/audit-battle-class.mjs"
       - "js/battle-engine-v5.js"
+      - "js/battle-rules.js"
       - "data/official/cards.json"
   pull_request:
     paths:
       - ".github/workflows/audit-battle-dragoncraft.yml"
       - "scripts/audit-battle-class.mjs"
       - "js/battle-engine-v5.js"
+      - "js/battle-rules.js"
       - "data/official/cards.json"
 
 jobs:
@@ -30,14 +32,27 @@ jobs:
       - name: Audit Dragoncraft support
         run: node scripts/audit-battle-class.mjs Dragoncraft
 
-      - name: Inspect Dragoncraft crest card source fields
+      - name: Inspect Dragoncraft engine hooks
         run: |
-          node --input-type=module <<'EOF'
-          import fs from 'node:fs/promises';
-          const cards = JSON.parse(await fs.readFile('./data/official/cards.json', 'utf8'));
-          const ids = new Set([10841130, 10441310, 10544120, 10844110, 10144110, 10744120]);
-          for (const card of cards.filter(card => ids.has(Number(card.id)))) {
-            console.log(`\n=== SOURCE ${card.id} :: ${card.name} ===`);
-            console.log(JSON.stringify(card, null, 2));
+          python3 - <<'PY'
+          from pathlib import Path
+          targets = {
+            'js/battle-engine-v5.js': [
+              'function damageUnit(', 'function afterLeaderHeal(', 'function crestCountdown(',
+              'function applyCrestTurnEnd(', 'function applyEntryEvents(',
+              'function evolveUnitByAbility(', 'function superEvolveUnitByAbility(',
+              'function attackWithUnit(', 'function turnEnd(', 'function makePlayer(',
+              'function gainCrest(', 'function resolveCardText(', 'function cleanupDead('
+            ],
+            'js/battle-rules.js': ['function applyEntryCrestEffects', 'export function applyEntryCrestEffects']
           }
-          EOF
+          for path, needles in targets.items():
+            lines = Path(path).read_text(encoding='utf-8').splitlines()
+            print(f'\n######## {path} ########')
+            for needle in needles:
+              hits = [i for i, line in enumerate(lines) if needle in line]
+              for i in hits:
+                lo=max(0,i-8); hi=min(len(lines),i+85)
+                print(f'\n===== {needle} @ line {i+1} =====')
+                for n in range(lo,hi): print(f'{n+1:05d}: {lines[n]}')
+          PY
