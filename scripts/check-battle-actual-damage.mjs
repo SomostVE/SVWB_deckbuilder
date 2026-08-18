@@ -74,9 +74,13 @@ const shield = simulateBattle({
   playerSide: "first",
   recordFrames: true
 });
-const blockedLeaderAttack = shield.frames.find(frame => frame.phase === "attack" && /QA Storm Attacker attacks You's leader/.test(frame.action));
-assert.ok(blockedLeaderAttack, "Expected Storm attacker to attack the protected leader");
+const blockedLeaderAttack = shield.frames.find(frame =>
+  frame.phase === "attack"
+  && /QA Storm Attacker attacks You's leader/.test(frame.action)
+  && frame.players[0].maxHp === 1
+);
+assert.ok(blockedLeaderAttack, "Expected a Storm attack while Zooey leader protection is active");
 assert.equal(blockedLeaderAttack.players[0].hp, 1, "Zooey leader protection must prevent combat damage");
 assert.match(blockedLeaderAttack.action, /for 0\./, "Replay/stat accounting must report actual leader damage after the cap");
 
-console.log("Battle actual damage: Barrier blocks damage/Drain while Bane still destroys · leader cap reports actual damage · OK");
+console.log("Battle actual damage: Barrier blocks damage/Drain while Bane still destroys · Zooey cap reports actual protected damage · OK");
