@@ -2,6 +2,30 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import { analyzeCardSupport, inspectRunecraftFullRules, inspectRunecraftExtendedRules } from "../js/battle-engine-v5.js";
 
+const RUNECraft_SPECIAL_RULES = [
+  "Bergent, Rejected Artes",
+  "Bottomless Gluttony",
+  "Cagliostro, Genius Alchemist",
+  "Calge-Danthla, Eld Crystals",
+  "Crystal Gazing",
+  "Depths of the Eld Crystals",
+  "Elmott, Remembrance Aflame",
+  "Emperor of Elements",
+  "Enraptured Student",
+  "Ginger, Disastrous Word",
+  "Grandeur of the Dawnblossom",
+  "Heel, My Dearie",
+  "Insomniac Witch",
+  "Institute of Truth",
+  "Juno, Visionary Alchemist",
+  "Lhynkal, Wandering Fool",
+  "Lilanthim, Anathema of Predation",
+  "Noble Shikigami",
+  "Pascale's Dance",
+  "Shymm, Love Bewitched",
+  "Tico, Mysterian Spellcrafter"
+];
+
 const cards = JSON.parse(await fs.readFile(new URL("../data/official/cards.json", import.meta.url), "utf8"));
 const map = new Map(cards.map(card => [Number(card.id), card]));
 for (const card of cards) {
@@ -11,8 +35,21 @@ for (const card of cards) {
 
 const rune = cards.filter(card => String(card.class ?? "").toLowerCase() === "runecraft");
 assert.equal(rune.length, 112, `Expected 112 Runecraft cards in the current database, got ${rune.length}`);
-const gaps = rune.map(card => ({ card, support: analyzeCardSupport(card) })).filter(entry => entry.support.level !== "full");
+
+const supportRows = rune.map(card => ({ card, support: analyzeCardSupport(card) }));
+const gaps = supportRows.filter(entry => entry.support.level !== "full");
 assert.deepEqual(gaps.map(entry => `${entry.card.name}: ${entry.support.level} (${entry.support.reason})`), [], "Every Runecraft card must be fully modeled after the class pass");
+
+// A V5 Full override is only acceptable for Runecraft when the card is explicitly
+// behavior-locked below. This prevents a future override from silently turning an
+// untested complex card green in the coverage report.
+const v5SpecialRules = supportRows
+  .filter(entry => String(entry.support.reason ?? "").startsWith("Battle Sim v5:"))
+  .map(entry => entry.card.name)
+  .sort((a, b) => a.localeCompare(b));
+const behaviorLockedSpecialRules = [...RUNECraft_SPECIAL_RULES].sort((a, b) => a.localeCompare(b));
+assert.equal(v5SpecialRules.length, 21, `Expected 21 Runecraft V5 special-rule cards, got ${v5SpecialRules.length}`);
+assert.deepEqual(v5SpecialRules, behaviorLockedSpecialRules, "Every Runecraft V5 Full override must have a dedicated behavior regression in this file");
 
 const qa = inspectRunecraftFullRules({ cards });
 assert.equal(qa.lhynkalMaxDefense, 18, "Lhynkal Crest must reduce enemy max defense by 2 on a later Lhynkal entry");
@@ -45,4 +82,4 @@ assert.equal(extended.ticoDiscount, -1, "Tico Evolve must reduce Mysteria spell 
 assert.deepEqual(extended.elmottSilence, { defense: 2, ward: false, triggeredText: "" }, "Elmott must remove follower abilities before dealing 3");
 assert.equal(extended.lhynkalInjection, 10, "Lhynkal Super-Evolve must add 10 copies to the deck");
 
-console.log(`Runecraft class pass: ${rune.length}/${rune.length} Full · representative rule behavior regressions OK`);
+console.log(`Runecraft class pass: ${rune.length}/${rune.length} Full · ${v5SpecialRules.length}/${behaviorLockedSpecialRules.length} V5 special rules behavior-locked`);
