@@ -8,6 +8,12 @@ on:
       - "scripts/audit-battle-class.mjs"
       - "js/battle-engine-v5.js"
       - "data/official/cards.json"
+  pull_request:
+    paths:
+      - ".github/workflows/audit-battle-dragoncraft.yml"
+      - "scripts/audit-battle-class.mjs"
+      - "js/battle-engine-v5.js"
+      - "data/official/cards.json"
 
 jobs:
   audit:
