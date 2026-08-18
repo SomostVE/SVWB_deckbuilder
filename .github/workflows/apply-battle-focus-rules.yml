@@ -7,11 +7,13 @@ on:
       - ".github/workflows/apply-battle-focus-rules.yml"
       - "scripts/apply-battle-haven-full.py"
       - "scripts/check-battle-haven-full.mjs"
+      - "scripts/check-battle-actual-damage.mjs"
   pull_request:
     paths:
       - ".github/workflows/apply-battle-focus-rules.yml"
       - "scripts/apply-battle-haven-full.py"
       - "scripts/check-battle-haven-full.mjs"
+      - "scripts/check-battle-actual-damage.mjs"
 
 permissions:
   contents: write
