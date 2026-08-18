@@ -8,7 +8,7 @@ if(document.querySelector('.engines-page')){
   import('./engines-impact.js');
 }
 if(document.querySelector('.sidebar')){
-  import('./deck-only-view.js');
+  import('./deck-only-view.js?v=20260818-1');
 }
 if(document.querySelector('.header-actions')){
   import('./battle-link.js');
