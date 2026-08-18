@@ -42,8 +42,10 @@ function applyDeckOnlyView() {
   if (!grid) return;
 
   const tiles = [...grid.querySelectorAll(".card-tile")];
+
   if (!state.deckOnly) {
     for (const tile of tiles) tile.hidden = false;
+    updateResultsCount(tiles.length);
     return;
   }
 
@@ -63,7 +65,12 @@ function applyDeckOnlyView() {
     if (show) visible += 1;
   }
 
-  if (resultsCount) resultsCount.textContent = `${visible} card${visible === 1 ? "" : "s"} · deck only`;
+  updateResultsCount(visible);
+}
+
+function updateResultsCount(count) {
+  if (!resultsCount) return;
+  resultsCount.textContent = `${count} card${count === 1 ? "" : "s"}`;
 }
 
 function buildImageIndex() {
