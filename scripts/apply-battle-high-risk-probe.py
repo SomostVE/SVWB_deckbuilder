@@ -60,15 +60,22 @@ export function inspectHighRiskCandidateResolution({ cards = [], cardIds = [] } 
   };
 
   const labels = [
-    ["base", null], ["evolve", "evolve"], ["super-evolve", "super-evolve"],
-    ["last-words", "last words"], ["engage", "engage"], ["strike", "strike"],
-    ["turn-start", "at the start of your turn"], ["turn-end", "at the end of your turn"]
+    ["base", "base", null],
+    ["evolve", "trigger", "evolve"],
+    ["super-evolve", "trigger", "superEvolve"],
+    ["last-words", "trigger", "lastWords"],
+    ["engage", "section", "engage"],
+    ["strike", "trigger", "strike"],
+    ["turn-start", "trigger", "turnStart"],
+    ["turn-end", "trigger", "turnEnd"]
   ];
   const results = [];
 
   for (const card of selected) {
-    for (const [event, label] of labels) {
-      const raw = label ? section(card.text, label) : baseText(card.text);
+    for (const [event, kind, key] of labels) {
+      const raw = kind === "base" ? baseText(card.text)
+        : kind === "trigger" ? getTriggeredText(card, key)
+        : section(card.text, key);
       if (!raw) continue;
       const basePair = makePair(`${card.id}:${event}`);
       const choices = expandModes(raw, basePair.player);
