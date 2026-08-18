@@ -1,4 +1,4 @@
-const APP_VERSION = "01.00.000";
+const APP_VERSION = new URL(self.location.href).searchParams.get("v") || "00.00.000";
 const CACHE_PREFIX = "svwb-app-";
 const CACHE_NAME = `${CACHE_PREFIX}${APP_VERSION}`;
 
