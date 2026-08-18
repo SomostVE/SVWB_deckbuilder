@@ -1,11 +1,26 @@
 const STORAGE_KEY = "svwb-sidebar-collapsed:v1";
 const sidebar = document.querySelector(".sidebar");
+const toolbar = document.querySelector(".content-toolbar");
+const resetFilters = document.getElementById("reset-filters");
+
+// app.js creates the card-size control with insertBefore(). Keep Reset filters as a
+// direct toolbar child during app initialization; header-layout.js moves it back
+// into the grouped view controls once initialization is complete.
+if (toolbar && resetFilters && resetFilters.parentElement !== toolbar) {
+  toolbar.appendChild(resetFilters);
+}
 
 if (sidebar) {
   applySavedState();
 
+  // Interactive filter controls must not bubble into the drawer auto-dismiss
+  // listener installed later by qol.js. The control's own click/change handler
+  // has already run by the time the event reaches the sidebar.
   sidebar.addEventListener("click", event => {
-    if (event.target.closest("button, input, label, a")) return;
+    if (event.target.closest("button, input, label, a")) {
+      event.stopImmediatePropagation();
+      return;
+    }
 
     const sectionTitle = event.target.closest(".sidebar-collapse-title");
     if (sectionTitle) {
@@ -20,6 +35,11 @@ if (sidebar) {
       const group = filterTitle.closest(".filter-group");
       if (root && group) toggle(group, root.id);
     }
+  });
+
+  const search = sidebar.querySelector("#search-input");
+  search?.addEventListener("keydown", event => {
+    if (event.key === "Enter") event.stopImmediatePropagation();
   });
 
   const observer = new MutationObserver(() => applySavedState());
