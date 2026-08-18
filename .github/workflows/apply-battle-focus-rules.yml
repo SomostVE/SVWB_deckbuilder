@@ -4,45 +4,13 @@ on:
   push:
     paths:
       - ".github/workflows/apply-battle-focus-rules.yml"
-      - "scripts/apply-battle-focus-rules.mjs"
-      - "scripts/apply-battle-asher.mjs"
-      - "scripts/apply-battle-coverage-100.py"
       - "scripts/apply-battle-haven-full.py"
-      - "scripts/apply-battle-combat-order-fix.mjs"
-      - "scripts/apply-battle-actual-damage-fix.mjs"
-      - "scripts/apply-battle-ai-v1.mjs"
-      - "scripts/apply-battle-ai-v1-1.mjs"
-      - "scripts/apply-battle-ai-evolution.mjs"
-      - "scripts/apply-battle-ai-lethal.mjs"
-      - "scripts/check-battle-asher.mjs"
-      - "scripts/check-battle-coverage-100.mjs"
       - "scripts/check-battle-haven-full.mjs"
-      - "scripts/check-battle-combat-order.mjs"
-      - "scripts/check-battle-actual-damage.mjs"
-      - "scripts/check-battle-ai-v1.mjs"
-      - "scripts/check-battle-ai-evolution.mjs"
-      - "scripts/check-battle-ai-lethal.mjs"
   pull_request:
     paths:
       - ".github/workflows/apply-battle-focus-rules.yml"
-      - "scripts/apply-battle-focus-rules.mjs"
-      - "scripts/apply-battle-asher.mjs"
-      - "scripts/apply-battle-coverage-100.py"
       - "scripts/apply-battle-haven-full.py"
-      - "scripts/apply-battle-combat-order-fix.mjs"
-      - "scripts/apply-battle-actual-damage-fix.mjs"
-      - "scripts/apply-battle-ai-v1.mjs"
-      - "scripts/apply-battle-ai-v1-1.mjs"
-      - "scripts/apply-battle-ai-evolution.mjs"
-      - "scripts/apply-battle-ai-lethal.mjs"
-      - "scripts/check-battle-asher.mjs"
-      - "scripts/check-battle-coverage-100.mjs"
       - "scripts/check-battle-haven-full.mjs"
-      - "scripts/check-battle-combat-order.mjs"
-      - "scripts/check-battle-actual-damage.mjs"
-      - "scripts/check-battle-ai-v1.mjs"
-      - "scripts/check-battle-ai-evolution.mjs"
-      - "scripts/check-battle-ai-lethal.mjs"
 
 permissions:
   contents: write
@@ -63,18 +31,8 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Materialize tested Battle Sim rules and AI
-        run: |
-          node scripts/apply-battle-focus-rules.mjs
-          node scripts/apply-battle-asher.mjs
-          python3 scripts/apply-battle-coverage-100.py
-          python3 scripts/apply-battle-haven-full.py
-          node scripts/apply-battle-combat-order-fix.mjs
-          node scripts/apply-battle-actual-damage-fix.mjs
-          node scripts/apply-battle-ai-v1.mjs
-          node scripts/apply-battle-ai-v1-1.mjs
-          node scripts/apply-battle-ai-evolution.mjs
-          node scripts/apply-battle-ai-lethal.mjs
+      - name: Materialize pending Battle Sim rules
+        run: python3 scripts/apply-battle-haven-full.py
 
       - name: Check changed JavaScript syntax
         run: |
