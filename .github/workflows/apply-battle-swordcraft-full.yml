@@ -6,11 +6,13 @@ on:
     paths:
       - ".github/workflows/apply-battle-swordcraft-full.yml"
       - "scripts/apply-battle-swordcraft-full.py"
+      - "scripts/apply-battle-swordcraft-gildaria-fix.py"
       - "scripts/check-battle-swordcraft-full.mjs"
   pull_request:
     paths:
       - ".github/workflows/apply-battle-swordcraft-full.yml"
       - "scripts/apply-battle-swordcraft-full.py"
+      - "scripts/apply-battle-swordcraft-gildaria-fix.py"
       - "scripts/check-battle-swordcraft-full.mjs"
 
 permissions:
@@ -33,7 +35,9 @@ jobs:
           node-version: "24"
 
       - name: Materialize Swordcraft rules
-        run: python3 scripts/apply-battle-swordcraft-full.py
+        run: |
+          python3 scripts/apply-battle-swordcraft-full.py
+          python3 scripts/apply-battle-swordcraft-gildaria-fix.py
 
       - name: Check changed JavaScript syntax
         run: |
