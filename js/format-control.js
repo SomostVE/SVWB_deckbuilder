@@ -36,8 +36,10 @@ function setup() {
       location.reload();
     });
 
+    const slot = document.getElementById("format-control-slot");
     const typeRoot = document.getElementById("type-filter");
-    if (typeRoot) typeRoot.insertAdjacentElement("afterend", control);
+    if (slot) slot.appendChild(control);
+    else if (typeRoot) typeRoot.insertAdjacentElement("afterend", control);
     else toolbar.appendChild(control);
   }
 
