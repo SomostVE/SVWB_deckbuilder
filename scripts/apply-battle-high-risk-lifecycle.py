@@ -24,16 +24,16 @@ old = '''export function getTriggeredText(card, event, mode = null) {
 new = '''function extractNaturalLifecycleText(card, event) {
   const text = String(card?.text ?? "").replace(/[’‘]/g, "'").replace(/\\s+/g, " ").trim();
   const starts = {
-    evolve: /\\bwhen this follower evolves,\\s*/i,
-    turnEnd: /\\bat the end of your turn,\\s*/i,
-    turnStart: /\\bat the start of your turn,\\s*/i
+    evolve: /(?<!["“])\\bwhen this follower evolves,\\s*/i,
+    turnEnd: /(?<!["“])\\bat the end of your turn,\\s*/i,
+    turnStart: /(?<!["“])\\bat the start of your turn,\\s*/i
   };
   const startPattern = starts[event];
   if (!startPattern) return "";
   const match = startPattern.exec(text);
   if (!match) return "";
   const tail = text.slice(match.index + match[0].length);
-  const next = tail.search(/\\b(?:Fanfare|Last Words|Strike|Clash|Evolve|Super-Evolve|Enhance\\s*\\(?\\s*\\d+\\s*\\)?|Accelerate\\s*\\(?\\s*\\d+\\s*\\)?|Crystallize\\s*\\(?\\s*\\d+\\s*\\)?|Engage\\s*\\(?\\s*\\d*\\s*\\)?|On Spellboost)\\s*:|\\b(?:at the end of your turn|at the start of your turn|when this follower evolves),\\s*/i);
+  const next = tail.search(/\\b(?:Fanfare|Last Words|Strike|Clash|Evolve|Super-Evolve|Enhance\\s*\\(?\\s*\\d+\\s*\\)?|Accelerate\\s*\\(?\\s*\\d+\\s*\\)?|Crystallize\\s*\\(?\\s*\\d+\\s*\\)?|Engage\\s*\\(?\\s*\\d*\\s*\\)?|On Spellboost)\\s*:|(?<!["“])\\b(?:at the end of your turn|at the start of your turn|when this follower evolves),\\s*/i);
   return (next < 0 ? tail : tail.slice(0, next)).trim();
 }
 
@@ -52,14 +52,15 @@ if old not in rules:
 rules = rules.replace(old, new, 1)
 
 # V5 section extraction must stop before natural lifecycle clauses so Fanfare
-# resolution never executes a deferred end-turn/evolve effect early.
+# resolution never executes a deferred end-turn/evolve effect early. Quoted
+# granted abilities are deliberately excluded here.
 old = '''  const next = markers.find(marker => marker.start > hit.start);
   return text.slice(hit.end, next?.start ?? text.length).trim();
 }'''
 new = '''  const next = markers.find(marker => marker.start > hit.start);
   const tailEnd = next?.start ?? text.length;
   const tail = text.slice(hit.end, tailEnd);
-  const natural = tail.search(/\\b(?:at the end of your turn|at the start of your turn|when this follower evolves),\\s*/i);
+  const natural = tail.search(/(?<!["“])\\b(?:at the end of your turn|at the start of your turn|when this follower evolves),\\s*/i);
   return (natural < 0 ? tail : tail.slice(0, natural)).trim();
 }'''
 if old not in engine:
@@ -79,7 +80,7 @@ new = '''function baseText(text) {
   if (fanfare) return fanfare;
   const value = String(clean);
   const colonIndex = value.search(/\\b(?:Last Words|Strike|Clash|Evolve|Super-Evolve|Enhance|Accelerate|Crystallize|Engage|On Spellboost|At the start of your turn|At the end of your turn)\\s*\\(?\\s*\\d*\\s*\\)?\\s*:/i);
-  const naturalIndex = value.search(/\\b(?:At the end of your turn|At the start of your turn|When this follower evolves),\\s*/i);
+  const naturalIndex = value.search(/(?<!["“])\\b(?:At the end of your turn|At the start of your turn|When this follower evolves),\\s*/i);
   const indexes = [colonIndex, naturalIndex].filter(index => index >= 0);
   const index = indexes.length ? Math.min(...indexes) : -1;
   return index < 0 ? value : value.slice(0, index).trim();
