@@ -6,6 +6,7 @@ on:
     paths:
       - ".github/workflows/audit-battle-high-risk-foundation.yml"
       - "scripts/apply-battle-high-risk-foundation.py"
+      - "scripts/apply-battle-high-risk-grammar.py"
       - "scripts/apply-battle-high-risk-probe.py"
       - "scripts/audit-battle-high-risk-runtime.mjs"
       - "js/battle-engine-v5.js"
@@ -13,6 +14,7 @@ on:
     paths:
       - ".github/workflows/audit-battle-high-risk-foundation.yml"
       - "scripts/apply-battle-high-risk-foundation.py"
+      - "scripts/apply-battle-high-risk-grammar.py"
       - "scripts/apply-battle-high-risk-probe.py"
       - "scripts/audit-battle-high-risk-runtime.mjs"
       - "js/battle-engine-v5.js"
@@ -28,6 +30,8 @@ jobs:
           node-version: "24"
       - name: Materialize high-risk generic foundation locally
         run: python3 scripts/apply-battle-high-risk-foundation.py
+      - name: Materialize high-risk grammar locally
+        run: python3 scripts/apply-battle-high-risk-grammar.py
       - name: Materialize runtime probe locally
         run: python3 scripts/apply-battle-high-risk-probe.py
       - name: Check engine and audit syntax
