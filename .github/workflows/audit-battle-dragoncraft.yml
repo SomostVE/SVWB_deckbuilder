@@ -29,3 +29,15 @@ jobs:
 
       - name: Audit Dragoncraft support
         run: node scripts/audit-battle-class.mjs Dragoncraft
+
+      - name: Inspect Dragoncraft crest card source fields
+        run: |
+          node --input-type=module <<'EOF'
+          import fs from 'node:fs/promises';
+          const cards = JSON.parse(await fs.readFile('./data/official/cards.json', 'utf8'));
+          const ids = new Set([10841130, 10441310, 10544120, 10844110, 10144110, 10744120]);
+          for (const card of cards.filter(card => ids.has(Number(card.id)))) {
+            console.log(`\n=== SOURCE ${card.id} :: ${card.name} ===`);
+            console.log(JSON.stringify(card, null, 2));
+          }
+          EOF
