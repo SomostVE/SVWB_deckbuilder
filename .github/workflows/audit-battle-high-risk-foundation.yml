@@ -10,9 +10,11 @@ on:
       - "scripts/apply-battle-high-risk-grammar-fixes.py"
       - "scripts/apply-battle-high-risk-order-fixes.py"
       - "scripts/apply-battle-high-risk-final-fixes.py"
+      - "scripts/apply-battle-high-risk-lifecycle.py"
       - "scripts/apply-battle-high-risk-probe.py"
       - "scripts/audit-battle-high-risk-runtime.mjs"
       - "js/battle-engine-v5.js"
+      - "js/battle-rules.js"
   pull_request:
     paths:
       - ".github/workflows/audit-battle-high-risk-foundation.yml"
@@ -21,9 +23,11 @@ on:
       - "scripts/apply-battle-high-risk-grammar-fixes.py"
       - "scripts/apply-battle-high-risk-order-fixes.py"
       - "scripts/apply-battle-high-risk-final-fixes.py"
+      - "scripts/apply-battle-high-risk-lifecycle.py"
       - "scripts/apply-battle-high-risk-probe.py"
       - "scripts/audit-battle-high-risk-runtime.mjs"
       - "js/battle-engine-v5.js"
+      - "js/battle-rules.js"
 
 jobs:
   foundation:
@@ -44,13 +48,16 @@ jobs:
         run: python3 scripts/apply-battle-high-risk-order-fixes.py
       - name: Apply final high-risk fixes locally
         run: python3 scripts/apply-battle-high-risk-final-fixes.py
+      - name: Materialize natural lifecycle dispatch locally
+        run: python3 scripts/apply-battle-high-risk-lifecycle.py
       - name: Materialize runtime probe locally
         run: python3 scripts/apply-battle-high-risk-probe.py
       - name: Check engine and audit syntax
         run: |
           node --check js/battle-engine-v5.js
+          node --check js/battle-rules.js
           node --check scripts/audit-battle-high-risk-runtime.mjs
-      - name: Execute critical high-risk cards
+      - name: Execute generic high-risk cards
         run: node scripts/audit-battle-high-risk-runtime.mjs
       - name: Run core regressions
         run: |
