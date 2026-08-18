@@ -2,7 +2,7 @@ import { state } from "./state.js";
 import { saveWorkspace } from "./storage.js";
 import "./update-report.js";
 import "./mobile-ui.js";
-import "./header-layout.js";
+import "./header-layout.js?v=20260818-2";
 
 waitForReady();
 
