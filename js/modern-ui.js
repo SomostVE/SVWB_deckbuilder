@@ -157,9 +157,9 @@ function setupNeutralControl(root) {
     includeNeutral.hidden = neutralSelected;
     includeNeutral.title = "Include Neutral cards";
     includeNeutral.setAttribute("aria-label", "Include Neutral cards with the selected class");
+    includeNeutral.classList.add("neutral-include-control");
 
-    const image = includeNeutral.querySelector("img");
-    if (image) image.hidden = true;
+    for (const image of includeNeutral.querySelectorAll("img")) image.remove();
 
     let badge = includeNeutral.querySelector(".neutral-include-label");
     if (!badge) {
