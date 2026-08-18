@@ -20,6 +20,7 @@ jobs:
       - name: Materialize Runecraft audit rules
         run: |
           python3 scripts/apply-battle-runecraft-full.py
+          python3 scripts/apply-battle-runecraft-fixes.py
           python3 scripts/apply-battle-runecraft-qa.py
 
       - name: Check JavaScript syntax
