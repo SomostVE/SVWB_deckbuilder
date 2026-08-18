@@ -1,0 +1,29 @@
+name: Audit Neutral Battle Sim
+
+on:
+  push:
+    branches: [agent/neutral-audit]
+    paths:
+      - ".github/workflows/audit-battle-neutral.yml"
+      - "scripts/audit-battle-class.mjs"
+      - "js/battle-engine-v5.js"
+      - "data/official/cards.json"
+  pull_request:
+    paths:
+      - ".github/workflows/audit-battle-neutral.yml"
+      - "scripts/audit-battle-class.mjs"
+      - "js/battle-engine-v5.js"
+      - "data/official/cards.json"
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Audit Neutral support
+        run: node scripts/audit-battle-class.mjs Neutral
