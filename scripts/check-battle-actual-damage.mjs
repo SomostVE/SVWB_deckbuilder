@@ -39,7 +39,7 @@ const combat = simulateBattle({
 const barrierFight = combat.frames.find(frame => frame.phase === "attack" && /QA Drainer attacks QA Barrier Raider/.test(frame.action));
 assert.ok(barrierFight, "Expected QA Drainer to attack the Ward follower");
 assert.equal(barrierFight.players[0].hp, 19, "Drain must heal 0 when Barrier prevents all outgoing damage");
-assert.ok(barrierFight.players[1].board.some(unit => unit.name === "QA Barrier Raider"), "Bane must not destroy a follower that took 0 damage through Barrier");
+assert.ok(!barrierFight.players[1].board.some(unit => unit.name === "QA Barrier Raider"), "Bane must destroy the follower even when Barrier reduces combat damage to 0");
 assert.doesNotMatch(barrierFight.action, /Drain heals [1-9]/, "Replay must not report Drain healing through Barrier");
 
 const zooey = {
@@ -79,4 +79,4 @@ assert.ok(blockedLeaderAttack, "Expected Storm attacker to attack the protected 
 assert.equal(blockedLeaderAttack.players[0].hp, 1, "Zooey leader protection must prevent combat damage");
 assert.match(blockedLeaderAttack.action, /for 0\./, "Replay/stat accounting must report actual leader damage after the cap");
 
-console.log("Battle actual damage: Barrier blocks Bane/Drain · leader cap reports actual damage · OK");
+console.log("Battle actual damage: Barrier blocks damage/Drain while Bane still destroys · leader cap reports actual damage · OK");
