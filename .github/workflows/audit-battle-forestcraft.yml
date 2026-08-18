@@ -57,9 +57,31 @@ jobs:
               relatedCards: row.card.__relatedNames
             }, null, 2));
           }
+
+          console.log('\n=== RELATED OBJECTS FOR FOREST PARTIALS ===');
+          const partials = rows.filter(row => row.support.level !== 'full').map(row => row.card);
+          const relatedIds = new Set(partials.flatMap(card => card.relatedCards ?? []).map(Number));
+          for (const id of relatedIds) {
+            const card = map.get(id);
+            if (!card) continue;
+            console.log(`\n--- RELATED ${card.id} :: ${card.name} ---`);
+            console.log(JSON.stringify({
+              id: card.id,
+              name: card.name,
+              class: card.class,
+              type: card.type,
+              cost: card.cost,
+              attack: card.attack,
+              defense: card.defense,
+              keywords: card.keywords,
+              traits: card.traits,
+              text: card.text,
+              relatedCards: (card.relatedCards ?? []).map(id => map.get(Number(id))?.name ?? id)
+            }, null, 2));
+          }
           EOF
 
       - name: Inspect Forestcraft-specific engine hooks
         run: |
           echo '=== FOREST REFERENCES IN ENGINE/RULES ==='
-          grep -RniE "Forestcraft|Combo|Fairy|Fairies|Bounce|return .* allied|played this turn|cards played|Rose|Wisp|Verdant|Ivy|Aria|Ladica|Sekka|Castelle|Woodland|Elder|Whirlwind|Fairy Beast|Fuse" js/battle-engine-v5.js js/battle-rules.js js/battle-rules-core.js | head -n 1200 || true
+          grep -RniE "Forestcraft|Combo|Fairy|Fairies|Pixie|Bounce|return .* allied|played this turn|cards played|Rose|Wisp|Verdant|Ivy|Aria|Ladica|Sekka|Castelle|Woodland|Elder|Whirlwind|Fairy Beast|Fuse|Faith|Crest" js/battle-engine-v5.js js/battle-rules.js js/battle-rules-core.js | head -n 1500 || true
