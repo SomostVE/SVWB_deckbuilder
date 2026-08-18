@@ -27,7 +27,15 @@ jobs:
           node-version: "24"
 
       - name: Materialize filter fix
-        run: node scripts/apply-filter-state-fix.mjs
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("scripts/apply-filter-state-fix.mjs")
+          text = path.read_text()
+          text = text.replace("${SCROLL_KEY_PREFIX}", r"\${SCROLL_KEY_PREFIX}")
+          path.write_text(text)
+          PY
+          node scripts/apply-filter-state-fix.mjs
 
       - name: Check syntax
         run: |
