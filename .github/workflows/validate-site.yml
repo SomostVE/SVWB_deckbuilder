@@ -67,6 +67,9 @@ jobs:
       - name: Run Battle Sim full coverage regression
         run: node scripts/check-battle-coverage-100.mjs
 
+      - name: Run Runecraft class regression
+        run: node scripts/check-battle-runecraft-full.mjs
+
       - name: Run Battle Sim v5 integration
         run: node scripts/check-battle-v5-integration.mjs
 
