@@ -27,3 +27,19 @@ jobs:
           node-version: "24"
       - name: Audit Neutral support
         run: node scripts/audit-battle-class.mjs Neutral
+      - name: Inspect Mjerrabaine source metadata
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs/promises';
+          const cards = JSON.parse(await fs.readFile('data/official/cards.json','utf8'));
+          const m = cards.find(c => Number(c.id) === 10304110);
+          console.log('MJERRABAINE_OBJECT', JSON.stringify(m));
+          const keys = Object.keys(m ?? {});
+          for (const key of keys) {
+            const value = m[key];
+            if (typeof value === 'string' || typeof value === 'number') {
+              const same = cards.filter(c => c[key] === value);
+              if (same.length >= 70 && same.length <= 90) console.log('CANDIDATE_SET_FIELD', key, JSON.stringify(value), same.length);
+            }
+          }
+          NODE
