@@ -69,9 +69,17 @@ for (const name of allOverrideNames) {
 }
 
 const dedicated = classOrder.map(className => {
-  const slug = className.toLowerCase().replace("craft", "craft");
+  const slug = className.toLowerCase();
   const expected = `check-battle-${slug}-full.mjs`;
   return [className, scriptNames.includes(expected), expected];
 });
 console.log("\nDEDICATED CLASS REGRESSIONS");
 for (const [className, exists, expected] of dedicated) console.log(`CLASS_TEST|${className}|${exists ? "yes" : "NO"}|${expected}`);
+
+const missingDedicated = dedicated.filter(([, exists]) => !exists);
+if (gaps.length || missingDedicated.length) {
+  console.error(`\nFINAL AUDIT FAILED: ${gaps.length} card gap(s), ${missingDedicated.length} missing class regression(s).`);
+  process.exitCode = 1;
+} else {
+  console.log(`\nFINAL AUDIT PASS: ${cards.length}/${cards.length} cards Full · 8/8 class regressions present · 0 gaps.`);
+}
