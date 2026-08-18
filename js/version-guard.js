@@ -24,6 +24,8 @@ async function checkVersion() {
     return;
   }
 
+  console.info(`[SVWB Deckbuilder] Version ${version}`);
+
   const localVersion = localStorage.getItem(VERSION_KEY);
   const registration = await registerWorker(version);
 
