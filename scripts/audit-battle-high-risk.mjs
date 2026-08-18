@@ -14,11 +14,11 @@ const scriptCorpus = new Map();
 for (const name of scriptNames) {
   scriptCorpus.set(name, (await fs.readFile(new URL(name, import.meta.url), "utf8")).toLowerCase());
 }
-const allChecks = [...scriptCorpus.values()].join("\n");
 const engineV5 = (await fs.readFile(new URL("../js/battle-engine-v5.js", import.meta.url), "utf8")).toLowerCase();
 const engineV4 = (await fs.readFile(new URL("../js/battle-engine-v4.js", import.meta.url), "utf8")).toLowerCase();
 
 const norm = value => String(value ?? "").toLowerCase().replace(/[’‘]/g, "'").replace(/\s+/g, " ").trim();
+const oneLine = value => String(value ?? "").replace(/\s*\n+\s*/g, " ⏎ ").replace(/\s+/g, " ").trim();
 
 const categories = [
   ["hand-trigger", /activates in hand/i],
@@ -41,6 +41,7 @@ const categories = [
   ["discard-redraw", /discard (?:your hand|\d+|.* hand).*draw/i],
   ["turn-hook", /at the (?:start|end) of (?:your|the opponent'?s) turn/i]
 ];
+const criticalCategories = new Set(["copy-transform", "random-replication", "cross-zone", "match-history", "damage-modifier", "deck-replacement"]);
 
 const classOrder = ["Forestcraft", "Swordcraft", "Runecraft", "Dragoncraft", "Abysscraft", "Havencraft", "Portalcraft", "Neutral"];
 const rows = cards
@@ -77,6 +78,15 @@ console.log("\nBY RISK CATEGORY");
 for (const [label] of categories) {
   const selected = rows.filter(row => row.risks.includes(label));
   console.log(`${label}: ${selected.length} · ${selected.filter(row => row.directTest).length} direct-tested · ${selected.filter(row => !row.directTest).length} without direct evidence`);
+}
+
+console.log("\nCRITICAL GENERIC FULL CARDS");
+const criticalGeneric = rows.filter(row =>
+  !row.directTest && !row.explicitV5 && !row.explicitV4 && row.risks.some(risk => criticalCategories.has(risk))
+);
+console.log(`Critical generic candidates: ${criticalGeneric.length}`);
+for (const row of criticalGeneric) {
+  console.log(`CRITICAL|${row.card.class}|${row.card.id}|${row.card.name}|risk=${row.risks.join(",")}|TEXT=${oneLine(row.card.text)}`);
 }
 
 console.log("\nCARDS WITHOUT DIRECT CARD-NAME TEST EVIDENCE");
