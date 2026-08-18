@@ -15,6 +15,7 @@ on:
       - "scripts/apply-battle-high-risk-common-fixes.py"
       - "scripts/apply-battle-high-risk-tail.py"
       - "scripts/apply-battle-high-risk-last8.py"
+      - "scripts/apply-battle-high-risk-final3.py"
       - "scripts/apply-battle-high-risk-probe.py"
       - "scripts/audit-battle-high-risk-runtime.mjs"
       - "js/battle-engine-v5.js"
@@ -32,6 +33,7 @@ on:
       - "scripts/apply-battle-high-risk-common-fixes.py"
       - "scripts/apply-battle-high-risk-tail.py"
       - "scripts/apply-battle-high-risk-last8.py"
+      - "scripts/apply-battle-high-risk-final3.py"
       - "scripts/apply-battle-high-risk-probe.py"
       - "scripts/audit-battle-high-risk-runtime.mjs"
       - "js/battle-engine-v5.js"
@@ -66,6 +68,8 @@ jobs:
         run: python3 scripts/apply-battle-high-risk-tail.py
       - name: Close final eight high-risk sections locally
         run: python3 scripts/apply-battle-high-risk-last8.py
+      - name: Close final three preprocessed high-risk sections locally
+        run: python3 scripts/apply-battle-high-risk-final3.py
       - name: Materialize runtime probe locally
         run: python3 scripts/apply-battle-high-risk-probe.py
       - name: Check engine and audit syntax
