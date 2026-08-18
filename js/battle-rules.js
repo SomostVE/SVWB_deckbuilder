@@ -178,6 +178,22 @@ export function applyEntryCrestEffects(context, unit) {
       actions.push(`Wilbert Crest: +1/+2 ${unit.name}`);
       actions.push(...applyBuffedFollowerEffects(context, unit, before));
     }
+    // [[battle-forestcraft-entry-crests]]
+    if (name === "aria, lady of the woods" && traits.has("pixie")) {
+      if (giveUnitKeyword(unit, "Storm")) actions.push(`Aria Crest: ${unit.name} gains Storm`);
+    }
+  }
+
+  // [[battle-forestcraft-amulet-entry-rules]]
+  if (traits.has("pixie")) {
+    for (const source of context.player.board ?? []) {
+      if (source.type !== "Amulet" || normalize(source.name) !== "wild profusion") continue;
+      const target = context.chooseRandomEnemyFollower?.();
+      if (!target) continue;
+      const buffer = [];
+      context.damageEnemyFollower?.(target, 1, buffer);
+      actions.push(`Wild Profusion: 1 damage to ${target.name}`, ...buffer);
+    }
   }
 
   // [[battle-swordcraft-amulet-entry-rules]]
@@ -197,7 +213,18 @@ export function applyEntryCrestEffects(context, unit) {
     const unitTraits = new Set([...(unit.card?.traits ?? []), ...(unit.card?.keywords ?? [])].map(normalize));
     const isBat = normalize(unit.name) === "bat" || unitTraits.has("bat");
     const isOfficer = unitTraits.has("officer");
+    const isPixie = unitTraits.has("pixie");
     const isAbysscraft = normalize(unit.card?.class) === "abysscraft";
+
+    // [[battle-forestcraft-allied-entry-rules]]
+    if (isPixie && Number(source.card?.id) === 10311120) {
+      context.buffUnit(source, 1, 0);
+      actions.push(`${source.name}: +1/+0 after Pixie entry`);
+    }
+    if (name === "battledore woodsmaiden" && isPixie) {
+      const dealt = context.damageEnemyLeader?.(1) ?? 0;
+      actions.push(`Battledore Woodsmaiden: ${dealt} damage to enemy leader`);
+    }
 
     if (name === "aryll, moonstruck vampire" && isBat) {
       giveUnitKeyword(unit, "Storm");
