@@ -8,7 +8,8 @@ export const CLASSES = [
   "Dragoncraft",
   "Abysscraft",
   "Havencraft",
-  "Portalcraft"
+  "Portalcraft",
+  "Neutral"
 ];
 
 export function pruneUnavailableFilters() {
