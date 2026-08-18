@@ -6,11 +6,13 @@ on:
     paths:
       - ".github/workflows/apply-battle-dragoncraft-full.yml"
       - "scripts/apply-battle-dragoncraft-full.py"
+      - "scripts/apply-battle-dragoncraft-fixes.py"
       - "scripts/check-battle-dragoncraft-full.mjs"
   pull_request:
     paths:
       - ".github/workflows/apply-battle-dragoncraft-full.yml"
       - "scripts/apply-battle-dragoncraft-full.py"
+      - "scripts/apply-battle-dragoncraft-fixes.py"
       - "scripts/check-battle-dragoncraft-full.mjs"
 
 permissions:
@@ -39,6 +41,7 @@ jobs:
           else
             python3 scripts/apply-battle-dragoncraft-full.py
           fi
+          python3 scripts/apply-battle-dragoncraft-fixes.py
 
       - name: Check JavaScript syntax
         run: |
