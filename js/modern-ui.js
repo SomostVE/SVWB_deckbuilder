@@ -2,11 +2,13 @@ const undoButton = document.getElementById("undo-deck");
 const redoButton = document.getElementById("redo-deck");
 const clearDeckButton = document.getElementById("clear-deck");
 const activeFilters = document.getElementById("active-filters");
+const classFilter = document.getElementById("class-filter");
 
 setupIconButton(undoButton, "↶", "Undo");
 setupIconButton(redoButton, "↷", "Redo");
 setupClearDeckConfirmation(clearDeckButton);
 setupCompactActiveFilters(activeFilters);
+setupClassTheme(classFilter);
 
 function setupIconButton(button, glyph, label) {
   if (!button) return;
@@ -97,4 +99,35 @@ function setupCompactActiveFilters(root) {
   const observer = new MutationObserver(compact);
   observer.observe(root, { childList: true, subtree: true });
   compact();
+}
+
+function setupClassTheme(root) {
+  if (!root) return;
+
+  const themes = {
+    Forestcraft: ["#69d77b", "105, 215, 123"],
+    Swordcraft: ["#e1c44f", "225, 196, 79"],
+    Runecraft: ["#8f94ff", "143, 148, 255"],
+    Dragoncraft: ["#f39a4b", "243, 154, 75"],
+    Abysscraft: ["#df5b83", "223, 91, 131"],
+    Havencraft: ["#dbc983", "219, 201, 131"],
+    Portalcraft: ["#45ced7", "69, 206, 215"]
+  };
+
+  const apply = () => {
+    const active = root.querySelector(".class-button.active");
+    const className = active?.title || active?.getAttribute("aria-label") || "";
+    const [accent, rgb] = themes[className] ?? ["#72b8ff", "114, 184, 255"];
+    document.documentElement.style.setProperty("--class-accent", accent);
+    document.documentElement.style.setProperty("--class-accent-rgb", rgb);
+    document.body.dataset.classTheme = className || "default";
+  };
+
+  new MutationObserver(apply).observe(root, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["class"]
+  });
+  apply();
 }
