@@ -142,32 +142,11 @@ function setupClassTheme(root) {
 function setupNeutralControl(root) {
   if (!root) return;
 
-  const decorate = () => {
-    const neutralOnly = [...root.querySelectorAll(".class-button")]
-      .find(button => (button.title || button.getAttribute("aria-label")) === "Neutral");
+  const hideLegacyIncludeNeutral = () => {
     const includeNeutral = root.querySelector(".neutral-icon-toggle");
-    if (!includeNeutral) return;
-
-    const neutralSelected = Boolean(neutralOnly?.classList.contains("active"));
-    includeNeutral.hidden = neutralSelected;
-    includeNeutral.title = "Include Neutral cards";
-    includeNeutral.setAttribute("aria-label", "Include Neutral cards with the selected class");
-
-    for (const image of includeNeutral.querySelectorAll("img")) image.remove();
-
-    let badge = includeNeutral.querySelector(".neutral-include-label");
-    if (!badge) {
-      badge = document.createElement("span");
-      badge.className = "neutral-include-label";
-      badge.textContent = "+N";
-      badge.style.fontSize = ".68rem";
-      badge.style.fontWeight = "850";
-      badge.style.letterSpacing = "-.02em";
-      badge.style.pointerEvents = "none";
-      includeNeutral.appendChild(badge);
-    }
+    if (includeNeutral) includeNeutral.hidden = true;
   };
 
-  new MutationObserver(decorate).observe(root, { childList: true });
-  decorate();
+  new MutationObserver(hideLegacyIncludeNeutral).observe(root, { childList: true });
+  hideLegacyIncludeNeutral();
 }
