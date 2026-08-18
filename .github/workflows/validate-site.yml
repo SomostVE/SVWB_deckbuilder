@@ -28,6 +28,9 @@ jobs:
         run: |
           node -e "const fs=require('fs');for(const file of ['data/official/cards.json','data/official/metadata.json','data/official/changelog.json','data/custom/reference-decks.json','data/custom/reference-decks.source.json','data/custom/packages.json','data/custom/tags.json','data/custom/exclusions.json']){JSON.parse(fs.readFileSync(file,'utf8'));console.log('OK '+file)}"
 
+      - name: Audit Swordcraft Battle Sim v5 coverage
+        run: node scripts/audit-battle-class.mjs Swordcraft
+
       - name: Run Battle Sim exact-rule regressions
         run: node scripts/check-battle-rules.mjs
 
