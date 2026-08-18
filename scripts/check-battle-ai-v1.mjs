@@ -21,7 +21,17 @@ const twoDrop = {
   defense: 2,
   keywords: [], traits: [], relatedCards: [], text: ""
 };
-const cardMap = new Map([[oneDrop.id, oneDrop], [twoDrop.id, twoDrop]]);
+const nineDrop = {
+  id: 99100003,
+  name: "QA Nine Drop",
+  class: "Neutral",
+  type: "Follower",
+  cost: 9,
+  attack: 9,
+  defense: 9,
+  keywords: [], traits: [], relatedCards: [], text: ""
+};
+const cardMap = new Map([[oneDrop.id, oneDrop], [twoDrop.id, twoDrop], [nineDrop.id, nineDrop]]);
 const mixedDeck = [[oneDrop.id, 20], [twoDrop.id, 20]];
 
 function firstTurnBonusUses(result) {
@@ -68,18 +78,31 @@ assert.ok(usedOnFirstTurn / eligibleSamples >= .75,
 assert.equal(controlUsedOnFirstTurn, 0,
   "Control AI should preserve Extra PP on turn 1 for a small generic curve upgrade");
 
-const oneDropOnly = [[oneDrop.id, 40]];
-const noUpgrade = simulateBattle({
-  playerDeck: oneDropOnly,
-  opponentDeck: oneDropOnly,
-  cardMap,
-  playerStrategy: { style: "aggro", mulliganMaxCost: 2, faceBias: .9, tradeBias: .2 },
-  opponentStrategy: { style: "aggro", mulliganMaxCost: 2, faceBias: .9, tradeBias: .2 },
-  seed: "qa-ai-no-extra-pp-waste",
-  playerSide: "second",
-  recordFrames: true
-});
-assert.equal(firstTurnBonusUses(noUpgrade), 0,
-  "AI should not consume Extra PP on turn 1 when +1 PP unlocks no better action or extra spend");
+// A real no-waste case: exactly one 1-drop is available and every other card
+// in hand costs 9. +1 PP cannot improve the action or enable a second play.
+const noUpgradeDeck = [[oneDrop.id, 10], [nineDrop.id, 30]];
+let noUpgradeEligible = 0;
+let noUpgradeUses = 0;
+for (let index = 0; index < 80; index += 1) {
+  const noUpgrade = simulateBattle({
+    playerDeck: noUpgradeDeck,
+    opponentDeck: noUpgradeDeck,
+    cardMap,
+    playerStrategy: { style: "aggro", mulliganMaxCost: 10, faceBias: .9, tradeBias: .2 },
+    opponentStrategy: { style: "aggro", mulliganMaxCost: 10, faceBias: .9, tradeBias: .2 },
+    seed: `qa-ai-no-extra-pp-waste:${index}`,
+    playerSide: "second",
+    recordFrames: true
+  });
+  const start = noUpgrade.frames.find(frame => frame.active === 0 && frame.players?.[0]?.personalTurn === 1 && frame.phase === "draw");
+  if (!start) continue;
+  const costs = start.players[0].hand.map(card => Number(card.cost));
+  if (costs.filter(cost => cost === 1).length !== 1 || costs.some(cost => cost > 1 && cost <= 2)) continue;
+  noUpgradeEligible += 1;
+  if (firstTurnBonusUses(noUpgrade) >= 1) noUpgradeUses += 1;
+}
+assert.ok(noUpgradeEligible >= 10, `Expected enough explicit no-upgrade openings, got ${noUpgradeEligible}`);
+assert.equal(noUpgradeUses, 0,
+  `AI should not consume Extra PP when +1 PP unlocks no better action or extra spend; used ${noUpgradeUses}/${noUpgradeEligible}`);
 
-console.log(`Battle AI v1.1 Extra PP: aggro ${usedOnFirstTurn}/${eligibleSamples} upgraded openings · control ${controlUsedOnFirstTurn}/${eligibleSamples} early uses · no-waste OK`);
+console.log(`Battle AI v1.1 Extra PP: aggro ${usedOnFirstTurn}/${eligibleSamples} upgraded openings · control ${controlUsedOnFirstTurn}/${eligibleSamples} early uses · no-waste ${noUpgradeUses}/${noUpgradeEligible}`);
