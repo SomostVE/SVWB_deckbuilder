@@ -6,19 +6,31 @@ if (!document.querySelector('link[href$="header-layout.css"]')) {
   document.head.appendChild(link);
 }
 
-const slot = document.getElementById("card-size-control-slot");
+const cardSizeSlot = document.getElementById("card-size-control-slot");
+const viewControls = document.querySelector(".view-controls");
 const toolbar = document.querySelector(".content-toolbar");
 
-function mountCardSizeControl() {
-  const control = document.querySelector(".card-size-control");
-  if (!slot || !control || slot.contains(control)) return Boolean(control);
-  slot.appendChild(control);
-  return true;
+function mountHeaderControls() {
+  const cardSize = document.querySelector(".card-size-control");
+  const resetFilters = document.getElementById("reset-filters");
+  let ready = true;
+
+  if (cardSizeSlot && cardSize) {
+    if (!cardSizeSlot.contains(cardSize)) cardSizeSlot.appendChild(cardSize);
+  } else if (cardSizeSlot) {
+    ready = false;
+  }
+
+  if (viewControls && resetFilters && resetFilters.parentElement !== viewControls) {
+    viewControls.appendChild(resetFilters);
+  }
+
+  return ready;
 }
 
-if (!mountCardSizeControl() && toolbar && slot) {
+if (!mountHeaderControls() && toolbar) {
   const observer = new MutationObserver(() => {
-    if (!mountCardSizeControl()) return;
+    if (!mountHeaderControls()) return;
     observer.disconnect();
   });
   observer.observe(toolbar, { childList: true, subtree: true });
