@@ -73,6 +73,9 @@ jobs:
       - name: Run Swordcraft class regression
         run: node scripts/check-battle-swordcraft-full.mjs
 
+      - name: Run Forestcraft class regression
+        run: node scripts/check-battle-forestcraft-full.mjs
+
       - name: Run Battle Sim v5 integration
         run: node scripts/check-battle-v5-integration.mjs
 
