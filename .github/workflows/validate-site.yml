@@ -76,6 +76,9 @@ jobs:
       - name: Run Forestcraft class regression
         run: node scripts/check-battle-forestcraft-full.mjs
 
+      - name: Run Dragoncraft class regression
+        run: node scripts/check-battle-dragoncraft-full.mjs
+
       - name: Run Battle Sim v5 integration
         run: node scripts/check-battle-v5-integration.mjs
 
