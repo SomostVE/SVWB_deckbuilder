@@ -79,6 +79,9 @@ jobs:
       - name: Run Dragoncraft class regression
         run: node scripts/check-battle-dragoncraft-full.mjs
 
+      - name: Run Abysscraft class regression
+        run: node scripts/check-battle-abysscraft-full.mjs
+
       - name: Run Battle Sim v5 integration
         run: node scripts/check-battle-v5-integration.mjs
 
