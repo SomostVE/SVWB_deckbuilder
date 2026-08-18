@@ -180,6 +180,15 @@ export function applyEntryCrestEffects(context, unit) {
     }
   }
 
+  // [[battle-swordcraft-amulet-entry-rules]]
+  for (const source of context.player.board ?? []) {
+    if (source.type !== "Amulet" || normalize(source.name) !== "ancestral crown") continue;
+    const before = { attack: Number(unit.attack) || 0, defense: Number(unit.defense) || 0 };
+    context.buffUnit(unit, 1, 1);
+    actions.push(`Ancestral Crown: +1/+1 ${unit.name}`);
+    actions.push(...applyBuffedFollowerEffects(context, unit, before));
+  }
+
   for (const source of context.player.board ?? []) {
     if (source === unit || source.type !== "Follower") continue;
     const name = normalize(source.name);
@@ -204,6 +213,36 @@ export function applyEntryCrestEffects(context, unit) {
     }
     if (name === "luminous lancetrooper" && isOfficer) {
       if (giveUnitKeyword(unit, "Rush")) actions.push(`Luminous Lancetrooper: ${unit.name} gains Rush`);
+    }
+    // [[battle-swordcraft-allied-entry-rules]]
+    if (name === "luminous commander" && isOfficer) {
+      source.attack = (Number(source.attack) || 0) + 1;
+      source.swordcraftTempAttackBonus = (Number(source.swordcraftTempAttackBonus) || 0) + 1;
+      actions.push(`Luminous Commander: +1/+0 until turn end`);
+    }
+    if (name === "lyrala, luminous potionwright" && isOfficer) {
+      const healed = context.healPlayer
+        ? context.healPlayer(context.player, 1, context.playerIndex)
+        : Math.max(0, Math.min(1, (Number(context.player.maxHp) || 20) - (Number(context.player.hp) || 0)));
+      if (!context.healPlayer && healed) context.player.hp += healed;
+      actions.push(`Lyrala: restore ${healed} leader defense`);
+    }
+    if (name === "luminous magus" && isOfficer) {
+      if (giveUnitKeyword(unit, "Ward")) actions.push(`Luminous Magus: ${unit.name} gains Ward`);
+    }
+    if (name === "gildaria, anathema of peace") {
+      const buffer = [];
+      for (const enemy of context.opponent.board.filter(target => target.type === "Follower")) {
+        if (context.damageEnemyFollower) context.damageEnemyFollower(enemy, 1, buffer);
+        else enemy.defense -= 1;
+      }
+      actions.push(`Gildaria, Anathema of Peace: 1 damage to all enemy followers`, ...buffer);
+    }
+    if (name === "amalia, luxsteel paladin") {
+      context.buffUnit(unit, 1, 0);
+      giveUnitKeyword(unit, "Rush");
+      giveUnitKeyword(unit, "Ward");
+      actions.push(`Amalia: +1/+0, Rush, and Ward ${unit.name}`);
     }
     if (name === "gildaria, anathema of attunement" && context.player.isActive) {
       if (giveUnitKeyword(unit, "Rush")) actions.push(`Gildaria: ${unit.name} gains Rush`);

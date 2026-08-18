@@ -77,7 +77,21 @@ const FULL_OVERRIDES = new Map([
   ["lilanthim, anathema of predation", "Earth Rite effects and opponent-end Countdown Crest summon/evolution are modeled"],
   ["grandeur of the dawnblossom", "Random deck-follower exact-copy field transformation is modeled"],
   ["calge-danthla, eld crystals", "Faith, Crystalspawn hand discount, Storm summons and Evolve generation are modeled"],
-  ["noble shikigami", "Destroyed-this-turn Shikigami base-stat entry scaling is modeled"]
+  ["noble shikigami", "Destroyed-this-turn Shikigami base-stat entry scaling is modeled"],
+  // [[battle-swordcraft-full-overrides]]
+  ["luminous commander", "Officer-entry temporary attack trigger and Evolve summon are modeled"],
+  ["majestic conquest", "Countdown Crest, Enhanced-card summon trigger and Enhance delay are modeled"],
+  ["bombastic bombardier", "In-hand cost set after allied Super-Evolution is modeled"],
+  ["kagemitsu, enduring warrior", "Last Words Countdown Crest, Crest resummon and Super-Evolve Storm are modeled"],
+  ["katze, magical thief", "Once-per-turn spell-play random damage and Evolve generation are modeled"],
+  ["lyrala, luminous potionwright", "Officer-entry leader healing and Fanfare summon are modeled"],
+  ["octrice, hollowness manifest", "Loot play/Fuse Crest advancement and Crest Last Words generation are modeled"],
+  ["ancestral crown", "Countdown and allied follower entry buff are modeled"],
+  ["luminous magus", "Officer-entry Ward and Fanfare summons are modeled"],
+  ["unkei, goldbloom", "Countdown Crest and end-turn Glittering Gold generation are modeled"],
+  ["gildaria, anathema of peace", "Pre-entry Rally Super-Evolution, allied-entry board damage and evolve summons are modeled"],
+  ["amalia, luxsteel paladin", "Allied-entry attack, Rush and Ward grant is modeled"],
+  ["yurius, levin authority", "Enemy-entry attack lock, leader damage/heal and enemy Knight summons are modeled"]
 ]);
 
 const HANDLED_REACTIVE_CLAUSES = [
@@ -86,7 +100,17 @@ const HANDLED_REACTIVE_CLAUSES = [
   /Whenever an allied Artifact follower enters the field, give it Rush\.?/gi,
   /Whenever you play a spell, if this follower is evolved, summon an Imari's Little Buddies\.?/gi,
   /Whenever an allied follower with Ward is destroyed, give this follower \+1\/\+1\.?/gi,
-  /Whenever this follower is given \+ attack or defense on the field, restore 1 defense to your leader\.?/gi
+  /Whenever this follower is given \+ attack or defense on the field, restore 1 defense to your leader\.?/gi,
+  // [[battle-swordcraft-reactive-clauses]]
+  /Whenever an allied Officer follower enters the field, give this follower \+1\/\+0 until the end of the turn\.?/gi,
+  /Activates in hand\. Whenever an allied follower super-evolves, set the cost of this card to 1\.?/gi,
+  /Once on each of your turns, when you play a spell, deal 2 damage to a random enemy follower\.?/gi,
+  /Whenever an allied Officer follower enters the field, restore 1 defense to your leader\.?/gi,
+  /Whenever an allied follower enters the field, give it \+1\/\+1\.?/gi,
+  /Whenever an allied Officer follower enters the field, give it Ward\.?/gi,
+  /Whenever another allied follower enters the field, deal 1 damage to all enemy followers\.?/gi,
+  /Whenever another allied follower enters the field, give it \+1\/\+0, Rush, and Ward\.?/gi,
+  /Whenever an enemy follower enters the field, give it "Can'?t attack followers or leaders" until the end of your opponent'?s turn, deal 1 damage to the enemy leader, and restore 1 defense to your leader\.?/gi
 ];
 
 export function simulateBattle({ playerDeck, opponentDeck, cardMap, playerStrategy = {}, opponentStrategy = {}, seed = "deci-builder", playerSide = "random", recordFrames = true }) {
@@ -569,6 +593,172 @@ export function inspectRunecraftExtendedRules({ cards = [] } = {}) {
     ticoDiscount,
     elmottSilence,
     lhynkalInjection
+  };
+}
+
+// [[battle-swordcraft-full-qa]]
+export function inspectSwordcraftFullRules({ cards = [] } = {}) {
+  const map = new Map(cards.map(card => [Number(card.id), card]));
+  prepareOriginalCardMap(map);
+  const byName = name => findByName(map, name);
+  const makePair = seed => {
+    const rng = createRng(`swordcraft-full-qa:${seed}`);
+    const stats = createStats();
+    const player = makePlayer("You", [], {}, map, rng);
+    const opponent = makePlayer("Opponent", [], {}, map, rng);
+    player.isActive = true;
+    opponent.isActive = false;
+    player.personalTurn = 6;
+    opponent.personalTurn = 5;
+    player.maxPp = player.pp = 10;
+    opponent.maxPp = opponent.pp = 10;
+    return { rng, stats, player, opponent };
+  };
+  const syntheticFollower = (name, traits = []) => ({ id: -700000 - name.length, name, class: "Swordcraft", type: "Follower", cost: 1, attack: 1, defense: 1, text: "", keywords: [], traits });
+  const enterWith = (sourceName, entrant = syntheticFollower("QA Officer", ["Officer"])) => {
+    const q = makePair(sourceName);
+    const sourceCard = byName(sourceName);
+    const source = sourceCard.type === "Amulet" ? boardAmulet(instance(q.player, sourceCard)) : boardFollower(instance(q.player, sourceCard));
+    q.player.board.push(source);
+    const unit = boardFollower(instance(q.player, entrant));
+    q.player.board.push(unit);
+    q.player.rally += 1;
+    const actions = applyEntryEvents({ player: q.player, opponent: q.opponent, playerIndex: 0, enemyIndex: 1, stats: q.stats, rng: q.rng, cardMap: map }, unit);
+    return { ...q, source, unit, actions };
+  };
+
+  const commander = enterWith("Luminous Commander");
+  const commanderBuff = commander.source.attack - Number(commander.source.card.attack || 0);
+  restoreTemporaryAttack(commander.player);
+  const commanderRestored = commander.source.attack;
+
+  const lyrala = enterWith("Lyrala, Luminous Potionwright");
+  lyrala.player.hp = 10;
+  const lyralaUnit = boardFollower(instance(lyrala.player, syntheticFollower("Second QA Officer", ["Officer"])));
+  lyrala.player.board.push(lyralaUnit);
+  applyEntryEvents({ player: lyrala.player, opponent: lyrala.opponent, playerIndex: 0, enemyIndex: 1, stats: lyrala.stats, rng: lyrala.rng, cardMap: map }, lyralaUnit);
+  const lyralaHeal = lyrala.player.hp - 10;
+
+  const magus = enterWith("Luminous Magus");
+  const magusWard = hasU(magus.unit, "Ward");
+
+  const crown = enterWith("Ancestral Crown", syntheticFollower("QA Crown Follower"));
+  const crownBuff = [crown.unit.attack, crown.unit.defense];
+
+  const amalia = enterWith("Amalia, Luxsteel Paladin", syntheticFollower("QA Amalia Follower"));
+  const amaliaEntry = { attack: amalia.unit.attack, rush: hasU(amalia.unit, "Rush"), ward: hasU(amalia.unit, "Ward") };
+
+  const peace = enterWith("Gildaria, Anathema of Peace", syntheticFollower("QA Peace Follower"));
+  peace.opponent.board = [
+    boardFollower(instance(peace.opponent, syntheticFollower("Peace Enemy A"))),
+    boardFollower(instance(peace.opponent, syntheticFollower("Peace Enemy B")))
+  ];
+  for (const unit of peace.opponent.board) { unit.defense = 2; unit.maxDefense = 2; }
+  const peaceEntry = boardFollower(instance(peace.player, syntheticFollower("QA Peace Trigger")));
+  peace.player.board.push(peaceEntry);
+  applyEntryEvents({ player: peace.player, opponent: peace.opponent, playerIndex: 0, enemyIndex: 1, stats: peace.stats, rng: peace.rng, cardMap: map }, peaceEntry);
+  const peaceBoardDefense = peace.opponent.board.map(unit => unit.defense);
+
+  const bomb = makePair("bombardier");
+  bomb.player.hand.push(instance(bomb.player, byName("Bombastic Bombardier")));
+  applySwordcraftSuperEvolveHandTriggers(bomb.player);
+  const bombardierCost = costOf(bomb.player.hand[0]);
+
+  const katze = makePair("katze");
+  const katzeUnit = boardFollower(instance(katze.player, byName("Katze, Magical Thief")));
+  katze.player.board.push(katzeUnit);
+  const katzeEnemy = boardFollower(instance(katze.opponent, syntheticFollower("Katze Enemy")));
+  katzeEnemy.defense = 5; katzeEnemy.maxDefense = 5;
+  katze.opponent.board.push(katzeEnemy);
+  applySwordcraftSpellPlayedTriggers(katze.player, katze.opponent, 0, 1, katze.stats, katze.rng, map);
+  applySwordcraftSpellPlayedTriggers(katze.player, katze.opponent, 0, 1, katze.stats, katze.rng, map);
+  const katzeDefense = katzeEnemy.defense;
+
+  const majestic = makePair("majestic");
+  gainCrest(majestic.player, "Majestic Conquest", byName("Majestic Conquest"));
+  const majesticCtx = { card: byName("Majestic Conquest"), player: majestic.player, opponent: majestic.opponent, playerIndex: 0, enemyIndex: 1, stats: majestic.stats, rng: majestic.rng, cardMap: map };
+  applyEnhancedCardPlayed(majesticCtx);
+  resolveSwordcraftCardText("Delay the count of your Crest: Majestic Conquest by 2.", majesticCtx);
+  const majesticResult = {
+    countdown: majestic.player.crests.find(crest => norm(crest.name) === "majestic conquest")?.countdown ?? null,
+    fearless: majestic.player.board.filter(unit => norm(unit.name) === "fearless soldier").length
+  };
+
+  const kage = makePair("kagemitsu");
+  gainCrest(kage.player, "Kagemitsu, Enduring Warrior", byName("Kagemitsu, Enduring Warrior"));
+  const kageCrest = kage.player.crests.find(crest => norm(crest.name) === "kagemitsu, enduring warrior");
+  kageCrest.countdown = 1; kageCrest.gainedTurn = 0;
+  tickCrests(kage.player, kage.opponent, 0, 1, kage.stats, kage.rng, map, []);
+  const kagemitsuSummoned = kage.player.board.some(unit => norm(unit.name) === "kagemitsu, enduring warrior");
+
+  const octrice = makePair("octrice");
+  gainCrest(octrice.player, "Octrice, Hollowness Manifest", byName("Octrice, Hollowness Manifest"));
+  octrice.player.hand.push(instance(octrice.player, byName("Sinciro, Heir to Usurpation")));
+  octrice.player.hand.push(instance(octrice.player, byName("Gilded Blade")));
+  octrice.player.hand.push(instance(octrice.player, byName("Gilded Necklace")));
+  const sinciro = octrice.player.hand.find(item => norm(item.card.name) === "sinciro, heir to usurpation");
+  const loot = octrice.player.hand.filter(item => ["gilded blade", "gilded necklace"].includes(norm(item.card.name)));
+  resolveFuseAction({ target: sinciro, materials: loot }, octrice.player, octrice.opponent, 0, 1, octrice.stats, octrice.rng, map);
+  const octriceAfterTwoLootFuse = octrice.player.crests.find(crest => norm(crest.name) === "octrice, hollowness manifest")?.countdown ?? null;
+  const octriceCrest = octrice.player.crests.find(crest => norm(crest.name) === "octrice, hollowness manifest");
+  if (octriceCrest) octriceCrest.countdown = 1;
+  applySwordcraftLootCrestEvent(octrice.player, octrice.opponent, 0, 1, octrice.stats, octrice.rng, map, [], "play");
+  const octriceRemnant = octrice.player.hand.filter(item => norm(item.card.name) === "remnant of hollowness").length;
+
+  const unkei = makePair("unkei");
+  gainCrest(unkei.player, "Unkei, Goldbloom", byName("Unkei, Goldbloom"));
+  applySwordcraftCrestTurnEnd(unkei.player, unkei.opponent, 0, 1, unkei.stats, unkei.rng, map);
+  const unkeiGold = unkei.player.hand.filter(item => norm(item.card.name) === "glittering gold").length;
+
+  const gildariaAt19 = makePair("gildaria-19");
+  gildariaAt19.player.rally = 19;
+  const g19 = instance(gildariaAt19.player, byName("Gildaria, Anathema of Peace"));
+  gildariaAt19.player.hand.push(g19);
+  playCard(g19, { kind: "base", cost: 6, text: "Rally (20) - Super-evolve this follower." }, gildariaAt19.player, gildariaAt19.opponent, 0, 1, gildariaAt19.stats, gildariaAt19.rng, map);
+  const gildaria19Super = Boolean(gildariaAt19.player.board.find(unit => norm(unit.name) === "gildaria, anathema of peace")?.superEvolved);
+
+  const gildariaAt20 = makePair("gildaria-20");
+  gildariaAt20.player.rally = 20;
+  const g20 = instance(gildariaAt20.player, byName("Gildaria, Anathema of Peace"));
+  gildariaAt20.player.hand.push(g20);
+  playCard(g20, { kind: "base", cost: 6, text: "Rally (20) - Super-evolve this follower." }, gildariaAt20.player, gildariaAt20.opponent, 0, 1, gildariaAt20.stats, gildariaAt20.rng, map);
+  const g20Unit = gildariaAt20.player.board.find(unit => norm(unit.name) === "gildaria, anathema of peace");
+  const gildaria20 = {
+    superEvolved: Boolean(g20Unit?.superEvolved),
+    steelclad: gildariaAt20.player.board.filter(unit => norm(unit.name) === "steelclad knight").length,
+    rush: gildariaAt20.player.board.filter(unit => norm(unit.name) === "steelclad knight" && hasU(unit, "Rush")).length
+  };
+
+  const yurius = makePair("yurius");
+  yurius.player.hp = 10;
+  const yuriusUnit = boardFollower(instance(yurius.player, byName("Yurius, Levin Authority")));
+  yurius.player.board.push(yuriusUnit);
+  const enemyEntry = boardFollower(instance(yurius.opponent, syntheticFollower("Yurius Enemy Entry")));
+  yurius.opponent.board.push(enemyEntry);
+  applyEntryEvents({ player: yurius.opponent, opponent: yurius.player, playerIndex: 1, enemyIndex: 0, stats: yurius.stats, rng: yurius.rng, cardMap: map }, enemyEntry);
+  const yuriusEntry = { locked: Boolean(enemyEntry.yuriusAttackLocked), enemyHp: yurius.opponent.hp, ownerHp: yurius.player.hp };
+  applySwordcraftTurnStartLocks(yurius.opponent);
+  const yuriusLockedAtStart = !enemyEntry.canAttackLeader && !enemyEntry.canAttackFollower;
+  clearSwordcraftTurnLocks(yurius.opponent);
+
+  return {
+    commander: { buff: commanderBuff, restoredAttack: commanderRestored },
+    lyralaHeal,
+    magusWard,
+    crownBuff,
+    amaliaEntry,
+    peaceBoardDefense,
+    bombardierCost,
+    katzeDefense,
+    majesticResult,
+    kagemitsuSummoned,
+    octriceAfterTwoLootFuse,
+    octriceRemnant,
+    unkeiGold,
+    gildaria19Super,
+    gildaria20,
+    yuriusEntry,
+    yuriusLockedAtStart
   };
 }
 
@@ -1222,8 +1412,8 @@ function executeEvolutionDecision(state, action, map, rng) {
   unit.attack += bonus;
   unit.defense += bonus;
   unit.maxDefense += bonus;
-  unit.canAttackFollower = !/can't attack followers or leaders/i.test(String(unit.card?.text ?? ""));
-  if (/can't attack followers or leaders/i.test(String(unit.card?.text ?? ""))) unit.canAttackLeader = false;
+  unit.canAttackFollower = !unit.yuriusAttackLocked && !/can't attack followers or leaders/i.test(String(unit.card?.text ?? ""));
+  if (unit.yuriusAttackLocked || /can't attack followers or leaders/i.test(String(unit.card?.text ?? ""))) unit.canAttackLeader = false;
   unit.evolved = true;
   unit.superEvolved = superMode;
   player.evolutionsThisMatch += 1;
@@ -1231,6 +1421,8 @@ function executeEvolutionDecision(state, action, map, rng) {
   if (superMode) stats.superEvolutions[playerIndex] += 1;
   else stats.evolutions[playerIndex] += 1;
   const actions = [];
+  // [[battle-swordcraft-manual-super-evolve-event]]
+  if (superMode) actions.push(...applySwordcraftSuperEvolveHandTriggers(player));
   const evolveText = getUnitTriggeredText(unit, "evolve");
   if (evolveText) actions.push(...resolveText(evolveText, { card: unit.card, sourceUnit: unit, player, opponent, playerIndex, enemyIndex, stats, rng, cardMap: map, targetPlan: action.targetPlan ?? null }).actions);
   if (superMode) {
@@ -2062,6 +2254,10 @@ function resolveFuseAction(action, player, opponent, playerIndex, enemyIndex, st
   actions.push(`Fuse ${materials.length} card${materials.length === 1 ? "" : "s"}`);
 
   applyFuseReactiveEffects(player, opponent, materials, playerIndex, enemyIndex, stats, rng, cardMap, actions);
+  // [[battle-swordcraft-loot-fuse-crest]]
+  if (materials.some(item => hasTrait(item.card, "Loot"))) {
+    applySwordcraftLootCrestEvent(player, opponent, playerIndex, enemyIndex, stats, rng, cardMap, actions, "Fuse");
+  }
 
   const nextName = projectedFuseTransformName(target, materials);
   if (nextName) {
@@ -2689,6 +2885,8 @@ function strongestFollowerThreat(foes) {
 }
 
 function playCard(inst, mode, player, opponent, playerIndex, enemyIndex, stats, rng, cardMap, options = {}) {
+  // [[battle-swordcraft-pre-entry-rally]]
+  const rallyBeforePlay = Number(player.rally) || 0;
   player.hand = player.hand.filter(item => item.uid !== inst.uid);
   player.pp -= mode.cost;
   player.cardsPlayedThisTurn += 1;
@@ -2722,11 +2920,13 @@ function playCard(inst, mode, player, opponent, playerIndex, enemyIndex, stats, 
 
   // "Whenever you play ..." triggers from the play event itself.
   applyLootPlayedTrigger(player, opponent, card, playerIndex, enemyIndex, stats, rng, cardMap, actions);
+  // [[battle-swordcraft-loot-play-crest]]
+  if (hasTrait(card, "Loot")) applySwordcraftLootCrestEvent(player, opponent, playerIndex, enemyIndex, stats, rng, cardMap, actions, "play");
   // [[battle-runecraft-play-triggers]]
   applyRunecraftCardPlayedTriggers(player, opponent, card, playerIndex, stats, actions);
 
   if (mode.kind !== "crystallize") {
-    const result = resolveText(mode.text || card.text, { card, instance: inst, sourceUnit: source, player, opponent, playerIndex, enemyIndex, stats, rng, cardMap, targetPlan: options.targetPlan ?? null });
+    const result = resolveText(mode.text || card.text, { card, instance: inst, sourceUnit: source, player, opponent, playerIndex, enemyIndex, stats, rng, cardMap, targetPlan: options.targetPlan ?? null, rallyBeforePlay });
     actions.push(...result.actions);
   }
 
@@ -2741,6 +2941,8 @@ function playCard(inst, mode, player, opponent, playerIndex, enemyIndex, stats, 
     const beforeHp = player.hp;
     actions.push(...applySpellPlayedEffects(effectContext({ card, instance: inst, sourceUnit: source, player, opponent, playerIndex, enemyIndex, stats, rng, cardMap })));
     if (player.hp > beforeHp) actions.push(...afterLeaderHeal(player, player.hp - beforeHp, stats, playerIndex));
+    // [[battle-swordcraft-spell-play-trigger]]
+    actions.push(...applySwordcraftSpellPlayedTriggers(player, opponent, playerIndex, enemyIndex, stats, rng, cardMap));
   }
 
   actions.push(...cleanup(player, opponent, playerIndex, enemyIndex, stats, rng, cardMap), ...cleanup(opponent, player, enemyIndex, playerIndex, stats, rng, cardMap));
@@ -2751,6 +2953,19 @@ function playCard(inst, mode, player, opponent, playerIndex, enemyIndex, stats, 
 function applyEnhancedCardPlayed(ctx) {
   const actions = [];
   const player = ctx.player;
+  // [[battle-swordcraft-majestic-enhanced-trigger]]
+  if (hasCrest(player, "Majestic Conquest")) {
+    const token = findByName(ctx.cardMap, "Fearless Soldier");
+    if (token && player.board.length < 5) {
+      const before = new Set(player.board.map(unit => unit.uid));
+      summonWithEvents(player, token, 1, ctx.playerIndex, ctx);
+      const summoned = player.board.find(unit => !before.has(unit.uid) && norm(unit.name) === "fearless soldier");
+      if (summoned) {
+        ctx.stats.cardsGenerated[ctx.playerIndex] += 1;
+        actions.push("Majestic Conquest Crest: summon Fearless Soldier");
+      }
+    }
+  }
   if (player.faithActive) {
     player.faith += 1;
     actions.push(`Faith +1 (${player.faith})`);
@@ -2839,6 +3054,165 @@ function silenceFollower(unit) {
   unit.permanentAttackLock = false;
   unit.baseMaxAttacks = 1;
   unit.maxAttacks = 1;
+}
+
+// [[battle-swordcraft-full-rules]]
+function applySwordcraftSuperEvolveHandTriggers(player) {
+  const actions = [];
+  for (const item of player.hand ?? []) {
+    if (norm(item.card?.name) !== "bombastic bombardier") continue;
+    const base = Math.max(0, Number(item.card?.cost) || 0);
+    item.costDelta = 1 - base;
+    actions.push("Bombastic Bombardier: cost set to 1");
+  }
+  return actions;
+}
+
+function applySwordcraftSpellPlayedTriggers(player, opponent, playerIndex, enemyIndex, stats, rng, map) {
+  const actions = [];
+  const ctx = { player, opponent, playerIndex, enemyIndex, stats, rng, cardMap: map };
+  for (const source of player.board.filter(unit => unit.type === "Follower" && norm(unit.name) === "katze, magical thief")) {
+    if (source.__katzeSpellTriggerTurn === player.personalTurn) continue;
+    source.__katzeSpellTriggerTurn = player.personalTurn;
+    const targets = opponent.board.filter(unit => unit.type === "Follower");
+    if (!targets.length) {
+      actions.push("Katze: spell trigger has no enemy follower");
+      continue;
+    }
+    const target = targets[Math.floor(rng() * targets.length)];
+    damageUnit(target, 2, opponent, player, ctx, actions);
+    actions.push(`Katze: 2 damage to ${target.name}`);
+  }
+  return actions;
+}
+
+function swordcraftCrestLastWords(crest, player, opponent, playerIndex, enemyIndex, stats, rng, map, actions) {
+  const name = norm(crest?.name);
+  if (name === "kagemitsu, enduring warrior") {
+    const card = crest.card ?? findByName(map, "Kagemitsu, Enduring Warrior");
+    if (!card || player.board.length >= 5) {
+      actions.push("Kagemitsu Crest Last Words: summon skipped");
+      return true;
+    }
+    const unit = boardFollower(instance(player, card));
+    player.board.push(unit);
+    player.rally += 1;
+    stats.cardsGenerated[playerIndex] += 1;
+    actions.push("Kagemitsu Crest Last Words: summon Kagemitsu", ...applyEntryEvents({ player, opponent, playerIndex, enemyIndex, stats, rng, cardMap: map }, unit));
+    return true;
+  }
+  if (name === "octrice, hollowness manifest") {
+    const token = findByName(map, "Remnant of Hollowness") ?? related(crest.card, map).find(card => norm(card.name) === "remnant of hollowness");
+    const added = token ? addHand(player, token, 1, playerIndex, stats) : 0;
+    if (added) stats.cardsGenerated[playerIndex] += added;
+    actions.push(`Octrice Crest Last Words: add ${added ? "Remnant of Hollowness" : "no card"}`);
+    return true;
+  }
+  return false;
+}
+
+function applySwordcraftLootCrestEvent(player, opponent, playerIndex, enemyIndex, stats, rng, map, actions, eventName) {
+  const crest = (player.crests ?? []).find(item => norm(item.name) === "octrice, hollowness manifest");
+  if (!crest || !Number.isFinite(crest.countdown)) return false;
+  crest.countdown = Math.max(0, crest.countdown - 1);
+  actions.push(`Octrice Crest: ${eventName} advances countdown to ${crest.countdown}`);
+  if (crest.countdown > 0) return true;
+  player.crests = player.crests.filter(item => item !== crest);
+  swordcraftCrestLastWords(crest, player, opponent, playerIndex, enemyIndex, stats, rng, map, actions);
+  return true;
+}
+
+function applySwordcraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map) {
+  const actions = [];
+  for (const crest of player.crests ?? []) {
+    if (norm(crest.name) !== "unkei, goldbloom") continue;
+    const token = findByName(map, "Glittering Gold") ?? related(crest.card, map).find(card => norm(card.name) === "glittering gold");
+    const added = token ? addHand(player, token, 1, playerIndex, stats) : 0;
+    if (added) stats.cardsGenerated[playerIndex] += added;
+    actions.push(`Unkei Crest: add ${added ? "Glittering Gold" : "no card"}`);
+  }
+  return actions;
+}
+
+function applySwordcraftEnemyEntryEvents(ctx, unit) {
+  if (!unit || unit.type !== "Follower") return [];
+  const actions = [];
+  for (const source of ctx.opponent.board.filter(source => source.type === "Follower" && norm(source.name) === "yurius, levin authority")) {
+    unit.yuriusAttackLocked = true;
+    unit.canAttackLeader = false;
+    unit.canAttackFollower = false;
+    const dealt = damageLeader(ctx.player, 1);
+    ctx.stats.damageDealt[ctx.enemyIndex] += dealt;
+    const healed = healPlayer(ctx.opponent, 1, ctx.stats, ctx.enemyIndex);
+    actions.push(`Yurius: lock ${unit.name} · ${dealt} damage to enemy leader · restore ${healed} defense`);
+    if (healed) actions.push(...afterLeaderHeal(ctx.opponent, healed, ctx.stats, ctx.enemyIndex));
+  }
+  return actions;
+}
+
+function applySwordcraftTurnStartLocks(player) {
+  for (const unit of player.board.filter(unit => unit.type === "Follower" && unit.yuriusAttackLocked)) {
+    unit.canAttackLeader = false;
+    unit.canAttackFollower = false;
+  }
+}
+
+function clearSwordcraftTurnLocks(player) {
+  for (const unit of player.board.filter(unit => unit.type === "Follower" && unit.yuriusAttackLocked)) {
+    unit.yuriusAttackLocked = false;
+  }
+}
+
+function resolveSwordcraftCardText(textValue, ctx) {
+  let text = String(textValue ?? "");
+  const actions = [];
+  const name = norm(ctx.card?.name);
+
+  if (name === "majestic conquest") {
+    const delay = /Delay the count of your Crest\s*:\s*Majestic Conquest by 2\.?/i;
+    if (delay.test(text)) {
+      if (!hasCrest(ctx.player, "Majestic Conquest")) gainCrest(ctx.player, "Majestic Conquest", ctx.card);
+      const crest = ctx.player.crests.find(item => norm(item.name) === "majestic conquest");
+      if (crest && Number.isFinite(crest.countdown)) {
+        crest.countdown += 2;
+        actions.push(`Majestic Conquest: delay Crest countdown to ${crest.countdown}`);
+      }
+      text = text.replace(delay, " ");
+    }
+  }
+
+  if (name === "gildaria, anathema of peace") {
+    const gated = /Rally\s*\(?\s*20\s*\)?\s*-\s*Super-evolve this follower\.?/i;
+    if (gated.test(text)) {
+      const rally = Number.isFinite(Number(ctx.rallyBeforePlay)) ? Number(ctx.rallyBeforePlay) : Math.max(0, (Number(ctx.player.rally) || 0) - 1);
+      if (rally >= 20 && ctx.sourceUnit) {
+        const before = new Set(ctx.player.board.map(unit => unit.uid));
+        superEvolveUnitByAbility(ctx, ctx.sourceUnit, actions);
+        let steelclad = ctx.player.board.filter(unit => !before.has(unit.uid) && norm(unit.name) === "steelclad knight");
+        const missing = Math.max(0, 2 - steelclad.length);
+        if (missing && ctx.player.board.length < 5) {
+          const token = related(ctx.card, ctx.cardMap).find(card => norm(card.name) === "steelclad knight") ?? findByName(ctx.cardMap, "Steelclad Knight");
+          if (token) summonWithEvents(ctx.player, token, missing, ctx.playerIndex, ctx);
+          steelclad = ctx.player.board.filter(unit => !before.has(unit.uid) && norm(unit.name) === "steelclad knight");
+        }
+        for (const unit of steelclad) giveKeyword(unit, "Rush");
+        if (steelclad.length) actions.push(`Gildaria: summon ${steelclad.length} Steelclad Knight${steelclad.length === 1 ? "" : "s"} with Rush`);
+      } else actions.push(`Rally ${rally}/20`);
+      text = text.replace(gated, " ");
+    }
+  }
+
+  if (name === "yurius, levin authority") {
+    const summon = /Summon 2 enemy copies of Knight\.?/i;
+    if (summon.test(text)) {
+      const token = related(ctx.card, ctx.cardMap).find(card => norm(card.name) === "knight") ?? findByName(ctx.cardMap, "Knight");
+      const count = token ? summonWithEvents(ctx.opponent, token, 2, ctx.enemyIndex, ctx) : 0;
+      actions.push(`Yurius: summon ${count} enemy Knight${count === 1 ? "" : "s"}`);
+      text = text.replace(summon, " ");
+    }
+  }
+
+  return { text: text.replace(/\s+/g, " ").trim(), actions };
 }
 
 function runecraftCrestLastWords(crest, player, opponent, playerIndex, enemyIndex, stats, rng, map, actions) {
@@ -3196,6 +3570,11 @@ function resolveText(raw, ctx) {
   const actions = [];
   if (!text) return { actions, applied: false, unresolved: false };
 
+  // [[battle-swordcraft-resolve-text]]
+  const swordcraft = resolveSwordcraftCardText(text, ctx);
+  text = swordcraft.text;
+  actions.push(...swordcraft.actions);
+
   // [[battle-runecraft-resolve-text]]
   const runecraft = resolveRunecraftCardText(text, ctx);
   text = runecraft.text;
@@ -3466,6 +3845,9 @@ function effectContext(ctx) {
     playerIndex: ctx.playerIndex, enemyIndex: ctx.enemyIndex, stats: ctx.stats, rng: ctx.rng,
     recordHandEvolution: () => recordHandEvolution(ctx.player),
     draw: (player, amount, index) => drawCards(player, amount, ctx.stats, index),
+    // [[battle-swordcraft-entry-context]]
+    healPlayer: (player, amount, index = ctx.playerIndex) => healPlayer(player, amount, ctx.stats, index),
+    damageEnemyFollower: (unit, amount, actionBuffer = []) => damageUnit(unit, amount, ctx.opponent, ctx.player, ctx, actionBuffer),
     chooseEnemyFollower: board => choosePlannedTarget(ctx, board),
     chooseAlliedFollower: (board, excluded) => board.filter(unit => unit.type === "Follower" && unit !== excluded).sort((a,b)=>b.attack+b.defense-a.attack-a.defense)[0] ?? excluded,
     chooseHandFollower: hand => hand.filter(item => item.card.type === "Follower").sort((a,b)=>(Number(b.card.cost)||0)-(Number(a.card.cost)||0))[0] ?? null,
@@ -3690,6 +4072,11 @@ function crestCountdown(name) {
   // [[battle-haven-crest-countdowns]]
   if (normalized === "supplicant of repose") return 4;
   if (normalized === "lapis, shining seraph") return 2;
+  // [[battle-swordcraft-crest-countdowns]]
+  if (normalized === "majestic conquest") return 2;
+  if (normalized === "kagemitsu, enduring warrior") return 2;
+  if (normalized === "octrice, hollowness manifest") return 8;
+  if (normalized === "unkei, goldbloom") return 4;
   // [[battle-runecraft-crest-countdowns]]
   if (normalized === "pascale's dance") return 1;
   if (normalized === "insomniac witch") return 2;
@@ -3705,8 +4092,8 @@ function giveKeyword(unit, keyword) {
   if (keyword === "Aura") unit.aura = true;
   if (keyword === "Ambush") unit.ambush = true;
   if (keyword === "Intimidate") unit.intimidate = true;
-  if (keyword === "Storm") { unit.canAttackLeader = true; unit.canAttackFollower = true; }
-  if (keyword === "Rush") unit.canAttackFollower = true;
+  if (keyword === "Storm" && !unit.yuriusAttackLocked) { unit.canAttackLeader = true; unit.canAttackFollower = true; }
+  if (keyword === "Rush" && !unit.yuriusAttackLocked) unit.canAttackFollower = true;
 }
 
 function applyEntryEvents(ctx, unit) {
@@ -3716,6 +4103,8 @@ function applyEntryEvents(ctx, unit) {
   actions.push(...applyEntryCrestEffects(effectContext(ctx), unit));
   if (ctx.player.hp > beforeHp) actions.push(...afterLeaderHeal(ctx.player, ctx.player.hp - beforeHp, ctx.stats, ctx.playerIndex));
 
+  // [[battle-swordcraft-enemy-entry-events]]
+  actions.push(...applySwordcraftEnemyEntryEvents(ctx, unit));
   // [[battle-runecraft-entry-events]]
   actions.push(...applyRunecraftEntryEvents(ctx, unit));
 
@@ -3760,6 +4149,8 @@ function afterLeaderHeal(player, healed, stats, playerIndex) {
 function turnStart(player, opponent, playerIndex, enemyIndex, stats, rng, map) {
   const actions = [];
   for (const unit of player.board) if (unit.type === "Follower") unit.reactedThisTurn = false;
+  // [[battle-swordcraft-yurius-turn-lock]]
+  applySwordcraftTurnStartLocks(player);
 
   tickCrests(player, opponent, playerIndex, enemyIndex, stats, rng, map, actions);
   // [[battle-runecraft-crest-turn-start]]
@@ -3803,6 +4194,8 @@ function tickCrests(player, opponent, playerIndex, enemyIndex, stats, rng, map, 
 
   // [[battle-haven-lapis-crest-last-words]]
   for (const crest of expired) {
+    // [[battle-swordcraft-crest-last-words]]
+    if (swordcraftCrestLastWords(crest, player, opponent, playerIndex, enemyIndex, stats, rng, map, actions)) continue;
     // [[battle-runecraft-crest-last-words]]
     if (runecraftCrestLastWords(crest, player, opponent, playerIndex, enemyIndex, stats, rng, map, actions)) continue;
     if (norm(crest.name) !== "lapis, shining seraph") continue;
@@ -3834,6 +4227,10 @@ function turnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map) {
   // [[battle-runecraft-opponent-turn-end-crest]]
   actions.push(...applyRunecraftOpponentTurnEndCrests(opponent, player, enemyIndex, playerIndex, stats, rng, map));
   restoreTemporaryAttack(player);
+  // Temporary Commander buffs can also be created during the opponent's turn by summoned Officers.
+  restoreTemporaryAttack(opponent);
+  // [[battle-swordcraft-yurius-lock-expiry]]
+  clearSwordcraftTurnLocks(player);
   actions.push(...cleanup(player, opponent, playerIndex, enemyIndex, stats, rng, map), ...cleanup(opponent, player, enemyIndex, playerIndex, stats, rng, map));
   // [[battle-leader-cap-expiry]]
   if (opponent.leaderDamageCapUntilOpponentTurnEnd) {
@@ -3846,6 +4243,8 @@ function turnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map) {
 
 function applyCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map) {
   const actions = [];
+  // [[battle-swordcraft-crest-turn-end]]
+  actions.push(...applySwordcraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map));
   // [[battle-runecraft-crest-turn-end]]
   actions.push(...applyRunecraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map));
   for (const crest of player.crests ?? []) {
@@ -4116,8 +4515,8 @@ function evolveUnitByAbility(ctx, unit, actions) {
   unit.attack += 2;
   unit.defense += 2;
   unit.maxDefense += 2;
-  unit.canAttackFollower = !/can't attack followers or leaders/i.test(String(unit.card?.text ?? ""));
-  if (/can't attack followers or leaders/i.test(String(unit.card?.text ?? ""))) unit.canAttackLeader = false;
+  unit.canAttackFollower = !unit.yuriusAttackLocked && !/can't attack followers or leaders/i.test(String(unit.card?.text ?? ""));
+  if (unit.yuriusAttackLocked || /can't attack followers or leaders/i.test(String(unit.card?.text ?? ""))) unit.canAttackLeader = false;
   unit.evolved = true;
   ctx.player.evolutionsThisMatch += 1;
   recordHandEvolution(ctx.player);
@@ -4134,13 +4533,15 @@ function superEvolveUnitByAbility(ctx, unit, actions) {
   unit.attack += 3;
   unit.defense += 3;
   unit.maxDefense += 3;
-  unit.canAttackFollower = !/can't attack followers or leaders/i.test(String(unit.card?.text ?? ""));
-  if (/can't attack followers or leaders/i.test(String(unit.card?.text ?? ""))) unit.canAttackLeader = false;
+  unit.canAttackFollower = !unit.yuriusAttackLocked && !/can't attack followers or leaders/i.test(String(unit.card?.text ?? ""));
+  if (unit.yuriusAttackLocked || /can't attack followers or leaders/i.test(String(unit.card?.text ?? ""))) unit.canAttackLeader = false;
   unit.evolved = true;
   unit.superEvolved = true;
   ctx.player.evolutionsThisMatch += 1;
   recordHandEvolution(ctx.player);
   ctx.stats.superEvolutions[ctx.playerIndex] += 1;
+  // [[battle-swordcraft-ability-super-evolve-event]]
+  actions.push(...applySwordcraftSuperEvolveHandTriggers(ctx.player));
   actions.push(`super-evolve ${unit.name}`);
   const evolveText = getUnitTriggeredText(unit, "evolve");
   if (evolveText) actions.push(...resolveText(evolveText, { ...ctx, card: unit.card, sourceUnit: unit }).actions);
@@ -4570,7 +4971,15 @@ function banish(player, unit) { if (unit.type === "Follower") notifyFollowerLeav
 function bounce(player, unit) { if (unit.type === "Follower") notifyFollowerLeavesField(player, unit); player.board = player.board.filter(item => item.uid !== unit.uid); const item = instance(player, unit.card); if (player.hand.length >= 9) { toCemetery(player, item, false); return false; } player.hand.push(item); return true; }
 
 function hasCrest(player, name) { const target = norm(name); return (player.crests ?? []).some(crest => norm(crest.name) === target); }
-function restoreTemporaryAttack(player) { for (const unit of player.board) if (unit.tempAttackPenalty) { unit.attack += unit.tempAttackPenalty; unit.tempAttackPenalty = 0; } }
+function restoreTemporaryAttack(player) {
+  for (const unit of player.board) {
+    if (unit.tempAttackPenalty) { unit.attack += unit.tempAttackPenalty; unit.tempAttackPenalty = 0; }
+    if (unit.swordcraftTempAttackBonus) {
+      unit.attack = Math.max(0, unit.attack - unit.swordcraftTempAttackBonus);
+      unit.swordcraftTempAttackBonus = 0;
+    }
+  }
+}
 
 function snap(frames, players, meta, stats, record) {
   if (!record) return;
