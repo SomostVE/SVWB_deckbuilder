@@ -11,6 +11,7 @@ on:
       - "scripts/apply-battle-high-risk-order-fixes.py"
       - "scripts/apply-battle-high-risk-final-fixes.py"
       - "scripts/apply-battle-high-risk-lifecycle.py"
+      - "scripts/apply-battle-high-risk-common.py"
       - "scripts/apply-battle-high-risk-probe.py"
       - "scripts/audit-battle-high-risk-runtime.mjs"
       - "js/battle-engine-v5.js"
@@ -24,6 +25,7 @@ on:
       - "scripts/apply-battle-high-risk-order-fixes.py"
       - "scripts/apply-battle-high-risk-final-fixes.py"
       - "scripts/apply-battle-high-risk-lifecycle.py"
+      - "scripts/apply-battle-high-risk-common.py"
       - "scripts/apply-battle-high-risk-probe.py"
       - "scripts/audit-battle-high-risk-runtime.mjs"
       - "js/battle-engine-v5.js"
@@ -50,6 +52,8 @@ jobs:
         run: python3 scripts/apply-battle-high-risk-final-fixes.py
       - name: Materialize natural lifecycle dispatch locally
         run: python3 scripts/apply-battle-high-risk-lifecycle.py
+      - name: Materialize common high-risk rules locally
+        run: python3 scripts/apply-battle-high-risk-common.py
       - name: Materialize runtime probe locally
         run: python3 scripts/apply-battle-high-risk-probe.py
       - name: Check engine and audit syntax
