@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { compareGameCardOrderAllClasses } from "../js/card-sort.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
@@ -161,7 +162,7 @@ async function main() {
   const cards = Object.entries(allDetails)
     .map(([id, detail]) => normalizeCard(id, detail, allRelations[id], dictionaries))
     .filter(card => card.name)
-    .sort((a, b) => a.class.localeCompare(b.class) || a.cost - b.cost || a.name.localeCompare(b.name));
+    .sort(compareGameCardOrderAllClasses);
 
   const currentMap = new Map(cards.map(card => [card.id, card]));
   const hasBaseline = previousMap.size > 0;
