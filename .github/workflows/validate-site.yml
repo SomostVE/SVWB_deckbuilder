@@ -85,6 +85,9 @@ jobs:
       - name: Run Portalcraft class regression
         run: node scripts/check-battle-portalcraft-full.mjs
 
+      - name: Run Neutral class regression
+        run: node scripts/check-battle-neutral-full.mjs
+
       - name: Run Battle Sim v5 integration
         run: node scripts/check-battle-v5-integration.mjs
 
