@@ -8,12 +8,18 @@ old_rules = '''    if (isPixie && /Whenever an allied Pixie follower enters the 
       context.buffUnit(source, 1, 0);
       actions.push(`${source.name}: +1/+0 after Pixie entry`);
     }'''
-new_rules = '''    if (isPixie && name === "*** the fairy blade") {
+intermediate_rules = '''    if (isPixie && name === "*** the fairy blade") {
+      context.buffUnit(source, 1, 0);
+      actions.push(`${source.name}: +1/+0 after Pixie entry`);
+    }'''
+new_rules = '''    if (isPixie && Number(source.card?.id) === 10311120) {
       context.buffUnit(source, 1, 0);
       actions.push(`${source.name}: +1/+0 after Pixie entry`);
     }'''
 if old_rules in rules:
     rules = rules.replace(old_rules, new_rules, 1)
+elif intermediate_rules in rules:
+    rules = rules.replace(intermediate_rules, new_rules, 1)
 elif new_rules not in rules:
     raise SystemExit("Missing Fairy Blade materialized entry anchor")
 RULES.write_text(rules, encoding="utf-8")
@@ -32,6 +38,13 @@ if old_engine in engine:
     engine = engine.replace(old_engine, new_engine, 1)
 elif new_engine not in engine:
     raise SystemExit("Missing analyzeCardSupport materialized anchor")
-ENGINE.write_text(engine, encoding="utf-8")
 
+old_qa = 'const bladeSource = boardFollower(instance(blade.player, byName("*** the Fairy Blade")));'
+new_qa = 'const bladeSource = boardFollower(instance(blade.player, map.get(10311120)));'
+if old_qa in engine:
+    engine = engine.replace(old_qa, new_qa, 1)
+elif new_qa not in engine:
+    raise SystemExit("Missing Fairy Blade QA anchor")
+
+ENGINE.write_text(engine, encoding="utf-8")
 print("Applied Forestcraft materializer fixes.")
