@@ -1,4 +1,5 @@
 import { state } from "./state.js";
+import { compareGameCardOrder } from "./card-sort.js";
 
 export const CLASSES = [
   "Forestcraft",
@@ -81,9 +82,10 @@ export function filteredCards() {
   if (discoverSource) {
     cards.sort((a, b) =>
       discoveryScore(discoverSource, b) - discoveryScore(discoverSource, a) ||
-      a.cost - b.cost ||
-      a.name.localeCompare(b.name)
+      compareGameCardOrder(a, b)
     );
+  } else {
+    cards.sort(compareGameCardOrder);
   }
 
   return cards;
