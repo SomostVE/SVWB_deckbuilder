@@ -336,14 +336,6 @@
   height: 22px;
 }
 
-.card-tile.maxed-card img {
-  filter: saturate(.55) brightness(.72);
-}
-
-.card-tile.maxed-card:hover img {
-  filter: saturate(.72) brightness(.85);
-}
-
 .card-mark {
   position: absolute;
   right: 4px;
