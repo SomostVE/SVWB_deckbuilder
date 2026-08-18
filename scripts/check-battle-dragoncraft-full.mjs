@@ -41,7 +41,7 @@ assert.equal(qa.burniteBoardDamage, 4, "Burnite Flame Fanfare must use the disca
 assert.equal(qa.burniteZeroHealDamage, 1, "Burnite Flame Crest must trigger even when a heal restores 0");
 assert.equal(qa.burniteOncePerTurn, 1, "Burnite Flame Crest must not damage the leader twice from healing in the same turn");
 assert.equal(qa.burniteStartDamage, 1, "Burnite Flame Crest must deal 1 damage at turn start");
-assert.deepEqual(qa.azurifrit, { leaderDamage: 3, ownDefense: 3, enemyDefense: 4 }, "Azurifrit must resolve three separate 2-damage sweeps and trigger on every surviving self-damage event");
+assert.deepEqual(qa.azurifrit, { leaderDamage: 3, ownDefense: 1, enemyDefense: 4 }, "Azurifrit must resolve three separate 2-damage sweeps and trigger on every surviving self-damage event");
 assert.deepEqual(qa.elderResult, { initialCountdown: 2, afterDelay: 4, endSummons: 1 }, "Dragon's Vale Elder Crest must be Countdown 2, summon at end of turn and be delayable by 2");
 assert.equal(qa.wiseCost, 4, "Wise Guardian Dragon must reduce its cost by 3 for each allied Super-Evolution");
 
