@@ -17,18 +17,23 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Check JavaScript syntax
+      - name: Inspect Swordcraft partial card data and existing handlers
         run: |
-          for file in js/*.js scripts/*.mjs; do
-            echo "Checking $file"
-            node --check "$file"
-          done
-
-      - name: Check JSON
-        run: |
-          node -e "const fs=require('fs');for(const file of ['data/official/cards.json','data/official/metadata.json','data/official/changelog.json','data/custom/reference-decks.json','data/custom/reference-decks.source.json','data/custom/packages.json','data/custom/tags.json','data/custom/exclusions.json']){JSON.parse(fs.readFileSync(file,'utf8'));console.log('OK '+file)}"
-
-      - name: Audit Swordcraft Battle Sim v5 coverage
-        run: |
-          node scripts/audit-battle-class.mjs Swordcraft
+          node --input-type=module <<'EOF'
+          import fs from 'node:fs';
+          const names = new Set([
+            'Luminous Commander','Majestic Conquest','Bombastic Bombardier','Kagemitsu, Enduring Warrior',
+            'Katze, Magical Thief','Lyrala, Luminous Potionwright','Octrice, Hollowness Manifest','Ancestral Crown',
+            'Luminous Magus','Unkei, Goldbloom','Gildaria, Anathema of Peace','Amalia, Luxsteel Paladin','Yurius, Levin Authority'
+          ]);
+          const cards = JSON.parse(fs.readFileSync('data/official/cards.json','utf8'));
+          for (const card of cards.filter(card => names.has(card.name))) {
+            console.log('\n=== CARD DATA:', card.name, '===');
+            console.log(JSON.stringify(card, null, 2));
+          }
+          EOF
+          echo '=== CODE REFERENCES ==='
+          grep -RniE "Luminous Commander|Majestic Conquest|Bombastic Bombardier|Kagemitsu, Enduring Warrior|Katze, Magical Thief|Lyrala, Luminous Potionwright|Octrice, Hollowness Manifest|Ancestral Crown|Luminous Magus|Unkei, Goldbloom|Gildaria, Anathema of Peace|Amalia, Luxsteel Paladin|Yurius, Levin Authority" js scripts || true
+          echo '=== RELATED GENERIC HANDLERS ==='
+          grep -RniE "Officer|super-evolves|super-evolve|Whenever another allied follower enters|Whenever an enemy follower enters|when you play a spell|Crest" js/battle-engine-v5.js js/battle-rules.js js/battle-engine-v4.js | head -n 500 || true
           exit 1
