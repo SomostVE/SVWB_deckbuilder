@@ -33,8 +33,6 @@ const candidateCards = cards.filter(card => {
   if (!highRiskPatterns.some(pattern => pattern.test(String(card.text ?? "")))) return false;
   const name = norm(card.name);
   if (checkCorpus.includes(name)) return false;
-  // Explicit class-specific override cards are covered by the dedicated class
-  // contracts. This runtime gate audits the remaining generic Full population.
   const explicitNeedle = `["${name}"`;
   if (engineV5.includes(explicitNeedle) || engineV4.includes(explicitNeedle)) return false;
   return true;
@@ -47,6 +45,13 @@ console.log(`Runtime generic high-risk probe: ${candidateIds.length} cards · ${
 for (const row of unresolved) {
   const raw = String(row.raw ?? "").replace(/\s+/g, " ").trim();
   console.log(`UNRESOLVED|${row.className}|${row.id}|${row.name}|${row.event}|mode=${row.modeIndex}|${raw}`);
+}
+if (unresolved.length) {
+  console.log("\nFULL SOURCE TEXT FOR UNRESOLVED CARDS");
+  const ids = new Set(unresolved.map(row => row.id));
+  for (const card of candidateCards.filter(card => ids.has(Number(card.id)))) {
+    console.log(`FULLTEXT|${card.class}|${card.id}|${card.name}|${String(card.text ?? "").replace(/\s+/g, " ").trim()}`);
+  }
 }
 console.log("\nResolved sections by card:");
 for (const card of candidateCards) {
