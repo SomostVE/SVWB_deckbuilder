@@ -36,5 +36,39 @@ if anchor not in text:
     raise SystemExit("Missing compound preflight anchor")
 text = text.replace(anchor, insert, 1)
 
+artifact_anchor = '''  // Keywords can appear inline in card text rather than the keyword array.
+  for (const keyword of ["Ward", "Barrier", "Rush", "Storm", "Bane", "Drain", "Intimidate", "Aura", "Ambush"]) {'''
+artifact_insert = '''  // Trait-wide board buff used by Ralmia and reusable by future Artifact cards.
+  const artifactBoardBuff = text.match(/Give all allied Artifact followers on the field\\s*\\+(\\d+)\\s*\\/\\s*\\+(\\d+)\\.?/i);
+  if (artifactBoardBuff) {
+    for (const unit of ctx.player.board.filter(unit => unit.type === "Follower" && (unit.card?.traits ?? []).some(trait => norm(trait) === "artifact"))) {
+      buff(unit, Number(artifactBoardBuff[1]) || 0, Number(artifactBoardBuff[2]) || 0);
+    }
+    actions.push(`all allied Artifacts +${artifactBoardBuff[1]}/+${artifactBoardBuff[2]}`);
+    text = text.replace(artifactBoardBuff[0], " ");
+  }
+
+  // Keywords can appear inline in card text rather than the keyword array.
+  for (const keyword of ["Ward", "Barrier", "Rush", "Storm", "Bane", "Drain", "Intimidate", "Aura", "Ambush"]) {'''
+if artifact_anchor not in text:
+    raise SystemExit("Missing Artifact board-buff insertion anchor")
+text = text.replace(artifact_anchor, artifact_insert, 1)
+
+return_anchor = '''  return { text: text.replace(/\\s+/g, " ").trim(), actions: uniq(actions) };
+}
+
+function resolveText(raw, ctx) {'''
+return_replacement = '''  // A consumed sentence can leave only punctuation (for example the pre-existing
+  // Earth Sigil pass did not consume the final period). Punctuation-only residue
+  // is not an unresolved Battle Sim rule.
+  const remainingText = text.replace(/\\s+/g, " ").trim().replace(/^[.,;:\\s]+|[.,;:\\s]+$/g, "").trim();
+  return { text: remainingText, actions: uniq(actions) };
+}
+
+function resolveText(raw, ctx) {'''
+if return_anchor not in text:
+    raise SystemExit("Missing high-risk resolver return anchor")
+text = text.replace(return_anchor, return_replacement, 1)
+
 ENGINE.write_text(text, encoding="utf-8")
 print("Applied final high-risk runtime fixes.")
