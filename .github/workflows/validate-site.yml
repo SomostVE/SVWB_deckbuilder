@@ -97,6 +97,9 @@ jobs:
       - name: Inventory Battle Sim high-risk cards
         run: node scripts/audit-battle-high-risk.mjs
 
+      - name: Run Battle Sim high-risk runtime gate
+        run: node scripts/audit-battle-high-risk-runtime.mjs
+
       - name: Run Battle Sim v5 integration
         run: node scripts/check-battle-v5-integration.mjs
 
