@@ -17,6 +17,11 @@ jobs:
         with:
           node-version: "24"
 
+      - name: Materialize Runecraft audit rules
+        run: |
+          python3 scripts/apply-battle-runecraft-full.py
+          python3 scripts/apply-battle-runecraft-qa.py
+
       - name: Check JavaScript syntax
         run: |
           for file in js/*.js scripts/*.mjs; do
@@ -28,8 +33,10 @@ jobs:
         run: |
           node -e "const fs=require('fs');for(const file of ['data/official/cards.json','data/official/metadata.json','data/official/changelog.json','data/custom/reference-decks.json','data/custom/reference-decks.source.json','data/custom/packages.json','data/custom/tags.json','data/custom/exclusions.json']){JSON.parse(fs.readFileSync(file,'utf8'));console.log('OK '+file)}"
 
-      - name: Audit Runecraft Battle Sim coverage
-        run: node scripts/audit-battle-class.mjs Runecraft
+      - name: Verify Runecraft Battle Sim class pass
+        run: |
+          node scripts/check-battle-runecraft-full.mjs
+          node scripts/audit-battle-class.mjs Runecraft
 
       - name: Run Battle Sim exact-rule regressions
         run: node scripts/check-battle-rules.mjs
