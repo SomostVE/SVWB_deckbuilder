@@ -46,5 +46,25 @@ if old_qa in engine:
 elif new_qa not in engine:
     raise SystemExit("Missing Fairy Blade QA anchor")
 
+aria_anchor = '''  if (name === "battledore woodsmaiden") {
+    const replicate = /Replicate the effects of this card'?s Fanfare ability\\.?/i;'''
+aria_block = '''  // [[battle-forestcraft-aria-evolve]]
+  if (name === "aria, lady of the woods") {
+    const summonFairies = /Summon 3 copies of Fairy\\.?/i;
+    if (summonFairies.test(text)) {
+      const fairy = findByName(ctx.cardMap, "Fairy") ?? related(ctx.card, ctx.cardMap).find(card => norm(card.name) === "fairy");
+      const count = fairy ? summonWithEvents(ctx.player, fairy, 3, ctx.playerIndex, ctx) : 0;
+      actions.push(`Aria: summon ${count} Fairies`);
+      text = text.replace(summonFairies, " ");
+    }
+  }
+
+  if (name === "battledore woodsmaiden") {
+    const replicate = /Replicate the effects of this card'?s Fanfare ability\\.?/i;'''
+if '[[battle-forestcraft-aria-evolve]]' not in engine:
+    if aria_anchor not in engine:
+        raise SystemExit("Missing Aria materialized resolver anchor")
+    engine = engine.replace(aria_anchor, aria_block, 1)
+
 ENGINE.write_text(engine, encoding="utf-8")
 print("Applied Forestcraft materializer fixes.")
