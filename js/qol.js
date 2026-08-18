@@ -4,9 +4,12 @@ const RECENT_KEY = "svwb-recent-cards";
 const FILTER_KEY = "svwb-filters";
 const SCROLL_KEY_PREFIX = "svwb-class-scroll:";
 const DECK_WIDTH_KEY = "svwb-deck-panel-width";
+const DECK_WIDTH_MIGRATION_KEY = "svwb-deck-panel-width-v2";
 const HINT_KEY = "svwb-interaction-hint-dismissed";
 const DECK_SORT_KEY = "svwb-deck-sort";
 const DECK_COMPACT_KEY = "svwb-deck-compact";
+const CARD_SIZE_KEY = "svwb-card-size";
+const CARD_SIZE_MODE_KEY = "svwb-card-size-mode";
 
 export function setupQol({ state, renderEverything, renderCards, undoDeck, redoDeck }) {
   const content = document.querySelector(".content");
@@ -21,6 +24,8 @@ export function setupQol({ state, renderEverything, renderCards, undoDeck, redoD
   setupDeckResizer(resizer);
   setupBackToTop(content, backToTop);
   setupKeyboardShortcuts({ search, renderEverything, undoDeck, redoDeck });
+  setupFiltersDrawer({ search });
+  setupAdaptiveCardSize(content);
   setupResetView({ resetView, content, deckPanel, renderEverything });
   setupInteractionHint();
   loadFilters(state);
@@ -30,7 +35,7 @@ export function setupQol({ state, renderEverything, renderCards, undoDeck, redoD
     render() {
       renderActiveFilters(state, renderEverything);
       renderRecentCards(state, renderCards);
-      enhanceCardSizeControl();
+      enhanceCardSizeControl(content);
     },
     recordRecent(card) {
       if (!card?.id) return;
@@ -95,6 +100,66 @@ function setupKeyboardShortcuts({ search, renderEverything, undoDeck, redoDeck }
   });
 }
 
+function setupFiltersDrawer({ search }) {
+  const sidebar = document.getElementById("filters-sidebar");
+  const toggle = document.getElementById("filters-drawer-toggle");
+  const close = document.getElementById("filters-drawer-close");
+  const backdrop = document.getElementById("filters-drawer-backdrop");
+  const header = document.querySelector(".app-header");
+  const desktop = matchMedia("(min-width: 761px)");
+  if (!sidebar || !toggle || !backdrop) return;
+
+  const syncTop = () => {
+    const bottom = Math.max(0, Math.round(header?.getBoundingClientRect().bottom ?? 0));
+    document.documentElement.style.setProperty("--filter-drawer-top", `${bottom}px`);
+  };
+
+  const setOpen = requested => {
+    const open = Boolean(requested && desktop.matches);
+    sidebar.classList.toggle("drawer-open", open);
+    sidebar.setAttribute("aria-hidden", open ? "false" : "true");
+    toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    backdrop.hidden = !open;
+    document.body.classList.toggle("filter-drawer-open", open);
+  };
+
+  toggle.addEventListener("click", () => setOpen(!sidebar.classList.contains("drawer-open")));
+  close?.addEventListener("click", () => setOpen(false));
+  backdrop.addEventListener("click", () => setOpen(false));
+
+  sidebar.addEventListener("click", event => {
+    if (!desktop.matches) return;
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target) return;
+    if (target.closest("#filters-drawer-close, .sidebar-collapse-title, .filter-group-title, input[type='search']")) return;
+
+    const checkboxLabel = target.closest("label");
+    const usedCheckbox = Boolean(checkboxLabel?.querySelector("input[type='checkbox']"));
+    const usedControl = Boolean(target.closest(".filter-option, .filter-group-clear, .compact-button, button"));
+    if (!usedCheckbox && !usedControl) return;
+    setTimeout(() => setOpen(false), 0);
+  });
+
+  search?.addEventListener("keydown", event => {
+    if (event.key === "Enter") setOpen(false);
+  });
+
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape") setOpen(false);
+  });
+
+  const resizeObserver = typeof ResizeObserver === "function" && header
+    ? new ResizeObserver(syncTop)
+    : null;
+  resizeObserver?.observe(header);
+  window.addEventListener("resize", syncTop, { passive: true });
+  desktop.addEventListener?.("change", () => {
+    syncTop();
+    setOpen(false);
+  });
+  syncTop();
+}
+
 function setupDeckResizer(resizer) {
   if (!resizer) return;
   let dragging = false;
@@ -108,7 +173,7 @@ function setupDeckResizer(resizer) {
 
   resizer.addEventListener("pointermove", event => {
     if (!dragging) return;
-    const width = clamp(window.innerWidth - event.clientX, 220, 520);
+    const width = clamp(window.innerWidth - event.clientX, 240, 540);
     document.documentElement.style.setProperty("--deck-panel-width", `${width}px`);
     localStorage.setItem(DECK_WIDTH_KEY, String(width));
   });
@@ -122,10 +187,17 @@ function setupDeckResizer(resizer) {
 }
 
 function applySavedDeckWidth() {
-  const saved = Number(localStorage.getItem(DECK_WIDTH_KEY));
-  if (Number.isFinite(saved) && saved >= 220) {
-    document.documentElement.style.setProperty("--deck-panel-width", `${clamp(saved, 220, 520)}px`);
+  let saved = Number(localStorage.getItem(DECK_WIDTH_KEY));
+  if (localStorage.getItem(DECK_WIDTH_MIGRATION_KEY) !== "1") {
+    if (!Number.isFinite(saved) || saved < 240 || saved === 270) {
+      saved = 300;
+      localStorage.setItem(DECK_WIDTH_KEY, String(saved));
+    }
+    localStorage.setItem(DECK_WIDTH_MIGRATION_KEY, "1");
   }
+
+  if (!Number.isFinite(saved) || saved < 240) saved = 300;
+  document.documentElement.style.setProperty("--deck-panel-width", `${clamp(saved, 240, 540)}px`);
 }
 
 function applySavedDeckCompact(deckPanel) {
@@ -140,16 +212,31 @@ function setupBackToTop(content, button) {
   refresh();
 }
 
+function setupAdaptiveCardSize(content) {
+  if (!content) return;
+  if (!localStorage.getItem(CARD_SIZE_MODE_KEY)) localStorage.setItem(CARD_SIZE_MODE_KEY, "fit");
+
+  const apply = () => {
+    if (localStorage.getItem(CARD_SIZE_MODE_KEY) !== "fit") return;
+    applyFitCardSize(content);
+  };
+
+  if (typeof ResizeObserver === "function") {
+    const observer = new ResizeObserver(() => requestAnimationFrame(apply));
+    observer.observe(content);
+  } else {
+    window.addEventListener("resize", apply, { passive: true });
+  }
+  requestAnimationFrame(apply);
+}
+
 function setupResetView({ resetView, content, deckPanel, renderEverything }) {
   resetView?.addEventListener("click", () => {
-    const size = 118;
-    document.documentElement.style.setProperty("--card-width", `${size}px`);
-    localStorage.setItem("svwb-card-size", String(size));
-    const slider = document.getElementById("card-size");
-    if (slider) slider.value = String(size);
+    localStorage.setItem(CARD_SIZE_MODE_KEY, "fit");
+    applyFitCardSize(content);
 
-    document.documentElement.style.setProperty("--deck-panel-width", "270px");
-    localStorage.setItem(DECK_WIDTH_KEY, "270");
+    document.documentElement.style.setProperty("--deck-panel-width", "300px");
+    localStorage.setItem(DECK_WIDTH_KEY, "300");
     localStorage.setItem(DECK_COMPACT_KEY, "0");
     deckPanel?.classList.remove("compact-deck");
     content?.scrollTo({ top: 0 });
@@ -157,13 +244,25 @@ function setupResetView({ resetView, content, deckPanel, renderEverything }) {
   });
 }
 
-function enhanceCardSizeControl() {
+function enhanceCardSizeControl(content) {
   const control = document.querySelector(".card-size-control");
   const slider = document.getElementById("card-size");
   if (!control || !slider || control.querySelector(".card-size-presets")) return;
 
   const presets = document.createElement("span");
   presets.className = "card-size-presets";
+
+  const fit = document.createElement("button");
+  fit.type = "button";
+  fit.className = "card-size-preset";
+  fit.dataset.cardSizeMode = "fit";
+  fit.textContent = "Fit";
+  fit.addEventListener("click", () => {
+    localStorage.setItem(CARD_SIZE_MODE_KEY, "fit");
+    applyFitCardSize(content, slider, presets);
+  });
+  presets.appendChild(fit);
+
   const values = [
     ["S", 90],
     ["M", 118],
@@ -174,24 +273,54 @@ function enhanceCardSizeControl() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "card-size-preset";
+    button.dataset.cardSizeMode = "fixed";
     button.textContent = label;
     button.addEventListener("click", () => {
-      slider.value = String(value);
-      slider.dispatchEvent(new Event("input", { bubbles: true }));
-      updatePresetState(presets, value);
+      setFixedCardSize(value, slider, presets);
     });
     presets.appendChild(button);
   }
 
   control.appendChild(presets);
-  slider.addEventListener("input", () => updatePresetState(presets, Number(slider.value)));
-  updatePresetState(presets, Number(slider.value));
+  slider.addEventListener("input", () => {
+    localStorage.setItem(CARD_SIZE_MODE_KEY, "manual");
+    updatePresetState(presets, Number(slider.value), "manual");
+  });
+  updatePresetState(presets, Number(slider.value), localStorage.getItem(CARD_SIZE_MODE_KEY) || "fit");
 }
 
-function updatePresetState(root, value) {
+function setFixedCardSize(value, slider, presets) {
+  const size = clamp(value, 74, 190);
+  localStorage.setItem(CARD_SIZE_MODE_KEY, "manual");
+  localStorage.setItem(CARD_SIZE_KEY, String(size));
+  document.documentElement.style.setProperty("--card-width", `${size}px`);
+  if (slider) slider.value = String(size);
+  updatePresetState(presets, size, "manual");
+}
+
+function applyFitCardSize(content, slider = document.getElementById("card-size"), presets = document.querySelector(".card-size-presets")) {
+  if (!content) return;
+  const style = getComputedStyle(content);
+  const padding = (Number.parseFloat(style.paddingLeft) || 0) + (Number.parseFloat(style.paddingRight) || 0);
+  const usable = Math.max(220, content.clientWidth - padding);
+  const gap = 5;
+  const target = 156;
+  const columns = clamp(Math.round(usable / target), 2, 12);
+  const fitted = clamp(Math.floor((usable - gap * (columns - 1)) / columns), 108, 190);
+
+  document.documentElement.style.setProperty("--card-width", `${fitted}px`);
+  localStorage.setItem(CARD_SIZE_KEY, String(fitted));
+  if (slider) slider.value = String(fitted);
+  updatePresetState(presets, fitted, "fit");
+}
+
+function updatePresetState(root, value, mode = localStorage.getItem(CARD_SIZE_MODE_KEY) || "fit") {
+  if (!root) return;
   const map = { S: 90, M: 118, L: 154 };
   root.querySelectorAll(".card-size-preset").forEach(button => {
-    button.classList.toggle("active", map[button.textContent] === Number(value));
+    const fit = button.dataset.cardSizeMode === "fit";
+    const active = fit ? mode === "fit" : mode !== "fit" && map[button.textContent] === Number(value);
+    button.classList.toggle("active", active);
   });
 }
 
