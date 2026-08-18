@@ -13,19 +13,21 @@ const toolbar = document.querySelector(".content-toolbar");
 function mountHeaderControls() {
   const cardSize = document.querySelector(".card-size-control");
   const resetFilters = document.getElementById("reset-filters");
-  let ready = true;
 
-  if (cardSizeSlot && cardSize) {
-    if (!cardSizeSlot.contains(cardSize)) cardSizeSlot.appendChild(cardSize);
-  } else if (cardSizeSlot) {
-    ready = false;
+  // app.js still creates Card size relative to Reset filters. Do not move
+  // Reset filters out of the toolbar until Card size has actually been created.
+  // Module scripts can otherwise execute in an order that produces a DOM race.
+  if (!cardSize) return false;
+
+  if (cardSizeSlot && !cardSizeSlot.contains(cardSize)) {
+    cardSizeSlot.appendChild(cardSize);
   }
 
   if (viewControls && resetFilters && resetFilters.parentElement !== viewControls) {
     viewControls.appendChild(resetFilters);
   }
 
-  return ready;
+  return true;
 }
 
 if (!mountHeaderControls() && toolbar) {
