@@ -23,19 +23,32 @@ self.addEventListener("fetch", event => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  event.respondWith((async () => {
-    const cache = await caches.open(CACHE_NAME);
-
-    try {
-      const response = await fetch(request, { cache: "no-store" });
-      if (response.ok && !url.pathname.endsWith("/version.json")) {
-        cache.put(request, response.clone()).catch(() => {});
-      }
-      return response;
-    } catch (error) {
-      const cached = await cache.match(request) || await caches.match(request);
-      if (cached) return cached;
-      throw error;
-    }
-  })());
+  const alwaysFresh = request.mode === "navigate" || url.pathname.endsWith("/version.json");
+  event.respondWith(alwaysFresh ? networkFirst(request, url) : cacheFirst(request));
 });
+
+async function networkFirst(request, url) {
+  const cache = await caches.open(CACHE_NAME);
+
+  try {
+    const response = await fetch(request, { cache: "no-store" });
+    if (response.ok && !url.pathname.endsWith("/version.json")) {
+      cache.put(request, response.clone()).catch(() => {});
+    }
+    return response;
+  } catch (error) {
+    const cached = await cache.match(request) || await caches.match(request);
+    if (cached) return cached;
+    throw error;
+  }
+}
+
+async function cacheFirst(request) {
+  const cache = await caches.open(CACHE_NAME);
+  const cached = await cache.match(request);
+  if (cached) return cached;
+
+  const response = await fetch(request, { cache: "no-store" });
+  if (response.ok) cache.put(request, response.clone()).catch(() => {});
+  return response;
+}
