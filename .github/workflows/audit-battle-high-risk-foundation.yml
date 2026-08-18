@@ -1,0 +1,42 @@
+name: Battle Sim high-risk foundation
+
+on:
+  push:
+    branches: [agent/high-risk-audit]
+    paths:
+      - ".github/workflows/audit-battle-high-risk-foundation.yml"
+      - "scripts/apply-battle-high-risk-foundation.py"
+      - "js/battle-engine-v5.js"
+  pull_request:
+    paths:
+      - ".github/workflows/audit-battle-high-risk-foundation.yml"
+      - "scripts/apply-battle-high-risk-foundation.py"
+      - "js/battle-engine-v5.js"
+
+jobs:
+  foundation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Materialize high-risk generic foundation locally
+        run: python3 scripts/apply-battle-high-risk-foundation.py
+      - name: Check engine syntax
+        run: node --check js/battle-engine-v5.js
+      - name: Run core regressions
+        run: |
+          node scripts/check-battle-rules.mjs
+          node scripts/check-battle-reactive-events.mjs
+          node scripts/check-battle-fuse.mjs
+          node scripts/check-battle-coverage-100.mjs
+          node scripts/check-battle-forestcraft-full.mjs
+          node scripts/check-battle-swordcraft-full.mjs
+          node scripts/check-battle-runecraft-full.mjs
+          node scripts/check-battle-dragoncraft-full.mjs
+          node scripts/check-battle-abysscraft-full.mjs
+          node scripts/check-battle-havencraft-full.mjs
+          node scripts/check-battle-portalcraft-full.mjs
+          node scripts/check-battle-neutral-full.mjs
