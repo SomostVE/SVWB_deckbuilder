@@ -47,19 +47,27 @@ engine = replace_once(
     "planning-turn follower attack reset",
 )
 
-attack_anchor = '''  attacker.attacksMade += 1;
-  attacker.attacked = attacker.attacksMade >= attacker.maxAttacks;
-  stats.attacks[playerIndex] += 1;'''
-attack_replacement = '''  // [[battle-haven-attack-tracking]]
-  player.followersAttackedThisTurn = true;
-  attacker.attacksMade += 1;
-  attacker.attacked = attacker.attacksMade >= attacker.maxAttacks;
-  stats.attacks[playerIndex] += 1;'''
+# There are two production attack paths and they use different indentation.
 if "[[battle-haven-attack-tracking]]" not in engine:
-    count = engine.count(attack_anchor)
-    if count != 2:
-        raise RuntimeError(f"Expected 2 attack tracking anchors, found {count}")
-    engine = engine.replace(attack_anchor, attack_replacement)
+    patched = 0
+    for indent in ("  ", "      "):
+        attack_anchor = (
+            f"{indent}attacker.attacksMade += 1;\n"
+            f"{indent}attacker.attacked = attacker.attacksMade >= attacker.maxAttacks;\n"
+            f"{indent}stats.attacks[playerIndex] += 1;"
+        )
+        attack_replacement = (
+            f"{indent}// [[battle-haven-attack-tracking]]\n"
+            f"{indent}player.followersAttackedThisTurn = true;\n"
+            f"{indent}attacker.attacksMade += 1;\n"
+            f"{indent}attacker.attacked = attacker.attacksMade >= attacker.maxAttacks;\n"
+            f"{indent}stats.attacks[playerIndex] += 1;"
+        )
+        if attack_anchor in engine:
+            engine = engine.replace(attack_anchor, attack_replacement, 1)
+            patched += 1
+    if patched != 2:
+        raise RuntimeError(f"Expected 2 attack tracking anchors, patched {patched}")
 
 # Crest durations for the two remaining Havencraft Crest cards.
 engine = replace_once(
