@@ -135,12 +135,7 @@ function setupClassTheme(root) {
     document.body.dataset.classTheme = className || "default";
   };
 
-  new MutationObserver(apply).observe(root, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: ["class"]
-  });
+  new MutationObserver(apply).observe(root, { childList: true });
   apply();
 }
 
@@ -157,7 +152,6 @@ function setupNeutralControl(root) {
     includeNeutral.hidden = neutralSelected;
     includeNeutral.title = "Include Neutral cards";
     includeNeutral.setAttribute("aria-label", "Include Neutral cards with the selected class");
-    includeNeutral.classList.add("neutral-include-control");
 
     for (const image of includeNeutral.querySelectorAll("img")) image.remove();
 
@@ -174,11 +168,6 @@ function setupNeutralControl(root) {
     }
   };
 
-  new MutationObserver(decorate).observe(root, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: ["class"]
-  });
+  new MutationObserver(decorate).observe(root, { childList: true });
   decorate();
 }
