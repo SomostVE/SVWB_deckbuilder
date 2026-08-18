@@ -28,7 +28,9 @@ self.addEventListener("fetch", event => {
 
     try {
       const response = await fetch(request, { cache: "no-store" });
-      if (response.ok) cache.put(request, response.clone()).catch(() => {});
+      if (response.ok && !url.pathname.endsWith("/version.json")) {
+        cache.put(request, response.clone()).catch(() => {});
+      }
       return response;
     } catch (error) {
       const cached = await cache.match(request) || await caches.match(request);
