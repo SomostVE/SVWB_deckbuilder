@@ -75,8 +75,7 @@ const els = {
   packageDialogDescription: document.getElementById("package-dialog-description"),
   packageDialogCards: document.getElementById("package-dialog-cards"),
   confirmPackage: document.getElementById("confirm-package"),
-  toolbar: document.querySelector(".content-toolbar"),
-  cardSizeSlot: document.getElementById("card-size-control-slot")
+  toolbar: document.querySelector(".content-toolbar")
 };
 
 let pendingPackage = null;
@@ -156,10 +155,10 @@ function bindEvents() {
   });
 
   els.showUnavailable.addEventListener("change", () => {
-    state.showUnavailableFilters = els.showUnavailable.checked;
-    persist();
-    renderEverything();
-  });
+  state.showUnavailableFilters = els.showUnavailable.checked;
+  persist();
+  renderEverything();
+});
 
   els.clearDeck.addEventListener("click", () => {
     clearDeck();
@@ -258,9 +257,7 @@ function setupCardSizeControl() {
     <input id="card-size" type="range" min="74" max="190" step="4" value="${saved}">
   `;
 
-  if (els.cardSizeSlot) els.cardSizeSlot.appendChild(control);
-  else els.toolbar.insertBefore(control, els.resetFilters);
-
+  els.toolbar.insertBefore(control, els.resetFilters);
   control.querySelector("input").addEventListener("input", event => {
     const value = Number(event.target.value);
     document.documentElement.style.setProperty("--card-width", `${value}px`);
@@ -353,7 +350,6 @@ function renderClassFilter() {
   neutral.append(checkbox, icon);
   els.classFilter.appendChild(neutral);
 }
-
 function renderFilterGroups() {
   const available = state.cards.filter(card =>
     card.class === state.selectedClass ||
@@ -391,6 +387,9 @@ function renderCheckboxGroup(root, title, values, targetSet) {
 
   const options = document.createElement("div");
   options.className = "filter-options";
+  const classPool = state.cards.filter(card =>
+    card.class === state.selectedClass || (state.includeNeutral && card.class === "Neutral")
+  );
 
   for (const value of values) {
     if (!value || value === "-") continue;
@@ -544,203 +543,528 @@ function renderCards() {
   if (discoverCard) els.discoverLabel.textContent = `Discover: ${discoverCard.name}`;
 
   renderCardGrid(els.grid, cards, {
-    getQuantity: card => state.deck.get(card.id) ?? 0,
-    getOwned: card => state.owned.get(card.id) ?? 0,
-    getDeckMark: card => state.deckMarks.get(card.id) ?? "",
-    isFavorite: card => state.favorites.has(card.id),
-    isExcluded: card => state.excluded.has(card.id) || state.globalExclusions.has(card.id),
-    getCardById: id => state.cardMap.get(Number(id)) ?? null,
-    getRelatedGroups,
-    getPackagesForCard,
-    onAdd: handleCardAdd,
-    onRemove(card, quantity = 1) {
-      if (removeCard(card, quantity)) renderEverything();
-    },
-    onPreviewOpen(card) {
-      qol?.recordRecent(card);
-    },
-    onFilterTrait(value) {
-      state.filters.traits.add(value);
-      qol?.saveCurrentClassFilters();
-      renderEverything();
-    },
-    onFilterKeyword(value) {
-      state.filters.keywords.add(value);
-      qol?.saveCurrentClassFilters();
-      renderEverything();
-    },
-    onFilterSet(value) {
-      state.filters.sets.add(value);
-      qol?.saveCurrentClassFilters();
-      renderEverything();
-    },
-    onSetMark(card, mark) {
-      setDeckMark(card.id, mark);
-      persist();
-      renderEverything();
-    },
-    onOpenPackage: openPackageDialog
-  });
+  getQuantity: card => state.deck.get(card.id) ?? 0,
+  getOwned: card => state.owned.get(card.id) ?? 0,
+  getDeckMark: card => state.deckMarks.get(card.id) ?? "",
+  isFavorite: card => state.favorites.has(card.id),
+  isExcluded: card => state.excluded.has(card.id) || state.globalExclusions.has(card.id),
+  getCardById: id => state.cardMap.get(Number(id)) ?? null,
+  getRelatedGroups,
+  getPackagesForCard,
+  onAdd: handleCardAdd,
+  onRemove(card, quantity = 1) {
+    if (removeCard(card, quantity)) renderEverything();
+  },
+  onPreviewOpen(card) {
+    qol?.recordRecent(card);
+  },
+  onFilterTrait(value) {
+    state.filters.traits.add(value);
+    qol?.saveCurrentClassFilters();
+    renderEverything();
+  },
+  onFilterKeyword(value) {
+    state.filters.keywords.add(value);
+    qol?.saveCurrentClassFilters();
+    renderEverything();
+  },
+  onFilterSet(value) {
+    state.filters.sets.add(value);
+    qol?.saveCurrentClassFilters();
+    renderEverything();
+  },
+  onToggleFavorite(card) {
+    if (state.favorites.has(card.id)) state.favorites.delete(card.id);
+    else state.favorites.add(card.id);
+    persist();
+    renderCards();
+  },
+  onToggleExclude(card) {
+    if (state.excluded.has(card.id)) state.excluded.delete(card.id);
+    else state.excluded.add(card.id);
+    persist();
+    renderCards();
+  },
+  onOwnedChange(card, delta) {
+    const maxOwned = Number(card.maxCopies ?? 3);
+    const next = Math.min(maxOwned, Math.max(0, (state.owned.get(card.id) ?? 0) + Number(delta)));
+    if (next === 0) state.owned.delete(card.id);
+    else state.owned.set(card.id, next);
+    persist();
+    renderCards();
+    renderDeck();
+    renderAnalysis();
+    collectionUi?.render();
+  },
+  onDiscover(card) {
+    state.discoverCardId = card.id;
+    renderCards();
+  },
+  onFindLinked(card) {
+    state.discoverCardId = null;
+    state.search = `related:"${card.name}"`;
+    els.search.value = state.search;
+    renderCards();
+  },
+  onAddPackage: openPackageDialog
+});
+  qol?.render();
+}
+
+function handleCardAdd(card, quantity = 1) {
+  const packages = getPackagesForCard(card).filter(packageDef => packageDef.promptOnAdd !== false);
+  if (packages.length) {
+    openPackageDialog(packages[0], card);
+    return;
+  }
+
+  if (addCard(card, quantity)) renderEverything();
+}
+
+function getRelatedGroups(card) {
+  const groups = [];
+  const seen = new Set([card.id]);
+
+  const generated = relationCards(card, "Generates", seen);
+  if (generated.length) groups.push({ title: "Generated cards", cards: generated });
+
+  const generatedBy = (card.generatedBy ?? []).map(id => state.cardMap.get(Number(id))).filter(Boolean).filter(uniqueCard(seen));
+  if (generatedBy.length) groups.push({ title: "Generated by", cards: generatedBy });
+
+  const direct = relationCards(card, "Direct relation", seen);
+  if (direct.length) groups.push({ title: "Direct relations", cards: direct });
+
+  const packageCards = [];
+  for (const packageDef of getPackagesForCard(card)) {
+    for (const entry of normalizePackageCards(packageDef.cards)) {
+      const candidate = state.cardMap.get(entry.id);
+      if (candidate && candidate.id !== card.id && !seen.has(candidate.id)) {
+        seen.add(candidate.id);
+        packageCards.push(candidate);
+      }
+    }
+  }
+  if (packageCards.length) groups.push({ title: "Common package", cards: packageCards.slice(0, 10) });
+
+  const roles = new Set(card.roles ?? []);
+  if (roles.size) {
+    const similar = state.cards
+      .filter(candidate => candidate.id !== card.id && candidate.deckSelectable && !seen.has(candidate.id))
+      .map(candidate => ({
+        card: candidate,
+        score: (candidate.roles ?? []).filter(role => roles.has(role)).length * 10
+          + (candidate.type === card.type ? 2 : 0)
+          + (Math.abs(Number(candidate.cost) - Number(card.cost)) <= 1 ? 1 : 0)
+      }))
+      .filter(item => item.score >= 10)
+      .sort((a, b) => b.score - a.score || a.card.cost - b.card.cost || a.card.name.localeCompare(b.card.name))
+      .slice(0, 8)
+      .map(item => item.card)
+      .filter(uniqueCard(seen));
+    if (similar.length) groups.push({ title: "Similar effects", cards: similar });
+  }
+
+  const traits = new Set((card.traits ?? []).filter(trait => trait && trait !== "-"));
+  if (traits.size) {
+    const sameArchetype = state.cards
+      .filter(candidate => candidate.id !== card.id && candidate.deckSelectable)
+      .map(candidate => ({
+        card: candidate,
+        score: (candidate.traits ?? []).filter(trait => traits.has(trait)).length
+      }))
+      .filter(item => item.score > 0 && !seen.has(item.card.id))
+      .sort((a, b) => b.score - a.score || a.card.cost - b.card.cost || a.card.name.localeCompare(b.card.name))
+      .slice(0, 8)
+      .map(item => item.card);
+    if (sameArchetype.length) groups.push({ title: "Same archetype", cards: sameArchetype });
+  }
+
+  return groups;
+}
+
+function relationCards(card, type, seen) {
+  return (card.relations ?? [])
+    .filter(relation => relation.type === type)
+    .map(relation => state.cardMap.get(Number(relation.id)))
+    .filter(Boolean)
+    .filter(uniqueCard(seen));
+}
+
+function uniqueCard(seen) {
+  return card => {
+    if (seen.has(card.id)) return false;
+    seen.add(card.id);
+    return true;
+  };
+}
+
+function getPackagesForCard(card) {
+  const packageIds = new Set(card.packages ?? []);
+  return state.packages.filter(packageDef => packageIds.has(String(packageDef.id ?? packageDef.name)));
 }
 
 function renderDeck() {
-  const rows = [...state.deck.entries()]
-    .map(([id, quantity]) => ({ card: state.cardMap.get(Number(id)), quantity }))
-    .filter(row => row.card)
-    .sort((a, b) => a.card.cost - b.card.cost || a.card.name.localeCompare(b.card.name));
+  const deckSize = getDeckSize();
+  els.deckCount.innerHTML = deckSize > 40
+    ? `40 <span class="deck-overflow">(+${deckSize - 40})</span>`
+    : deckSize === 40
+      ? `<span class="deck-valid">40 ✓</span>`
+      : `${deckSize} / 40`;
 
-  els.deckCount.textContent = `${getDeckSize()} / 40`;
-  els.deckList.innerHTML = rows.map(({ card, quantity }) => `
-    <div class="deck-row">
-      <img src="${escapeHtml(card.image)}" alt="">
-      <div>
-        <div class="deck-row-title">${escapeHtml(card.name)}</div>
-        <div class="deck-row-meta">${card.cost} PP · ${escapeHtml(card.type)} · ${escapeHtml(card.rarity)}</div>
-      </div>
-      <div class="deck-controls">
-        <button type="button" data-remove-card="${card.id}">−</button>
-        <span>${quantity}</span>
-        <button type="button" data-add-card="${card.id}">+</button>
-      </div>
-    </div>
+  els.deckList.innerHTML = "";
+
+  const allRows = Array.from(state.deck.entries())
+    .map(([id, qty]) => ({ card: state.cardMap.get(Number(id)), qty: Number(qty) }))
+    .filter(item => item.card);
+
+  let mainRoom = 40;
+  const mainRows = [];
+  const workbenchRows = [];
+  for (const item of allRows) {
+    const mainQty = Math.min(item.qty, Math.max(0, mainRoom));
+    if (mainQty > 0) mainRows.push({ card: item.card, qty: mainQty });
+    mainRoom -= mainQty;
+    const extra = item.qty - mainQty;
+    if (extra > 0) workbenchRows.push({ card: item.card, qty: extra });
+  }
+
+  const sortMode = qol?.getDeckSort() ?? "cost";
+  sortDeckRows(mainRows, sortMode);
+  sortDeckRows(workbenchRows, sortMode);
+
+  const toolbar = document.createElement("div");
+  toolbar.className = "deck-toolbar";
+  toolbar.innerHTML = `
+    <select id="deck-sort" aria-label="Sort deck">
+      <option value="cost" ${sortMode === "cost" ? "selected" : ""}>Sort: Cost</option>
+      <option value="name" ${sortMode === "name" ? "selected" : ""}>Sort: Name</option>
+      <option value="type" ${sortMode === "type" ? "selected" : ""}>Sort: Type</option>
+      <option value="rarity" ${sortMode === "rarity" ? "selected" : ""}>Sort: Rarity</option>
+      <option value="mark" ${sortMode === "mark" ? "selected" : ""}>Sort: Core / Tech</option>
+    </select>
+    <button id="deck-compact" type="button">${qol?.isCompactDeck() ? "Detailed" : "Compact"}</button>
+  `;
+  els.deckList.appendChild(toolbar);
+  toolbar.querySelector("#deck-sort")?.addEventListener("change", event => {
+    qol?.setDeckSort(event.target.value);
+    renderDeck();
+  });
+  toolbar.querySelector("#deck-compact")?.addEventListener("click", () => {
+    qol?.setCompactDeck(!qol?.isCompactDeck());
+    renderDeck();
+  });
+
+  const curve = Array(11).fill(0);
+  for (const { card, qty } of mainRows) {
+    const bucket = Math.min(10, Number(card.cost) || 0);
+    curve[bucket] += qty;
+  }
+  const costStrip = document.createElement("div");
+  costStrip.className = "deck-cost-strip";
+  costStrip.innerHTML = curve.map((count, cost) => `
+    <div class="deck-cost-cell"><span>${cost === 10 ? "10+" : cost}</span><strong>${count}</strong></div>
   `).join("");
+  els.deckList.appendChild(costStrip);
 
-  els.deckList.querySelectorAll("[data-add-card]").forEach(button => {
-    button.addEventListener("click", () => {
-      const card = state.cardMap.get(Number(button.dataset.addCard));
-      if (card && addCard(card)) renderEverything();
-    });
+  const mainTitle = document.createElement("div");
+  mainTitle.className = "deck-section-title";
+  mainTitle.innerHTML = `<span>Main deck</span><span>${Math.min(deckSize, 40)}/40</span>`;
+  els.deckList.appendChild(mainTitle);
+  for (const row of mainRows) els.deckList.appendChild(createDeckRow(row.card, row.qty));
+
+  if (workbenchRows.length) {
+    const workbenchTitle = document.createElement("div");
+    workbenchTitle.className = "deck-section-title workbench";
+    workbenchTitle.innerHTML = `<span>Workbench</span><span>+${deckSize - 40}</span>`;
+    els.deckList.appendChild(workbenchTitle);
+    for (const row of workbenchRows) els.deckList.appendChild(createDeckRow(row.card, row.qty));
+  }
+}
+
+function createDeckRow(card, qty) {
+  const row = document.createElement("div");
+  row.className = "deck-row";
+  const owned = state.owned.get(card.id) ?? 0;
+  const mark = state.deckMarks.get(card.id) ?? "";
+  const totalQty = state.deck.get(card.id) ?? qty;
+
+  row.innerHTML = `
+    <img src="${escapeAttr(card.image)}" alt="">
+    <div class="deck-row-title">
+      <strong>${escapeHtml(card.name)}</strong>
+      <div class="deck-row-meta">
+        <span class="muted">Cost ${card.cost}</span>
+        <span class="deck-owned">Owned ${owned}/${totalQty}</span>
+      </div>
+      <select class="deck-mark-select" aria-label="Deck role">
+        <option value="" ${mark === "" ? "selected" : ""}>Unmarked</option>
+        <option value="Core" ${mark === "Core" ? "selected" : ""}>Core</option>
+        <option value="Optional" ${mark === "Optional" ? "selected" : ""}>Optional</option>
+        <option value="Tech" ${mark === "Tech" ? "selected" : ""}>Tech</option>
+      </select>
+    </div>
+    <div class="deck-controls">
+      <button data-action="minus" type="button">−</button>
+      <span>${qty}x</span>
+      <button data-action="plus" type="button">+</button>
+    </div>
+  `;
+
+  row.querySelector('[data-action="minus"]').addEventListener("click", event => {
+    removeCard(card, event.shiftKey ? totalQty : 1);
+    renderEverything();
   });
 
-  els.deckList.querySelectorAll("[data-remove-card]").forEach(button => {
-    button.addEventListener("click", () => {
-      const card = state.cardMap.get(Number(button.dataset.removeCard));
-      if (card && removeCard(card)) renderEverything();
-    });
+  row.querySelector('[data-action="plus"]').addEventListener("click", event => {
+    addCard(card, event.shiftKey ? Number(card.maxCopies ?? 3) : 1);
+    renderEverything();
   });
+
+  row.querySelector(".deck-mark-select").addEventListener("change", event => {
+    setDeckMark(card.id, event.target.value);
+    renderCards();
+    renderSavedDecks();
+  });
+
+  return row;
+}
+
+function sortDeckRows(rows, mode) {
+  const rarityOrder = { Bronze: 1, Silver: 2, Gold: 3, Legendary: 4 };
+  const markOrder = { Core: 1, Optional: 2, Tech: 3, "": 4 };
+  rows.sort((a, b) => {
+    if (mode === "name") return a.card.name.localeCompare(b.card.name);
+    if (mode === "type") return a.card.type.localeCompare(b.card.type) || a.card.cost - b.card.cost || a.card.name.localeCompare(b.card.name);
+    if (mode === "rarity") return (rarityOrder[a.card.rarity] ?? 9) - (rarityOrder[b.card.rarity] ?? 9) || a.card.cost - b.card.cost;
+    if (mode === "mark") return (markOrder[state.deckMarks.get(a.card.id) ?? ""] ?? 9) - (markOrder[state.deckMarks.get(b.card.id) ?? ""] ?? 9) || a.card.cost - b.card.cost;
+    return a.card.cost - b.card.cost || a.card.name.localeCompare(b.card.name);
+  });
+}
+
+function getMainDeckMap() {
+  const main = new Map();
+  let remaining = 40;
+  for (const [id, qty] of state.deck.entries()) {
+    if (remaining <= 0) break;
+    const count = Math.min(Number(qty) || 0, remaining);
+    if (count > 0) main.set(Number(id), count);
+    remaining -= count;
+  }
+  return main;
 }
 
 function renderAnalysis() {
-  els.deckAnalysis.innerHTML = analyzeDeck().html ?? "";
+  const analysis = analyzeDeck(state.cards, getMainDeckMap(), state.cardMap);
+  const maxCurve = Math.max(1, ...analysis.curve);
+
+  const types = Object.fromEntries(analysis.types);
+  els.deckAnalysis.innerHTML = `
+    <div class="analysis-section">
+      <h3>Overview</h3>
+      <div class="analysis-grid">
+        <div class="analysis-card"><strong>${analysis.size}/40</strong>Cards</div>
+        <div class="analysis-card"><strong>${types.Follower ?? 0}</strong>Followers</div>
+        <div class="analysis-card"><strong>${types.Spell ?? 0}</strong>Spells</div>
+        <div class="analysis-card"><strong>${types.Amulet ?? 0}</strong>Amulets</div>
+      </div>
+    </div>
+
+    <div class="analysis-section">
+      <h3>Mana curve</h3>
+      ${analysis.curve.map((count, cost) => `
+        <div class="curve-row">
+          <span>${cost === 10 ? "10+" : cost}</span>
+          <div class="curve-bar"><span style="width:${Math.round(count / maxCurve * 100)}%"></span></div>
+          <strong>${count}</strong>
+        </div>
+      `).join("")}
+    </div>
+
+    <div class="analysis-section">
+      <h3>Functional roles</h3>
+      <div class="analysis-chip-list">
+        ${analysis.roles.length ? analysis.roles.map(([name, count]) => `<span class="analysis-chip">${escapeHtml(name)} ${count}</span>`).join("") : `<span class="muted">No roles detected yet.</span>`}
+      </div>
+    </div>
+
+    <div class="analysis-section">
+      <h3>Keywords</h3>
+      <div class="analysis-chip-list">
+        ${analysis.keywords.slice(0, 18).map(([name, count]) => `<span class="analysis-chip">${escapeHtml(name)} ${count}</span>`).join("") || `<span class="muted">None</span>`}
+      </div>
+    </div>
+
+    <div class="analysis-section">
+      <h3>Checks</h3>
+      ${analysis.warnings.length ? analysis.warnings.map(item => `<div class="analysis-warning ${item.level}">${escapeHtml(item.text)}</div>`).join("") : `<div class="analysis-warning info">No basic warnings detected.</div>`}
+    </div>
+
+    <div class="analysis-section">
+      <h3>Generated-card dependencies</h3>
+      ${analysis.dependencies.length ? analysis.dependencies.map(item => `
+        <div class="dependency-item">
+          <strong>${escapeHtml(item.card.name)}</strong>
+          <div>${item.producerCopies} producer copies · ${item.consumers.reduce((sum, entry) => sum + entry.qty, 0)} other mentions</div>
+          <div class="muted">Produced by: ${item.producers.map(entry => `${escapeHtml(entry.card.name)} ×${entry.qty}`).join(", ")}</div>
+          ${item.consumers.length ? `<div class="muted">Also used by: ${item.consumers.map(entry => `${escapeHtml(entry.card.name)} ×${entry.qty}`).join(", ")}</div>` : ""}
+        </div>
+      `).join("") : `<span class="muted">No generated-card dependency detected in the current deck.</span>`}
+    </div>
+  `;
 }
 
 function renderSavedDecks() {
-  const variants = Object.keys(state.savedDecks ?? {}).sort((a, b) => a.localeCompare(b));
-  els.savedDecks.innerHTML = variants.map(name => `
-    <div class="saved-deck-row">
-      <button type="button" data-load-variant="${escapeHtml(name)}">${escapeHtml(name)}</button>
-      <button type="button" data-delete-variant="${escapeHtml(name)}">×</button>
-    </div>
-  `).join("");
+  const entries = Object.entries(state.savedDecks).sort((a, b) => a[0].localeCompare(b[0]));
+  els.savedDecks.innerHTML = entries.length ? "" : `<span class="muted">No saved variants.</span>`;
 
-  els.savedDecks.querySelectorAll("[data-load-variant]").forEach(button => {
-    button.addEventListener("click", () => {
-      if (loadVariant(button.dataset.loadVariant)) renderEverything();
+  for (const [name, variant] of entries) {
+    const size = (variant.deck ?? []).reduce((sum, [, qty]) => sum + Number(qty), 0);
+    const item = document.createElement("div");
+    item.className = "saved-deck-item";
+    item.innerHTML = `
+      <strong>${escapeHtml(name)}</strong>
+      <div class="muted">${escapeHtml(variant.class ?? "Unknown")} · ${size > 40 ? `40 (+${size - 40})` : `${size}/40`}</div>
+      <div class="saved-deck-actions">
+        <button data-action="load" type="button">Load</button>
+        <button data-action="delete" type="button">Delete</button>
+      </div>
+    `;
+
+    item.querySelector('[data-action="load"]').addEventListener("click", () => {
+      loadVariant(name);
+      renderEverything();
     });
+
+    item.querySelector('[data-action="delete"]').addEventListener("click", () => {
+      deleteVariant(name);
+      renderSavedDecks();
+    });
+
+    els.savedDecks.appendChild(item);
+  }
+}
+
+function populateCompareSelects() {
+  const names = ["__current__", ...Object.keys(state.savedDecks).sort()];
+  const options = names.map(name => `<option value="${escapeAttr(name)}">${name === "__current__" ? "Current" : escapeHtml(name)}</option>`).join("");
+  els.compareLeft.innerHTML = options;
+  els.compareRight.innerHTML = options;
+  if (names.length > 1) els.compareRight.value = names[1];
+}
+
+function renderComparison() {
+  const left = getVariant(els.compareLeft.value);
+  const right = getVariant(els.compareRight.value);
+  const changes = compareDecks(left, right, state.cardMap);
+
+  els.compareResults.innerHTML = changes.length ? `
+    <div class="compare-row"><strong>Card</strong><strong>${escapeHtml(left?.name ?? "Left")}</strong><strong>${escapeHtml(right?.name ?? "Right")}</strong></div>
+    ${changes.map(change => `
+      <div class="compare-row">
+        <span>${escapeHtml(change.card.name)}</span>
+        <span>${change.left}</span>
+        <span>${change.right}</span>
+      </div>
+    `).join("")}
+  ` : `<p class="muted">No differences.</p>`;
+}
+
+function activateDeckTab(name) {
+  document.querySelectorAll(".deck-tab-button").forEach(button => button.classList.toggle("active", button.dataset.tab === name));
+  document.querySelectorAll(".deck-tab-content").forEach(panel => panel.classList.toggle("active", panel.id === `${name}-tab`));
+}
+
+function openPackageDialog(packageDef, triggerCard = null) {
+  pendingPackage = packageDef;
+  pendingPackageTrigger = triggerCard;
+  const entries = normalizePackageCards(packageDef.cards);
+
+  els.packageDialogTitle.textContent = packageDef.name ?? packageDef.id ?? "Add package";
+  els.packageDialogDescription.textContent = packageDef.description ?? (triggerCard ? `Related package detected for ${triggerCard.name}.` : "Select the cards to add.");
+  els.packageDialogCards.innerHTML = "";
+
+  for (const entry of entries) {
+    const card = state.cardMap.get(entry.id);
+    if (!card?.deckSelectable) continue;
+    const row = document.createElement("label");
+    row.className = "package-dialog-card";
+    row.innerHTML = `
+      <input type="checkbox" data-package-card="${card.id}" checked>
+      <img src="${escapeAttr(card.image)}" alt="">
+      <span>${escapeHtml(card.name)}</span>
+      <input type="number" min="1" max="${card.maxCopies ?? 3}" value="${entry.count}" data-package-count="${card.id}">
+    `;
+    els.packageDialogCards.appendChild(row);
+  }
+
+  els.packageDialog.showModal();
+}
+
+function confirmPendingPackage() {
+  if (!pendingPackage) return;
+  const entries = [];
+
+  els.packageDialogCards.querySelectorAll("[data-package-card]").forEach(checkbox => {
+    if (!checkbox.checked) return;
+    const id = Number(checkbox.dataset.packageCard);
+    const countInput = els.packageDialogCards.querySelector(`[data-package-count="${id}"]`);
+    entries.push({ id, count: Number(countInput?.value ?? 1) });
   });
 
-  els.savedDecks.querySelectorAll("[data-delete-variant]").forEach(button => {
-    button.addEventListener("click", () => {
-      if (deleteVariant(button.dataset.deleteVariant)) renderSavedDecks();
-    });
-  });
+  if (entries.length) addCards(entries, state.cardMap);
+  else if (pendingPackageTrigger?.deckSelectable) addCard(pendingPackageTrigger);
+
+  pendingPackage = null;
+  pendingPackageTrigger = null;
+  els.packageDialog.close();
+  renderEverything();
+}
+
+function normalizePackageCards(cards) {
+  return (cards ?? []).map(entry => {
+    if (typeof entry === "number" || typeof entry === "string") return { id: Number(entry), count: 1 };
+    return { id: Number(entry.id), count: Number(entry.count ?? entry.quantity ?? 1) };
+  }).filter(entry => Number.isFinite(entry.id));
 }
 
 function updateHistoryButtons() {
-  els.undoDeck.disabled = !state.history.length;
-  els.redoDeck.disabled = !state.future.length;
+  els.undoDeck.disabled = state.history.length === 0;
+  els.redoDeck.disabled = state.future.length === 0;
 }
 
-function handleCardAdd(card, quantity = 1, event = null) {
-  if (!card?.deckSelectable) return false;
-  if (event?.shiftKey) quantity = Math.max(1, 3 - (state.deck.get(card.id) ?? 0));
-  const result = quantity > 1 ? addCards(card, quantity) : addCard(card);
-  if (result) renderEverything();
-  return result;
+function sanitizeDeck() {
+  const clean = new Map();
+  let remaining = 80;
+
+  for (const [idValue, qtyValue] of state.deck.entries()) {
+    const id = Number(idValue);
+    const card = state.cardMap.get(id);
+    if (!card?.deckSelectable || remaining <= 0) continue;
+    const qty = Math.max(0, Math.min(Number(qtyValue) || 0, Number(card.maxCopies ?? 3), remaining));
+    if (qty > 0) {
+      clean.set(id, qty);
+      remaining -= qty;
+    }
+  }
+
+  state.deck = clean;
+  for (const id of [...state.deckMarks.keys()]) if (!state.deck.has(Number(id))) state.deckMarks.delete(id);
+  persist();
+}
+
+function loadSharedDeckFromHash() {
+  const match = location.hash.match(/^#deck=(.+)$/);
+  if (!match) return;
+  const payload = decodeSharePayload(match[1]);
+  if (payload) importDeckPayload(state, payload);
 }
 
 function persist() {
   saveWorkspace(state);
 }
 
-function sanitizeDeck() {
-  for (const [id] of [...state.deck.entries()]) {
-    if (!state.cardMap.has(Number(id))) state.deck.delete(id);
-  }
-}
-
-function loadSharedDeckFromHash() {
-  const match = location.hash.match(/(?:^#|&)deck=([^&]+)/);
-  if (!match) return;
-  const payload = decodeSharePayload(match[1]);
-  if (!payload) return;
-  importDeckPayload(state, payload);
-}
-
-function activateDeckTab(name) {
-  document.querySelectorAll(".deck-tab-button").forEach(button => button.classList.toggle("active", button.dataset.tab === name));
-  document.querySelectorAll(".deck-tab-content").forEach(section => section.classList.toggle("active", section.id === `${name}-tab`));
-}
-
-function populateCompareSelects() {
-  const names = Object.keys(state.savedDecks ?? {}).sort((a, b) => a.localeCompare(b));
-  const options = ['<option value="__current__">Current deck</option>', ...names.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`)].join("");
-  els.compareLeft.innerHTML = options;
-  els.compareRight.innerHTML = options;
-  if (names[0]) els.compareRight.value = names[0];
-}
-
-function renderComparison() {
-  const left = els.compareLeft.value === "__current__" ? { deck: [...state.deck.entries()] } : getVariant(els.compareLeft.value);
-  const right = els.compareRight.value === "__current__" ? { deck: [...state.deck.entries()] } : getVariant(els.compareRight.value);
-  els.compareResults.innerHTML = compareDecks(left?.deck ?? [], right?.deck ?? []).html ?? "";
-}
-
-function normalizePackageCards(cards) {
-  return (cards ?? []).map(entry => typeof entry === "number" ? { id: Number(entry), quantity: 1 } : { id: Number(entry.id), quantity: Number(entry.quantity ?? 1) });
-}
-
-function openPackageDialog(packageDef, trigger) {
-  pendingPackage = packageDef;
-  pendingPackageTrigger = trigger;
-  els.packageDialogTitle.textContent = packageDef.name ?? packageDef.id ?? "Add package";
-  els.packageDialogDescription.textContent = packageDef.description ?? "";
-  const rows = normalizePackageCards(packageDef.cards)
-    .map(entry => ({ ...entry, card: state.cardMap.get(entry.id) }))
-    .filter(row => row.card);
-  els.packageDialogCards.innerHTML = rows.map(({ card, quantity }) => `
-    <label class="package-card-row">
-      <input type="checkbox" data-package-card="${card.id}" data-quantity="${quantity}" checked>
-      <img src="${escapeHtml(card.image)}" alt="">
-      <span>${escapeHtml(card.name)} ×${quantity}</span>
-    </label>
-  `).join("");
-  els.packageDialog.showModal();
-}
-
-function confirmPendingPackage() {
-  if (!pendingPackage) return;
-  for (const checkbox of els.packageDialogCards.querySelectorAll("[data-package-card]:checked")) {
-    const card = state.cardMap.get(Number(checkbox.dataset.packageCard));
-    if (!card) continue;
-    addCards(card, Number(checkbox.dataset.quantity) || 1);
-  }
-  els.packageDialog.close();
-  pendingPackage = null;
-  pendingPackageTrigger = null;
-  renderEverything();
-}
-
-function getRelatedGroups(card) {
-  return card?.relations ?? [];
-}
-
-function getPackagesForCard(card) {
-  return (state.packages ?? []).filter(packageDef => normalizePackageCards(packageDef.cards).some(entry => entry.id === Number(card.id)));
-}
-
 function unique(values) {
-  return [...new Set(values.filter(value => value && value !== "-"))].sort((a, b) => String(a).localeCompare(String(b)));
+  return [...new Set(values.filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b)));
 }
 
 function escapeHtml(value) {
@@ -750,4 +1074,8 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function escapeAttr(value) {
+  return escapeHtml(value);
 }
