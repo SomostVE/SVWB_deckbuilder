@@ -6,6 +6,7 @@ on:
     paths:
       - ".github/workflows/audit-battle-final.yml"
       - "scripts/audit-battle-final.mjs"
+      - "scripts/audit-battle-class.mjs"
       - "scripts/check-battle-*.mjs"
       - "js/battle-engine-v4.js"
       - "js/battle-engine-v5.js"
@@ -14,6 +15,7 @@ on:
     paths:
       - ".github/workflows/audit-battle-final.yml"
       - "scripts/audit-battle-final.mjs"
+      - "scripts/audit-battle-class.mjs"
       - "scripts/check-battle-*.mjs"
       - "js/battle-engine-v4.js"
       - "js/battle-engine-v5.js"
@@ -31,3 +33,5 @@ jobs:
           node-version: "24"
       - name: Run final all-card audit
         run: node scripts/audit-battle-final.mjs
+      - name: Inspect Havencraft gaps
+        run: node scripts/audit-battle-class.mjs Havencraft
