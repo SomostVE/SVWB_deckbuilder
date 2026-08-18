@@ -15,6 +15,7 @@ const selected = cards
 
 if (!selected.length) throw new Error(`No cards found for class: ${requestedClass}`);
 
+const clean = value => String(value ?? "").replace(/\s+/g, " ").trim();
 const rows = selected.map(card => {
   const support = analyzeCardSupport(card);
   return {
@@ -25,9 +26,9 @@ const rows = selected.map(card => {
     rarity: card.rarity,
     support: support.level,
     reason: support.reason,
-    text: String(card.text ?? "").replace(/\s+/g, " ").trim(),
-    evolvedText: String(card.evolvedText ?? card.evolveText ?? "").replace(/\s+/g, " ").trim(),
-    related: (card.__relatedNames ?? []).join(" | ")
+    text: clean(card.text),
+    evolvedText: clean(card.evolvedText ?? card.evolveText),
+    related: card.__relatedCardObjects ?? []
   };
 });
 
@@ -36,25 +37,29 @@ const counts = rows.reduce((acc, row) => {
   return acc;
 }, {});
 
+function printRow(row, includeRelatedDetails = false) {
+  console.log(`\n[${row.support.toUpperCase()}] ${row.name} · ID ${row.id} · ${row.cost} PP · ${row.type} · ${row.rarity}`);
+  console.log(`Reason: ${row.reason}`);
+  console.log(`Text: ${row.text || "-"}`);
+  if (row.evolvedText) console.log(`Evolved: ${row.evolvedText}`);
+  if (row.related.length) console.log(`Related: ${row.related.map(card => `${card.name} (${card.id})`).join(" | ")}`);
+  if (includeRelatedDetails) {
+    for (const related of row.related) {
+      console.log(`  -> ${related.name} · ID ${related.id} · ${related.type ?? "?"} · ${related.rarity ?? "?"}`);
+      console.log(`     Text: ${clean(related.text) || "-"}`);
+      const evolved = clean(related.evolvedText ?? related.evolveText);
+      if (evolved) console.log(`     Evolved: ${evolved}`);
+    }
+  }
+}
+
 console.log(`=== ${requestedClass} Battle Sim class audit ===`);
 console.log(`Cards: ${rows.length} · Full: ${counts.full ?? 0} · Partial: ${counts.partial ?? 0} · Unsupported: ${counts.unsupported ?? 0}`);
 
 const gaps = rows.filter(row => row.support !== "full");
 console.log("\n=== Partial / Unsupported ===");
 if (!gaps.length) console.log("None reported by analyzeCardSupport().");
-for (const row of gaps) {
-  console.log(`\n[${row.support.toUpperCase()}] ${row.name} · ${row.cost} PP · ${row.type} · ${row.rarity}`);
-  console.log(`Reason: ${row.reason}`);
-  console.log(`Text: ${row.text || "-"}`);
-  if (row.evolvedText) console.log(`Evolved: ${row.evolvedText}`);
-  if (row.related) console.log(`Related: ${row.related}`);
-}
+for (const row of gaps) printRow(row, true);
 
 console.log("\n=== All cards ===");
-for (const row of rows) {
-  console.log(`\n[${row.support.toUpperCase()}] ${row.name} · ${row.cost} PP · ${row.type} · ${row.rarity}`);
-  console.log(`Reason: ${row.reason}`);
-  console.log(`Text: ${row.text || "-"}`);
-  if (row.evolvedText) console.log(`Evolved: ${row.evolvedText}`);
-  if (row.related) console.log(`Related: ${row.related}`);
-}
+for (const row of rows) printRow(row, false);
