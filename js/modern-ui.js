@@ -11,6 +11,7 @@ setupIconButton(redoButton, "↷", "Redo");
 setupClearDeckConfirmation(clearDeckButton);
 setupCompactActiveFilters(activeFilters);
 setupClassTheme(classFilter);
+setupNeutralControl(classFilter);
 
 function ensureStylesheet(href, suffix) {
   if (document.querySelector(`link[href*="${suffix}"]`)) return;
@@ -121,7 +122,8 @@ function setupClassTheme(root) {
     Dragoncraft: ["#f39a4b", "243, 154, 75"],
     Abysscraft: ["#df5b83", "223, 91, 131"],
     Havencraft: ["#dbc983", "219, 201, 131"],
-    Portalcraft: ["#45ced7", "69, 206, 215"]
+    Portalcraft: ["#45ced7", "69, 206, 215"],
+    Neutral: ["#aeb8c7", "174, 184, 199"]
   };
 
   const apply = () => {
@@ -140,4 +142,43 @@ function setupClassTheme(root) {
     attributeFilter: ["class"]
   });
   apply();
+}
+
+function setupNeutralControl(root) {
+  if (!root) return;
+
+  const decorate = () => {
+    const neutralOnly = [...root.querySelectorAll(".class-button")]
+      .find(button => (button.title || button.getAttribute("aria-label")) === "Neutral");
+    const includeNeutral = root.querySelector(".neutral-icon-toggle");
+    if (!includeNeutral) return;
+
+    const neutralSelected = Boolean(neutralOnly?.classList.contains("active"));
+    includeNeutral.hidden = neutralSelected;
+    includeNeutral.title = "Include Neutral cards";
+    includeNeutral.setAttribute("aria-label", "Include Neutral cards with the selected class");
+
+    const image = includeNeutral.querySelector("img");
+    if (image) image.hidden = true;
+
+    let badge = includeNeutral.querySelector(".neutral-include-label");
+    if (!badge) {
+      badge = document.createElement("span");
+      badge.className = "neutral-include-label";
+      badge.textContent = "+N";
+      badge.style.fontSize = ".68rem";
+      badge.style.fontWeight = "850";
+      badge.style.letterSpacing = "-.02em";
+      badge.style.pointerEvents = "none";
+      includeNeutral.appendChild(badge);
+    }
+  };
+
+  new MutationObserver(decorate).observe(root, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["class"]
+  });
+  decorate();
 }
