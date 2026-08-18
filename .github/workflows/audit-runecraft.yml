@@ -3,21 +3,76 @@ name: Audit Runecraft
 on:
   push:
     branches: [audit-runecraft-full]
-  pull_request:
-    paths:
-      - "scripts/audit-battle-class.mjs"
-      - "js/battle-*.js"
-      - "data/official/cards.json"
+
+permissions:
+  contents: write
 
 jobs:
   audit:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: audit-runecraft-full
+
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
           node-version: "24"
-      - name: Audit Runecraft
-        run: node scripts/audit-battle-class.mjs Runecraft
+
+      - name: Materialize Runecraft rules
+        run: |
+          python3 scripts/apply-battle-runecraft-full.py
+          python3 scripts/apply-battle-runecraft-qa.py
+
+      - name: Check JavaScript syntax
+        run: |
+          node --check js/battle-engine-v5.js
+          node --check scripts/check-battle-runecraft-full.mjs
+          node --check scripts/audit-battle-class.mjs
+
+      - name: Verify Runecraft class
+        run: |
+          node scripts/check-battle-runecraft-full.mjs
+          node scripts/audit-battle-class.mjs Runecraft
+
+      - name: Run Battle Sim regressions
+        run: |
+          node scripts/check-battle-rules.mjs
+          node scripts/check-battle-reactive-events.mjs
+          node scripts/check-battle-artifact-history.mjs
+          node scripts/check-battle-focus-rules.mjs
+          node scripts/check-battle-ability-evolve.mjs
+          node scripts/check-battle-asher.mjs
+          node scripts/check-battle-ai-lookahead.mjs
+          node scripts/check-battle-fuse.mjs
+          node scripts/check-battle-target-branching.mjs
+          node scripts/check-battle-turn-planner.mjs
+          node scripts/check-battle-two-turn-lookahead.mjs
+          node scripts/check-battle-integrity.mjs
+          node scripts/check-battle-coverage-100.mjs
+          node scripts/check-battle-v5-integration.mjs
+          node scripts/check-battle-sim.mjs
+          node scripts/check-battle-benchmark.mjs
+          node scripts/check-battle-benchmark-calibration.mjs
+          node scripts/check-battle-benchmark-compare.mjs
+          node scripts/check-battle-actual-damage.mjs
+          node scripts/check-battle-ai-v1.mjs
+          node scripts/check-battle-ai-evolution.mjs
+          node scripts/check-battle-ai-lethal.mjs
+
+      - name: Commit tested engine changes
+        run: |
+          if git diff --quiet -- js/battle-engine-v5.js; then
+            echo "No engine changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/battle-engine-v5.js
+          git commit -m "feat: materialize tested Runecraft rules"
+          git pull --rebase origin audit-runecraft-full
+          git push origin HEAD:audit-runecraft-full
