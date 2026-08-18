@@ -1,0 +1,76 @@
+.header-subtoolbar {
+  justify-content: flex-start;
+  gap: .45rem;
+  overflow: hidden;
+}
+
+.header-subtoolbar > * {
+  min-width: 0;
+}
+
+.header-subtoolbar #filters-drawer-toggle,
+.header-subtoolbar #results-count,
+.header-subtoolbar #cost-filter,
+.header-subtoolbar #type-filter,
+.header-subtoolbar .discover-status {
+  flex: 0 0 auto;
+}
+
+.content-toolbar #results-count {
+  margin-right: .15rem;
+  white-space: nowrap;
+}
+
+.header-subtoolbar .active-filters {
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.header-subtoolbar .active-filters::-webkit-scrollbar {
+  display: none;
+}
+
+.header-subtoolbar .active-filters:empty {
+  flex: 0 0 0;
+}
+
+.view-controls {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  flex: 0 0 auto;
+  padding-left: .65rem;
+  border-left: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+#format-control-slot,
+#card-size-control-slot {
+  display: inline-flex;
+  align-items: center;
+}
+
+.view-controls .format-control,
+.view-controls .card-size-control {
+  margin: 0;
+}
+
+.view-controls .card-size-control input {
+  width: 105px;
+}
+
+@media (max-width: 1250px) and (min-width: 761px) {
+  .view-controls .card-size-control > span:first-child,
+  .view-controls .format-control > span:first-child {
+    display: none;
+  }
+
+  .view-controls {
+    gap: .35rem;
+    padding-left: .4rem;
+  }
+}
