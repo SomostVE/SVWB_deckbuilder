@@ -1,3 +1,5 @@
+ensureStylesheet("./css/modern-ui-v2.css?v=20260818-1", "modern-ui-v2.css");
+
 const undoButton = document.getElementById("undo-deck");
 const redoButton = document.getElementById("redo-deck");
 const clearDeckButton = document.getElementById("clear-deck");
@@ -9,6 +11,14 @@ setupIconButton(redoButton, "↷", "Redo");
 setupClearDeckConfirmation(clearDeckButton);
 setupCompactActiveFilters(activeFilters);
 setupClassTheme(classFilter);
+
+function ensureStylesheet(href, suffix) {
+  if (document.querySelector(`link[href*="${suffix}"]`)) return;
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = href;
+  document.head.appendChild(link);
+}
 
 function setupIconButton(button, glyph, label) {
   if (!button) return;
