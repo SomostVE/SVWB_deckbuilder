@@ -1,3 +1,5 @@
+import "./version-guard.js?v=01.00.000";
+
 export async function loadData() {
   const [cardsResponse, metadataResponse, packagesResponse, tagsResponse, exclusionsResponse] = await Promise.all([
     fetch("./data/official/cards.json"),
