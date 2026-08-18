@@ -3,6 +3,7 @@ import { state } from "./state.js";
 import { loadWorkspace, applyWorkspace, saveWorkspace } from "./storage.js";
 import { exportCollection, importCollection } from "./collection.js";
 import { VIAL_COSTS, getCraftCost } from "./tools-common.js";
+import { compareGameCardOrderAllClasses } from "./card-sort.js";
 
 const els = {
   stats: document.getElementById("collection-stats"),
@@ -128,7 +129,7 @@ function renderCards() {
     .filter(card => !els.missingOnly.checked || owned(card) < Number(card.maxCopies ?? 3))
     .filter(card => !els.ownedOnly.checked || owned(card) > 0)
     .filter(card => !q || [card.name, card.set, card.class, card.rarity, ...(card.traits ?? []), ...(card.keywords ?? [])].join(" ").toLowerCase().includes(q))
-    .sort((a, b) => a.class.localeCompare(b.class) || a.cost - b.cost || a.name.localeCompare(b.name));
+    .sort(compareGameCardOrderAllClasses);
 
   els.cards.innerHTML = cards.map(card => {
     const have = owned(card);
