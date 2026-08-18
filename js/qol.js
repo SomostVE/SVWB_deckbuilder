@@ -1,7 +1,7 @@
 import { closeCardPreview } from "./card-grid.js";
 
 const RECENT_KEY = "svwb-recent-cards";
-const FILTER_KEY_PREFIX = "svwb-class-filters:";
+const FILTER_KEY = "svwb-filters";
 const SCROLL_KEY_PREFIX = "svwb-class-scroll:";
 const DECK_WIDTH_KEY = "svwb-deck-panel-width";
 const HINT_KEY = "svwb-interaction-hint-dismissed";
@@ -23,7 +23,8 @@ export function setupQol({ state, renderEverything, renderCards, undoDeck, redoD
   setupKeyboardShortcuts({ search, renderEverything, undoDeck, redoDeck });
   setupResetView({ resetView, content, deckPanel, renderEverything });
   setupInteractionHint();
-  setupClassFilterPersistence({ state, content, renderEverything });
+  loadFilters(state);
+  setupClassScrollPersistence({ state, content });
 
   return {
     render() {
@@ -52,7 +53,10 @@ export function setupQol({ state, renderEverything, renderCards, undoDeck, redoD
       deckPanel?.classList.toggle("compact-deck", Boolean(value));
     },
     saveCurrentClassFilters() {
-      saveClassFilters(state);
+      saveFilters(state);
+    },
+    renderActiveFilters() {
+      renderActiveFilters(state, renderEverything);
     }
   };
 }
@@ -207,43 +211,32 @@ function setupInteractionHint() {
   document.body.appendChild(hint);
 }
 
-function setupClassFilterPersistence({ state, content, renderEverything }) {
+function setupClassScrollPersistence({ state, content }) {
   const classFilter = document.getElementById("class-filter");
   if (!classFilter) return;
 
-  loadClassFilters(state, state.selectedClass);
   restoreClassScroll(content, state.selectedClass);
 
   classFilter.addEventListener("pointerdown", event => {
     if (!event.target.closest(".class-button")) return;
-    saveClassFilters(state, state.selectedClass);
     saveClassScroll(content, state.selectedClass);
   }, true);
 
   classFilter.addEventListener("click", event => {
     if (!event.target.closest(".class-button")) return;
-    setTimeout(() => {
-      loadClassFilters(state, state.selectedClass);
-      renderEverything();
-      restoreClassScroll(content, state.selectedClass);
-    }, 0);
-  });
-
-  document.addEventListener("click", event => {
-    if (!event.target.closest(".filter-option, .cost-button, .filter-group-clear, #reset-filters")) return;
-    setTimeout(() => saveClassFilters(state, state.selectedClass), 0);
+    setTimeout(() => restoreClassScroll(content, state.selectedClass), 0);
   });
 }
 
-function saveClassFilters(state, className = state.selectedClass) {
+function saveFilters(state) {
   const payload = {};
   for (const [key, set] of Object.entries(state.filters ?? {})) payload[key] = [...set];
-  localStorage.setItem(`${FILTER_KEY_PREFIX}${className}`, JSON.stringify(payload));
+  localStorage.setItem(FILTER_KEY, JSON.stringify(payload));
 }
 
-function loadClassFilters(state, className) {
+function loadFilters(state) {
   let payload = null;
-  try { payload = JSON.parse(localStorage.getItem(`${FILTER_KEY_PREFIX}${className}`) || "null"); } catch {}
+  try { payload = JSON.parse(localStorage.getItem(FILTER_KEY) || "null"); } catch {}
   for (const [key, set] of Object.entries(state.filters ?? {})) {
     set.clear();
     for (const value of payload?.[key] ?? []) set.add(value);
@@ -283,7 +276,7 @@ function renderActiveFilters(state, renderEverything) {
       button.textContent = `${labels[key] ?? key}: ${value} ×`;
       button.addEventListener("click", () => {
         set.delete(value);
-        saveClassFilters(state);
+        saveFilters(state);
         renderEverything();
       });
       root.appendChild(button);

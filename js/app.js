@@ -1,6 +1,6 @@
 import { state, resetFilters } from "./state.js";
 import { loadData } from "./data-loader.js";
-import { CLASSES, filteredCards } from "./filters.js";
+import { CLASSES, filteredCards, pruneUnavailableFilters } from "./filters.js";
 import { renderCardGrid } from "./card-grid.js";
 import {
   addCard,
@@ -112,6 +112,8 @@ async function init() {
 
     setupCardSizeControl();
     qol = setupQol({ state, renderEverything, renderCards, undoDeck, redoDeck });
+    pruneUnavailableFilters();
+    qol?.saveCurrentClassFilters();
     collectionUi = setupCollectionUI({ state, renderEverything });
     bindEvents();
     renderEverything();
@@ -131,24 +133,25 @@ function bindEvents() {
     state.search = event.target.value;
     state.discoverCardId = null;
     renderCards();
+    qol?.renderActiveFilters?.();
   });
 
   els.favoritesOnly.addEventListener("change", () => {
     state.favoritesOnly = els.favoritesOnly.checked;
     persist();
-    renderCards();
+    refreshFilterView();
   });
 
   els.showGenerated.addEventListener("change", () => {
     state.showGenerated = els.showGenerated.checked;
     persist();
-    renderCards();
+    refreshFilterView();
   });
 
   els.showExcluded.addEventListener("change", () => {
     state.showExcluded = els.showExcluded.checked;
     persist();
-    renderCards();
+    refreshFilterView();
   });
 
   els.showUnavailable.addEventListener("change", () => {
@@ -173,6 +176,7 @@ function bindEvents() {
   els.resetFilters.addEventListener("click", () => {
     resetFilters();
     els.search.value = "";
+    qol?.saveCurrentClassFilters();
     renderEverything();
   });
 
@@ -277,6 +281,14 @@ function renderEverything() {
   qol?.render();
 }
 
+function refreshFilterView() {
+  renderFilterGroups();
+  renderArchetypes();
+  renderCostFilter();
+  renderCards();
+  qol?.render();
+}
+
 function syncControls() {
   els.search.value = state.search;
   els.favoritesOnly.checked = state.favoritesOnly;
@@ -305,6 +317,8 @@ function renderClassFilter() {
     button.addEventListener("click", () => {
       state.selectedClass = className;
       state.discoverCardId = null;
+      pruneUnavailableFilters();
+      qol?.saveCurrentClassFilters();
       persist();
       renderEverything();
     });
@@ -322,6 +336,8 @@ function renderClassFilter() {
   checkbox.addEventListener("change", () => {
     state.includeNeutral = checkbox.checked;
     state.discoverCardId = null;
+    pruneUnavailableFilters();
+    qol?.saveCurrentClassFilters();
     persist();
     renderEverything();
   });
@@ -387,8 +403,7 @@ function renderCheckboxGroup(root, title, values, targetSet) {
       if (input.checked) targetSet.add(value);
       else targetSet.delete(value);
       qol?.saveCurrentClassFilters();
-      renderCards();
-      renderArchetypes();
+      refreshFilterView();
     });
 
     const count = getFilterOptionResultCount(title, value, targetSet);
@@ -447,9 +462,8 @@ function renderArchetypes() {
     button.addEventListener("click", () => {
       if (state.filters.traits.has(trait)) state.filters.traits.delete(trait);
       else state.filters.traits.add(trait);
-      renderFilterGroups();
-      renderArchetypes();
-      renderCards();
+      qol?.saveCurrentClassFilters();
+      refreshFilterView();
     });
     els.archetypes.appendChild(button);
   }

@@ -10,6 +10,33 @@ export const CLASSES = [
   "Portalcraft"
 ];
 
+export function pruneUnavailableFilters() {
+  const available = state.cards.filter(card =>
+    card.class === state.selectedClass ||
+    (state.includeNeutral && card.class === "Neutral")
+  );
+
+  const valid = {
+    sets: new Set(available.map(card => card.set).filter(Boolean)),
+    types: new Set(available.map(card => card.type).filter(Boolean)),
+    rarities: new Set(available.map(card => card.rarity).filter(Boolean)),
+    traits: new Set(available.flatMap(card => card.traits ?? []).filter(value => value && value !== "-")),
+    keywords: new Set(available.flatMap(card => card.keywords ?? []).filter(value => value && value !== "-"))
+  };
+
+  let changed = false;
+  for (const [key, allowed] of Object.entries(valid)) {
+    const selected = state.filters[key];
+    if (!selected) continue;
+    for (const value of [...selected]) {
+      if (allowed.has(value)) continue;
+      selected.delete(value);
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 export function filteredCards() {
   const query = parseSearch(state.search);
   const discoverSource = state.discoverCardId ? state.cardMap.get(Number(state.discoverCardId)) : null;
