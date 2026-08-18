@@ -34,7 +34,7 @@ if (qa.lapis.countdown !== 2) throw new Error(`Lapis Crest countdown expected 2,
 if (!qa.lapis.summonsWithStorm) throw new Error("Lapis Crest did not summon Lapis with Storm on expiry");
 if (!qa.lapis.crestRemoved) throw new Error("Expired Lapis Crest was not removed before resummon");
 
-console.log("Remaining Havencraft deck rules: full");
+console.log("Remaining Havencraft player-deck rules: full");
 console.table({
   "Supplicant of Repose": {
     support: "full",
