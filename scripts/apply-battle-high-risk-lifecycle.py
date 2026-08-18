@@ -53,12 +53,12 @@ rules = rules.replace(old, new, 1)
 
 # V5 section extraction must stop before natural lifecycle clauses so Fanfare
 # resolution never executes a deferred end-turn/evolve effect early.
-old = '''  const next = markers.find(item => item.start > marker.start);
-  return text.slice(marker.end, next?.start ?? text.length).trim();
+old = '''  const next = markers.find(marker => marker.start > hit.start);
+  return text.slice(hit.end, next?.start ?? text.length).trim();
 }'''
-new = '''  const next = markers.find(item => item.start > marker.start);
+new = '''  const next = markers.find(marker => marker.start > hit.start);
   const tailEnd = next?.start ?? text.length;
-  const tail = text.slice(marker.end, tailEnd);
+  const tail = text.slice(hit.end, tailEnd);
   const natural = tail.search(/\\b(?:at the end of your turn|at the start of your turn|when this follower evolves),\\s*/i);
   return (natural < 0 ? tail : tail.slice(0, natural)).trim();
 }'''
