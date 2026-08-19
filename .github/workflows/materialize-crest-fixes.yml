@@ -1,0 +1,33 @@
+name: Materialize Crest fixes
+
+on:
+  push:
+    branches: [audit/crest-completeness-01.05.001]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: materialize-crest-fixes
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: audit/crest-completeness-01.05.001
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - run: node scripts/apply-crest-lifecycle-fixes.mjs
+      - name: Commit engine changes
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/battle-engine-v5.js
+          git commit -m "fix: preserve Crest lifecycle timing and order"
+          git push origin HEAD:audit/crest-completeness-01.05.001
