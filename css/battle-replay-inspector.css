@@ -1,0 +1,286 @@
+.battle-timeline-filters {
+  display: flex;
+  gap: .3rem;
+  margin-top: .55rem;
+  overflow-x: auto;
+  padding-bottom: .08rem;
+  scrollbar-width: none;
+}
+
+.battle-timeline-filters::-webkit-scrollbar { display: none; }
+
+.battle-timeline-filters button {
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: .28rem .5rem;
+  background: rgba(255,255,255,.025);
+  color: var(--muted);
+  font-size: .62rem;
+  font-weight: 750;
+}
+
+.battle-timeline-filters button.active {
+  border-color: rgba(124, 140, 255, .62);
+  background: rgba(124, 140, 255, .14);
+  color: var(--text);
+}
+
+.battle-inspector {
+  margin-top: .5rem;
+  overflow: hidden;
+  border: 1px solid rgba(124, 140, 255, .28);
+  border-radius: .62rem;
+  background: rgba(12, 18, 29, .64);
+}
+
+.battle-inspector-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .5rem .6rem;
+  border-bottom: 1px solid rgba(177, 194, 224, .14);
+}
+
+.battle-inspector-head > div {
+  min-width: 0;
+}
+
+.battle-inspector-head strong,
+.battle-inspector-head span {
+  display: block;
+}
+
+.battle-inspector-head strong {
+  font-size: .76rem;
+}
+
+.battle-inspector-head span {
+  margin-top: .08rem;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: .58rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.battle-inspector-head button {
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: .45rem;
+  padding: .3rem .48rem;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: .62rem;
+}
+
+.battle-inspector-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  padding: .35rem;
+  background: rgba(255,255,255,.015);
+}
+
+.battle-inspector-tabs button {
+  min-width: 0;
+  border: 1px solid transparent;
+  border-radius: .45rem;
+  padding: .38rem .45rem;
+  background: transparent;
+  color: var(--muted);
+  font-size: .65rem;
+  font-weight: 800;
+}
+
+.battle-inspector-tabs button.active {
+  border-color: rgba(124, 140, 255, .42);
+  background: rgba(124, 140, 255, .11);
+  color: var(--text);
+}
+
+.battle-inspector-content {
+  min-height: 74px;
+  padding: .6rem;
+}
+
+.battle-inspector-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+}
+
+.battle-inspector-meta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: .22rem .42rem;
+  background: rgba(255,255,255,.025);
+  color: var(--text);
+  font-size: .62rem;
+}
+
+.battle-inspector-meta strong {
+  color: var(--muted);
+  font-size: .56rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.battle-inspector-primary {
+  margin-top: .55rem;
+  color: var(--text);
+  font-size: .76rem;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.battle-inspector-events {
+  display: grid;
+  gap: .32rem;
+  margin: .5rem 0 0;
+  padding-left: 1.1rem;
+  color: #d5dceb;
+  font-size: .7rem;
+  line-height: 1.4;
+}
+
+.battle-inspector-note,
+.battle-inspector-empty {
+  color: var(--muted);
+  font-size: .68rem;
+  line-height: 1.45;
+}
+
+.battle-inspector-change-columns,
+.battle-inspector-state-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .5rem;
+}
+
+.battle-inspector-change-card,
+.battle-inspector-state-card {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: .55rem;
+  padding: .5rem;
+  background: rgba(255,255,255,.02);
+}
+
+.battle-inspector-change-card h3,
+.battle-inspector-state-card h3 {
+  margin: 0 0 .35rem;
+  font-size: .72rem;
+}
+
+.battle-inspector-change-card > div {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: .5rem;
+  padding: .22rem 0;
+  border-top: 1px solid rgba(177,194,224,.08);
+  font-size: .64rem;
+}
+
+.battle-inspector-change-card > div:first-of-type { border-top: 0; }
+.battle-inspector-change-card span { color: var(--muted); }
+.battle-inspector-change-card strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.battle-inspector-subtitle {
+  display: block;
+  margin: -.2rem 0 .42rem;
+  color: var(--muted);
+  font-size: .58rem;
+}
+
+.battle-inspector-resource-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .28rem;
+}
+
+.battle-inspector-resource-grid > div {
+  border: 1px solid rgba(177,194,224,.1);
+  border-radius: .4rem;
+  padding: .3rem .35rem;
+  background: rgba(255,255,255,.018);
+}
+
+.battle-inspector-resource-grid span,
+.battle-inspector-resource-grid strong {
+  display: block;
+}
+
+.battle-inspector-resource-grid span {
+  color: var(--muted);
+  font-size: .52rem;
+}
+
+.battle-inspector-resource-grid strong {
+  margin-top: .08rem;
+  font-size: .66rem;
+}
+
+.battle-inspector-zone {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: .45rem;
+  margin-top: .45rem;
+  padding-top: .42rem;
+  border-top: 1px solid rgba(177,194,224,.1);
+  font-size: .62rem;
+  line-height: 1.45;
+}
+
+.battle-inspector-zone > strong { color: var(--muted); }
+.battle-inspector-zone > span { overflow-wrap: anywhere; }
+
+@media (max-width: 760px) {
+  .battle-timeline-filters {
+    margin-top: .45rem;
+  }
+
+  .battle-inspector-head {
+    padding: .46rem .5rem;
+  }
+
+  .battle-inspector-tabs {
+    display: flex;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .battle-inspector-tabs::-webkit-scrollbar { display: none; }
+
+  .battle-inspector-tabs button {
+    flex: 1 0 82px;
+  }
+
+  .battle-inspector-content {
+    padding: .5rem;
+  }
+
+  .battle-inspector-change-columns,
+  .battle-inspector-state-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .battle-inspector-resource-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 390px) {
+  .battle-inspector-meta > span { max-width: 100%; }
+  .battle-inspector-change-card > div { grid-template-columns: 66px minmax(0, 1fr); }
+  .battle-inspector-resource-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
