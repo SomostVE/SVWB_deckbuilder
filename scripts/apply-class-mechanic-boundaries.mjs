@@ -3,6 +3,7 @@ import fs from "node:fs";
 const V5 = "js/battle-engine-v5.js";
 const CORE = "js/battle-engine-core.js";
 const MARK = "// [[class-mechanic-boundaries-v1]]";
+const VERSION = "01.04.003";
 
 function patchV5() {
   let src = fs.readFileSync(V5, "utf8");
@@ -63,9 +64,27 @@ function patchLabelsAndVersion() {
     .replace('["EP", side.ep], ["SEP", side.sep]', '["Evo", side.ep], ["Super Evo", side.sep]');
   fs.writeFileSync(inspectorPath, inspector);
 
-  fs.writeFileSync("version.json", `${JSON.stringify({ version: "01.04.003" }, null, 2)}\n`);
+  fs.writeFileSync("version.json", `${JSON.stringify({ version: VERSION }, null, 2)}\n`);
+}
+
+function patchReleaseCacheKeys() {
+  const battleHtmlPath = "battle.html";
+  let html = fs.readFileSync(battleHtmlPath, "utf8");
+  html = html
+    .replace("<title>Battle Sim · Deci Builder</title>", "<title>Battle Sim · Beyond Decks</title>")
+    .replace(/\.\/js\/version-guard\.js\?v=[0-9.]+/g, `./js/version-guard.js?v=${VERSION}`)
+    .replace(/\.\/js\/battle\.js\?v=[0-9.]+/g, `./js/battle.js?v=${VERSION}`)
+    .replace(/\.\/js\/battle-decision-summary\.js\?v=[0-9.]+/g, `./js/battle-decision-summary.js?v=${VERSION}`)
+    .replace(/\.\/js\/battle-benchmark-fast\.js\?v=[0-9.]+/g, `./js/battle-benchmark-fast.js?v=${VERSION}`);
+  fs.writeFileSync(battleHtmlPath, html);
+
+  const summaryPath = "js/battle-decision-summary.js";
+  let summary = fs.readFileSync(summaryPath, "utf8");
+  summary = summary.replace(/battle-replay-inspector\.js\?v=[0-9.]+/, `battle-replay-inspector.js?v=${VERSION}`);
+  fs.writeFileSync(summaryPath, summary);
 }
 
 patchV5();
 patchCore();
 patchLabelsAndVersion();
+patchReleaseCacheKeys();
