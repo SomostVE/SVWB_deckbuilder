@@ -8,8 +8,9 @@
   <link rel="stylesheet" href="./css/assistant.css">
   <link rel="stylesheet" href="./css/tools.css">
   <link rel="stylesheet" href="./css/modern-tools.css?v=20260818-1">
+  <link rel="stylesheet" href="./css/collection-page.css?v=01.02.000">
 </head>
-<body class="tools-body">
+<body class="tools-body collection-body">
   <header class="tools-header">
     <a class="button" href="./index.html">← Cards</a>
     <a class="button" href="./engines.html">Engines</a>
@@ -19,32 +20,81 @@
     <button id="collection-import" class="button" type="button">Import</button>
   </header>
 
-  <main class="tools-page">
-    <div id="collection-stats" class="tools-stats"></div>
+  <main class="tools-page collection-page">
+    <div id="collection-stats" class="tools-stats collection-stats"></div>
 
-    <section class="tools-panel">
-      <h2>Set completion</h2>
+    <nav class="collection-tabs" aria-label="Collection sections" role="tablist">
+      <button class="collection-tab active" type="button" role="tab" aria-selected="true" aria-controls="collection-tab-cards" data-collection-tab="cards">Cards</button>
+      <button class="collection-tab" type="button" role="tab" aria-selected="false" aria-controls="collection-tab-sets" data-collection-tab="sets">Set completion</button>
+      <button class="collection-tab" type="button" role="tab" aria-selected="false" aria-controls="collection-tab-planner" data-collection-tab="planner">Craft planner</button>
+    </nav>
+
+    <section id="collection-tab-cards" class="tools-panel collection-tab-panel active" role="tabpanel" data-collection-panel="cards">
+      <div class="collection-section-head">
+        <div>
+          <h2>Collection browser</h2>
+          <span id="collection-results-count" class="tools-muted"></span>
+        </div>
+      </div>
+
+      <div class="collection-browser-toolbar">
+        <input id="collection-search" class="input collection-search" type="search" placeholder="Search cards...">
+        <div class="collection-filter-row">
+          <select id="collection-class"><option value="">All classes</option></select>
+          <select id="collection-set"><option value="">All sets</option></select>
+          <select id="collection-rarity"><option value="">All rarities</option></select>
+          <label class="collection-sort-label"><span>Sort</span>
+            <select id="collection-sort">
+              <option value="game">Game order</option>
+              <option value="name">Name</option>
+              <option value="cost">Cost</option>
+              <option value="rarity">Rarity</option>
+              <option value="set">Set</option>
+              <option value="owned">Owned</option>
+            </select>
+          </label>
+          <div id="collection-status-filter" class="collection-status-filter" aria-label="Ownership filter">
+            <button class="active" type="button" data-collection-status="all">All</button>
+            <button type="button" data-collection-status="owned">Owned</button>
+            <button type="button" data-collection-status="missing">Missing</button>
+            <button type="button" data-collection-status="complete">Complete</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="collection-cards" class="collection-card-grid"></div>
+      <div class="collection-load-more">
+        <span id="collection-load-status" class="tools-muted"></span>
+        <button id="collection-load-more" class="button" type="button" hidden>Load more</button>
+      </div>
+    </section>
+
+    <section id="collection-tab-sets" class="tools-panel collection-tab-panel" role="tabpanel" data-collection-panel="sets" hidden>
+      <div class="collection-section-head">
+        <div>
+          <h2>Set completion</h2>
+          <p class="tools-muted">Track unique cards and completed playsets separately. Click a set to open it in the browser.</p>
+        </div>
+        <label class="collection-sort-label"><span>Sort</span>
+          <select id="collection-set-sort">
+            <option value="newest">Newest</option>
+            <option value="completion">Completion</option>
+            <option value="missing">Most missing vials</option>
+          </select>
+        </label>
+      </div>
       <div id="set-progress" class="collection-set-grid"></div>
     </section>
 
-    <section class="tools-panel">
-      <h2>Collection browser</h2>
-      <div class="tools-toolbar">
-        <input id="collection-search" class="input" type="search" placeholder="Search cards...">
-        <select id="collection-class"><option value="">All classes</option></select>
-        <select id="collection-set"><option value="">All sets</option></select>
-        <select id="collection-rarity"><option value="">All rarities</option></select>
-        <label><input id="collection-missing-only" type="checkbox"> Missing playset only</label>
-        <label><input id="collection-owned-only" type="checkbox"> Owned only</label>
+    <section id="collection-tab-planner" class="tools-panel collection-tab-panel" role="tabpanel" data-collection-panel="planner" hidden>
+      <div class="collection-section-head">
+        <div>
+          <h2>Craft planner</h2>
+          <p class="tools-muted">Select saved decks. Shared cards are counted once at the highest quantity required by any selected deck.</p>
+        </div>
       </div>
-      <div id="collection-cards" class="collection-card-grid"></div>
-    </section>
-
-    <section class="tools-panel">
-      <h2>Craft planner</h2>
-      <p class="tools-muted">Select saved decks. Shared cards are counted once at the highest quantity required by any selected deck.</p>
       <div id="planner-decks" class="planner-decks"></div>
-      <div id="planner-summary" class="tools-stats" style="margin-top:.7rem"></div>
+      <div id="planner-summary" class="tools-stats collection-planner-stats"></div>
       <div id="planner-missing"></div>
     </section>
   </main>
@@ -63,6 +113,7 @@
     <div id="collection-io-status" class="tools-muted"></div>
   </dialog>
 
-  <script type="module" src="./js/collection-page.js"></script>
+  <script type="module" src="./js/version-guard.js?v=01.02.000"></script>
+  <script type="module" src="./js/collection-page.js?v=01.02.000"></script>
 </body>
 </html>
