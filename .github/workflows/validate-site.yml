@@ -35,6 +35,9 @@ jobs:
       - name: Run Collection UI structure regression
         run: node scripts/check-collection-ui-structure.mjs
 
+      - name: Run Replay Inspector and mobile navigation regression
+        run: node scripts/check-replay-inspector-ui.mjs
+
       - name: Run Battle Sim exact-rule regressions
         run: node scripts/check-battle-rules.mjs
 
