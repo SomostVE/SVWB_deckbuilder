@@ -41,6 +41,9 @@ jobs:
       - name: Run Battle Sim exact-rule regressions
         run: node scripts/check-battle-rules.mjs
 
+      - name: Run Battle Sim Fanfare inventory audit
+        run: node scripts/check-battle-fanfare-audit.mjs
+
       - name: Run Battle Sim reactive-event regressions
         run: node scripts/check-battle-reactive-events.mjs
 
