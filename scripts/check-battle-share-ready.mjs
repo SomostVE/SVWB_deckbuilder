@@ -41,6 +41,7 @@ for (const [mechanic, owner] of [
 ]) {
   assert.match(classRules, new RegExp(`${mechanic}: \\"${owner}\\"`), `${mechanic} must remain owned by ${owner}`);
 }
+assert.match(classRules, /export function canUseClassRules/, "Bespoke class rule packages must have a leader-class boundary helper");
 assert.doesNotMatch(classRules, /reanimate:\s*"Abysscraft"/, "Reanimate must preserve the official Neutral exception");
 
 assert.match(engine, /playerClass\s*=\s*null, opponentClass\s*=\s*null/, "Simulation API must accept explicit class identities");
@@ -48,6 +49,9 @@ assert.match(engine, /resolveDeckClass\(deck, simulationMap, requested\)/, "Simu
 assert.match(engine, /classMechanics:\s*classMechanicStatus\(player\)/, "Replay snapshots must expose class-specific mechanics");
 for (const mechanic of ["spellboost", "rally", "combo", "necromancy", "overflow", "earthRite"]) {
   assert.match(engine, new RegExp(`canUseClassMechanic\\([^\\n]+\\"${mechanic}\\"`), `Engine must gate ${mechanic} by class`);
+}
+for (const owner of ["Forestcraft", "Swordcraft", "Runecraft", "Dragoncraft", "Abysscraft"]) {
+  assert.match(engine, new RegExp(`canUseClassRules\\(ctx\\.player, \\"${owner}\\"`), `${owner} bespoke rules must be leader-class locked`);
 }
 for (const mechanic of ["combo", "necromancy", "overflow"]) {
   assert.match(rulesCore, new RegExp(`canUseClassMechanic\\([^\\n]+\\"${mechanic}\\"`), `Generic rules must gate ${mechanic} by class`);
@@ -80,7 +84,10 @@ for (const temporary of [
   ".github/workflows/materialize-battle-sim-release.yml",
   "scripts/apply-battle-sim-release.mjs",
   "scripts/apply-battle-benchmark-class.mjs",
-  ".battle-sim-release-trigger"
+  ".battle-sim-release-trigger",
+  ".github/workflows/materialize-class-rule-hardening.yml",
+  "scripts/apply-class-rule-hardening.mjs",
+  ".class-rule-hardening-trigger"
 ]) assert.equal(exists(temporary), false, `Temporary release materializer must not ship: ${temporary}`);
 
-console.log("Battle Sim share-ready gate: OK · class contracts + replay + benchmark + publication checks locked");
+console.log("Battle Sim share-ready gate: OK · class contracts + bespoke rules + replay + benchmark + publication checks locked");
