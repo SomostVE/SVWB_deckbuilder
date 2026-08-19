@@ -79,6 +79,15 @@ export function canUseClassMechanic(player, mechanic, sourceCard = null) {
   return normalizeClassName(sourceCard?.class) === owner;
 }
 
+export function canUseClassRules(player, className, sourceCard = null) {
+  const owner = normalizeClassName(className);
+  if (!owner || owner === "Neutral") return true;
+  const activeClass = playerClassName(player);
+  if (activeClass) return activeClass === owner;
+  const sourceClass = normalizeClassName(sourceCard?.class);
+  return sourceClass ? sourceClass === owner : true;
+}
+
 export function isSpellboostRecipientCard(card) {
   if (!card || normalizeClassName(card.class) !== "Runecraft") return false;
   const keywords = (card.keywords ?? []).map(value => String(value).trim().toLowerCase());
