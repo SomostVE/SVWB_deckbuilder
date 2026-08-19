@@ -18,6 +18,14 @@ Browser-based deck builder, collection manager, deck analysis toolkit and Battle
 - Benchmarks against reference decks
 - Responsive desktop and mobile navigation
 
+## Battle Sim status
+
+Battle Sim is considered **share-ready** from version **01.05.000**. The current Beyond Codex card snapshot is covered by the strict all-card audit, per-class behavior regressions, high-risk runtime checks, replay smoke tests and benchmark calibration used by CI.
+
+Class identity is enforced at the simulation boundary: a normal deck can contain its selected class plus Neutral cards only. Mechanics that are exclusive in the official data are locked to their owning class — **Combo** to Forestcraft, **Rally** to Swordcraft, **Spellboost / Earth Rite** to Runecraft, **Overflow** to Dragoncraft and **Necromancy** to Abysscraft. Mechanics that are genuinely shared by official cards are not artificially class-locked; for example, **Reanimate** also appears on a Neutral card.
+
+The simulator is a deterministic rules and deck-testing tool, not a tournament oracle. Its AI is deliberately intermediate: it uses tactical look-ahead, target selection and full-turn planning, but it is not intended to reproduce perfect human play. New Beyond Codex cards can intentionally fail the CI coverage/class-contract gates until their new behavior is reviewed and modeled.
+
 ## Beyond ecosystem
 
 ### Beyond Decks

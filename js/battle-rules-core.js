@@ -1,3 +1,5 @@
+import { canUseClassMechanic } from "./battle-class-mechanics.js";
+
 const WORD_NUMBERS = {
   a: 1,
   an: 1,
@@ -231,6 +233,7 @@ export function resolveConditionalText(textValue, context) {
   const necro = text.match(/\bnecromancy\s*\(?\s*(\d+)\s*\)?\s*:\s*(.*)$/i);
   if (necro) {
     const need = Number(necro[1]);
+    if (!canUseClassMechanic(context.player, "necromancy", context.card)) return { text: "", active: false, notes: ["Necromancy unavailable outside Abysscraft"] };
     if ((context.player.shadows ?? 0) < need) return { text: "", active: false, notes: [`Necromancy ${need} unavailable`] };
     context.player.shadows -= need;
     text = necro[2];
@@ -240,6 +243,7 @@ export function resolveConditionalText(textValue, context) {
   const combo = text.match(/\bcombo\s*\(?\s*(\d+)\s*\)?\s*:\s*(.*)$/i);
   if (combo) {
     const need = Number(combo[1]);
+    if (!canUseClassMechanic(context.player, "combo", context.card)) return { text: "", active: false, notes: ["Combo unavailable outside Forestcraft"] };
     if ((context.player.cardsPlayedThisTurn ?? 0) < need) return { text: "", active: false, notes: [`Combo ${need} unavailable`] };
     text = combo[2];
     notes.push(`Combo ${need}`);
@@ -247,13 +251,14 @@ export function resolveConditionalText(textValue, context) {
 
   const overflowPrefix = text.match(/\boverflow\s*:\s*(.*)$/i);
   if (overflowPrefix) {
+    if (!canUseClassMechanic(context.player, "overflow", context.card)) return { text: "", active: false, notes: ["Overflow unavailable outside Dragoncraft"] };
     if ((context.player.maxPp ?? 0) < 7) return { text: "", active: false, notes: ["Overflow inactive"] };
     text = overflowPrefix[1];
     notes.push("Overflow");
   }
 
   if (/if overflow is active/i.test(text)) {
-    if ((context.player.maxPp ?? 0) < 7) {
+    if (!canUseClassMechanic(context.player, "overflow", context.card) || (context.player.maxPp ?? 0) < 7) {
       text = text.replace(/if overflow is active[^.]*\.?/i, "");
     } else {
       text = text.replace(/if overflow is active[, ]*/i, "");

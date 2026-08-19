@@ -47,6 +47,9 @@ jobs:
       - name: Run Battle Sim class mechanic boundary regression
         run: node scripts/check-battle-class-mechanics.mjs
 
+      - name: Run Battle Sim exclusive class contracts
+        run: node scripts/check-battle-class-contracts.mjs
+
       - name: Run Battle Sim reactive-event regressions
         run: node scripts/check-battle-reactive-events.mjs
 
@@ -130,3 +133,6 @@ jobs:
 
       - name: Run paired benchmark comparison smoke test
         run: node scripts/check-battle-benchmark-compare.mjs
+
+      - name: Run Battle Sim share-ready release gate
+        run: node scripts/check-battle-share-ready.mjs

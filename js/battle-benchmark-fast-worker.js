@@ -21,6 +21,8 @@ self.addEventListener("message", event => {
         cardMap,
         playerStrategy: payload.playerStrategy ?? {},
         opponentStrategy: payload.opponentStrategy ?? {},
+        playerClass: payload.playerClass,
+        opponentClass: payload.opponentClass,
         seed: `${payload.seed || "deci-benchmark"}:${globalIndex}`,
         playerSide: side,
         recordFrames: false

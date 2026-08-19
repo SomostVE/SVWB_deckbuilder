@@ -1,6 +1,7 @@
 import { loadData } from "./data-loader.js";
 import { state } from "./state.js";
 import { loadWorkspace, applyWorkspace } from "./storage.js";
+import { resolveDeckClass } from "./battle-class-mechanics.js";
 
 const els = {
   yourDeck: document.getElementById("battle-your-deck"),
@@ -83,8 +84,16 @@ function refreshControls() {
   const player = getSelectedPlayerDeck();
   const compare = getCompareDeck();
   const opponents = getSelectedOpponents();
+  let classError = "";
+  try {
+    resolveDeckClass(player.deck, state.cardMap, player.class);
+    if (compare) resolveDeckClass(compare.deck, state.cardMap, compare.class);
+    for (const opponent of opponents) resolveDeckClass(resolveReferenceDeck(opponent), state.cardMap, opponent.class);
+  } catch (error) {
+    classError = error.message;
+  }
   const invalidCompare = compare && (deckSize(compare.deck) !== 40 || deckFingerprint(compare.deck) === deckFingerprint(player.deck));
-  const invalid = deckSize(player.deck) !== 40 || invalidCompare || opponents.length === 0;
+  const invalid = deckSize(player.deck) !== 40 || invalidCompare || opponents.length === 0 || Boolean(classError);
   els.run.disabled = running || invalid;
   for (const control of [els.yourDeck, els.playerStrategy, els.opponent, els.scope, els.games, els.compare]) {
     if (control) control.disabled = running;
@@ -92,8 +101,8 @@ function refreshControls() {
   if (!running) {
     els.cancel.hidden = true;
     if (invalid && els.status) {
-      els.status.dataset.type = "warn";
-      els.status.textContent = deckSize(player.deck) !== 40 ? "A 40-card deck is required." : invalidCompare ? "Choose a different comparison deck." : "No valid opponent.";
+      els.status.dataset.type = classError ? "error" : "warn";
+      els.status.textContent = classError || (deckSize(player.deck) !== 40 ? "A 40-card deck is required." : invalidCompare ? "Choose a different comparison deck." : "No valid opponent.");
     } else if (els.status) {
       els.status.dataset.type = "info";
       els.status.textContent = "";
@@ -153,8 +162,8 @@ async function runBenchmark() {
 
 function buildJobs({ player, compare, opponents, games, seed, primaryStrategy, compareStrategy }) {
   const jobs = [];
-  const variants = [{ key: "primary", name: player.name, deck: player.deck, strategy: primaryStrategy }];
-  if (compare) variants.push({ key: "compare", name: compare.name, deck: compare.deck, strategy: compareStrategy });
+  const variants = [{ key: "primary", name: player.name, class: player.class, deck: player.deck, strategy: primaryStrategy }];
+  if (compare) variants.push({ key: "compare", name: compare.name, class: compare.class, deck: compare.deck, strategy: compareStrategy });
 
   for (const opponent of opponents) {
     const opponentDeck = resolveReferenceDeck(opponent);
@@ -169,6 +178,7 @@ function buildJobs({ player, compare, opponents, games, seed, primaryStrategy, c
           variantKey: variant.key,
           variantName: variant.name,
           playerDeck: variant.deck,
+          playerClass: variant.class,
           playerStrategy: variant.strategy,
           opponentDeck,
           opponentStrategy: opponent.strategy ?? {},
@@ -241,6 +251,8 @@ function runChunk(job, progressByJob, totalGames) {
       cards: state.cards,
       playerDeck: job.playerDeck,
       opponentDeck: job.opponentDeck,
+      playerClass: job.playerClass,
+      opponentClass: job.opponentClass,
       playerStrategy: job.playerStrategy,
       opponentStrategy: job.opponentStrategy,
       games: job.games,
@@ -459,9 +471,9 @@ function getCompareDeck() {
 }
 
 function getDeckByKey(key) {
-  if (key === "__current__") return { key, name: "Current deck", deck: mainDeckFrom(state.deck) };
+  if (key === "__current__") return { key, name: "Current deck", class: state.selectedClass, deck: mainDeckFrom(state.deck) };
   const variant = state.savedDecks?.[key];
-  return { key, name: key || "Saved deck", deck: mainDeckFrom(new Map((variant?.deck ?? []).map(([id, qty]) => [Number(id), Number(qty)]))) };
+  return { key, name: key || "Saved deck", class: variant?.class ?? state.selectedClass, deck: mainDeckFrom(new Map((variant?.deck ?? []).map(([id, qty]) => [Number(id), Number(qty)]))) };
 }
 
 function getSelectedOpponents() {
