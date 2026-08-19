@@ -6990,6 +6990,10 @@ function resolveFanfareAccuracyPass(textValue, ctx) {
 function resolveHighRiskGenericText(textValue, ctx) {
   let text = String(textValue ?? "");
   const actions = [];
+  // [[battle-fanfare-accuracy-call-early-v1]]
+  const fanfarePass = resolveFanfareAccuracyPass(text, ctx);
+  text = fanfarePass.text;
+  actions.push(...fanfarePass.actions);
 
   // [[battle-high-risk-last-eight]]
   const finalCardName = norm(ctx.card?.name);
@@ -7064,10 +7068,6 @@ function resolveHighRiskGenericText(textValue, ctx) {
   // These remaining clauses need the whole sentence intact, so resolve them
   // before broader generic fragments (damage, evolve, destroy, keyword, etc.).
   const cardName = norm(ctx.card?.name);
-
-  const fanfarePass = resolveFanfareAccuracyPass(text, ctx);
-  text = fanfarePass.text;
-  actions.push(...fanfarePass.actions);
 
   // Generic article-bearing tutors that escaped the first tutor grammar.
   for (const match of [...text.matchAll(/Draw\s+(?:a|an|one|1)\s+(?:(Forestcraft|Swordcraft|Runecraft|Dragoncraft|Abysscraft|Havencraft|Portalcraft|Neutral)\s+)?follower\.?/gi)]) {
