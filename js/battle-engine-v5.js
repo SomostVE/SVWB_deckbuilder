@@ -8051,6 +8051,7 @@ function resolveText(raw, ctx) {
   if (highRiskName === "fediel, darkness personified" && /Necromancy/i.test(highRiskRaw) && /evolve them/i.test(highRiskRaw)) {
     const actions = [];
     if (!canUseClassMechanic(ctx.player, "necromancy", ctx.card)) return { applied: false, actions: ["Necromancy unavailable outside Abysscraft"], unresolved: false };
+    if (!canUseClassMechanic(ctx.player, "necromancy", ctx.card)) return { applied: false, actions: ["Necromancy unavailable outside Abysscraft"], unresolved: false };
     const summoned = [];
     if ((Number(ctx.player.shadows) || 0) >= 6) {
       ctx.player.shadows -= 6;
