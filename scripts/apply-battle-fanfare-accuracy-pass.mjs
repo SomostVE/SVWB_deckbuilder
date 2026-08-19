@@ -1,0 +1,439 @@
+import fs from "node:fs";
+
+const file = "js/battle-engine-v5.js";
+let src = fs.readFileSync(file, "utf8");
+const MARK = "// [[battle-fanfare-accuracy-pass-v1]]";
+
+if (src.includes(MARK)) {
+  console.log("Fanfare accuracy pass already materialized");
+  process.exit(0);
+}
+
+const helper = String.raw`
+
+${MARK}
+function resolveFanfareAccuracyPass(textValue, ctx) {
+  let text = String(textValue ?? "");
+  const actions = [];
+  const name = norm(ctx.card?.name);
+  const source = ctx.sourceUnit;
+  const followers = owner => owner.board.filter(unit => unit.type === "Follower");
+  const alliedFollowers = () => followers(ctx.player);
+  const enemyFollowers = () => followers(ctx.opponent);
+  const otherAlliedFollowers = () => alliedFollowers().filter(unit => unit.uid !== source?.uid);
+  const buff = (unit, attack, defense) => {
+    if (!unit) return;
+    if (ctx.buffUnit) ctx.buffUnit(unit, attack, defense);
+    else {
+      unit.attack = (Number(unit.attack) || 0) + Number(attack || 0);
+      unit.defense = (Number(unit.defense) || 0) + Number(defense || 0);
+      unit.maxDefense = (Number(unit.maxDefense) || 0) + Number(defense || 0);
+    }
+  };
+  const consume = (pattern, fn = null) => {
+    const match = pattern.exec(text);
+    if (!match) return null;
+    if (fn) fn(match);
+    text = `${text.slice(0, match.index)} ${text.slice(match.index + match[0].length)}`;
+    return match;
+  };
+  const chooseRandomDistinct = (pool, amount) => {
+    const copy = [...pool];
+    const out = [];
+    while (copy.length && out.length < amount) out.push(copy.splice(Math.floor(ctx.rng() * copy.length), 1)[0]);
+    return out;
+  };
+  const damageEnemyAll = amount => {
+    for (const unit of [...enemyFollowers()]) damageUnit(unit, amount, ctx.opponent, ctx.player, ctx, actions);
+    actions.push(...cleanup(ctx.opponent, ctx.player, ctx.enemyIndex, ctx.playerIndex, ctx.stats, ctx.rng, ctx.cardMap));
+  };
+  const damageEnemyLeader = amount => {
+    const dealt = damageLeader(ctx.opponent, amount);
+    ctx.stats.damageDealt[ctx.playerIndex] += dealt;
+    return dealt;
+  };
+  const damageSelfLeader = amount => damageLeader(ctx.player, amount);
+  const superEvolutionUnlocked = () => (Number(ctx.player.personalTurn) || 0) >= (ctx.player.goingFirst ? 7 : 6);
+  const combo = () => Math.max(0, Number(ctx.player.cardsPlayedThisTurn) || 0);
+  const amuletCount = () => ctx.player.board.filter(unit => unit.type === "Amulet").length;
+  const addKeyword = (unit, keyword) => { if (unit) highRiskGrantKeyword(unit, keyword); };
+  const drawBy = (count, predicate, label) => {
+    let drawn = 0;
+    for (let i = 0; i < count; i += 1) {
+      const item = drawMatchingCard(ctx.player, predicate, ctx.stats, ctx.playerIndex, ctx.rng);
+      if (!item) break;
+      drawn += 1;
+    }
+    actions.push(`${label}: draw ${drawn}/${count}`);
+    return drawn;
+  };
+  const returnOneHandCardToDeck = () => {
+    const target = [...ctx.player.hand].sort((a, b) => (Number(a.card?.cost) || 0) - (Number(b.card?.cost) || 0))[0] ?? null;
+    if (!target) return null;
+    ctx.player.hand = ctx.player.hand.filter(item => item.uid !== target.uid);
+    ctx.player.deck.push(target);
+    shuffle(ctx.player.deck, ctx.rng);
+    actions.push(`return ${target.card.name} to deck`);
+    return target;
+  };
+  const destroyObjectExact = (owner, opponent, unit, ownerIndex, enemyIndex) => {
+    if (!unit) return;
+    actions.push(...destroyObject(owner, opponent, unit, ownerIndex, enemyIndex, ctx.stats, ctx.rng, ctx.cardMap, true));
+  };
+  const reanimateCost = cost => {
+    if (ctx.player.board.length >= 5) return null;
+    const unit = reanimate(ctx.player, cost, ctx.playerIndex, ctx.cardMap, ctx.rng);
+    if (!unit) return null;
+    if (!ctx.player.board.some(entry => entry.uid === unit.uid)) {
+      ctx.player.board.push(unit);
+      ctx.player.rally += 1;
+      actions.push(...applyEntryEvents(ctx, unit));
+    }
+    actions.push(`Reanimate ${cost}: ${unit.name}`);
+    return unit;
+  };
+
+  // Generic Fanfare primitives that were absent from the shared grammar.
+  for (const match of [...text.matchAll(/Deal\s+(\d+)\s+damage to your leader\.?/gi)]) {
+    const amount = Number(match[1]);
+    const dealt = damageSelfLeader(amount);
+    actions.push(`${dealt} damage to your leader`);
+    text = text.replace(match[0], " ");
+  }
+  consume(/Select a card in your hand and return it to (?:your )?deck\.?/i, () => returnOneHandCardToDeck());
+  for (const match of [...text.matchAll(/Draw\s+(?:(\d+)\s+|an?\s+)?spell(?:s)?\.?/gi)]) {
+    const count = Number(match[1] || 1);
+    drawBy(count, card => card.type === "Spell", "spell tutor");
+    text = text.replace(match[0], " ");
+  }
+  for (const match of [...text.matchAll(/Draw\s+(?:(\d+)\s+|an?\s+)?amulet(?:s)?\.?/gi)]) {
+    const count = Number(match[1] || 1);
+    drawBy(count, card => card.type === "Amulet", "amulet tutor");
+    text = text.replace(match[0], " ");
+  }
+
+  // Abysscraft -------------------------------------------------------------
+  if (name === "exella, nocturnal general") {
+    consume(/Give this follower \+X\/\+0\.\s*X is the number of other allied followers on the field\.?/i, () => {
+      const x = otherAlliedFollowers().length;
+      buff(source, x, 0); actions.push(`Exella: +${x}/+0`);
+    });
+  }
+  if (name === "charon, stygian oarswoman" || name === "milteo & luzen") {
+    consume(/Reanimate\s*\(?\s*(\d+)\s*\)?\s+and\s+Reanimate\s*\(?\s*(\d+)\s*\)?\.?/i, match => {
+      reanimateCost(Number(match[1])); reanimateCost(Number(match[2]));
+    });
+  }
+  if (name === "adahime, anathema of death") {
+    text = text.replace(/Whenever another allied Abysscraft follower enters the field, give it Rush\.?/i, " ");
+  }
+  if (name === "fiole, devilish matriarch") {
+    text = text.replace(/Whenever an allied Bat enters the field, give it Rush\.?/i, " ");
+  }
+
+  // Dragoncraft ------------------------------------------------------------
+  if (name === "eyfa, windrider") {
+    consume(/If you'?re in Overflow, give this follower Intimidate\.?/i, () => { if ((Number(ctx.player.maxPp) || 0) >= 7) addKeyword(source, "Intimidate"); });
+  }
+  if (name === "meg, girl next door") {
+    consume(/Skybound Art\s*:\s*Super-evolve this follower\.?/i, () => {
+      const gauge = skyboundCountForInstance(ctx);
+      if (gauge >= 10 && source) superEvolveUnitByAbility(ctx, source, actions);
+      actions.push(`Meg: Skybound gauge ${gauge}`);
+    });
+  }
+  if (name === "gido, leader of the pack") {
+    consume(/If your leader'?s defense is 10 or less, evolve this follower\.?/i, () => {
+      if ((Number(ctx.player.hp) || 0) <= 10 && source) evolveUnitByAbility(ctx, source, actions);
+    });
+  }
+  if (name === "swordsnout trencher") {
+    consume(/If you'?re in Overflow, give this follower Storm\.?/i, () => { if ((Number(ctx.player.maxPp) || 0) >= 7) addKeyword(source, "Storm"); });
+  }
+  if (name === "fennie, prismatic phoenix") {
+    consume(/Halve the cost of all cards in your deck\.?/i, () => {
+      for (const item of ctx.player.deck) {
+        const current = costOf(item);
+        const next = Math.ceil(current / 2);
+        item.costDelta = (Number(item.costDelta) || 0) - (current - next);
+      }
+      actions.push("Fennie: halve deck costs");
+    });
+  }
+
+  // Forestcraft ------------------------------------------------------------
+  if (name === "may, journey elf") {
+    consume(/Combo\s*\(?\s*3\s*\)?\s*[-–—:]\s*Select an enemy follower on the field and deal it 3 damage\.?/i, () => {
+      if (combo() >= 3) { const target = choosePlannedTarget(ctx, enemyFollowers()); if (target) damageUnit(target, 3, ctx.opponent, ctx.player, ctx, actions); }
+    });
+  }
+  if (name === "fay twinkletoes") {
+    consume(/Combo\s*\(?\s*3\s*\)?\s*[-–—:]\s*Give all other allied followers on the field \+1\/\+1\.?/i, () => {
+      if (combo() >= 3) for (const unit of otherAlliedFollowers()) buff(unit, 1, 1);
+      actions.push(`Fay: Combo ${combo()}`);
+    });
+  }
+  if (name === "lily, crystalian innocence") {
+    consume(/Combo\s*\(?\s*3\s*\)?\s*[-–—:]\s*Select an enemy follower on the field and set its defense to 1\.?/i, () => {
+      if (combo() >= 3) { const target = choosePlannedTarget(ctx, enemyFollowers()); if (target) { target.defense = 1; target.maxDefense = 1; actions.push(`Lily: set ${target.name} defense to 1`); } }
+    });
+  }
+  if (name === "virewind fencer") {
+    consume(/Combo\s*\(?\s*3\s*\)?\s*[-–—:]\s*Give this follower Storm\.?/i, () => { if (combo() >= 3) addKeyword(source, "Storm"); });
+  }
+  if (name === "amataz, origin blader") {
+    consume(/Give this follower \+X\/\+X\.\s*X is the number of Pixie followers in your hand\.?/i, () => {
+      const x = ctx.player.hand.filter(item => item.card?.type === "Follower" && (item.card?.traits ?? []).some(value => norm(value) === "pixie")).length;
+      buff(source, x, x); actions.push(`Amataz: +${x}/+${x}`);
+    });
+  }
+  if (name === "killer rhinoceroach") {
+    consume(/Give this follower \+X\/\+0\.\s*X is your Combo\.?/i, () => { const x = combo(); buff(source, x, 0); actions.push(`Rhinoceroach: +${x}/+0`); });
+  }
+  if (name === "monkey of paradise" || name === "gentle treant") {
+    consume(/Combo\s*\(?\s*3\s*\)?\s*[-–—:]\s*Evolve this follower\.?/i, () => { if (combo() >= 3 && source) evolveUnitByAbility(ctx, source, actions); });
+  }
+  if (name === "workin' grasshopper") {
+    consume(/Draw an? X-cost follower\.\s*X is your Combo\.?/i, () => { const x = combo(); drawBy(1, card => card.type === "Follower" && Number(card.cost) === x, `${x}-cost follower tutor`); });
+  }
+  if (name === "elder sagebrush") {
+    consume(/Deal 3 damage to a random enemy follower\.\s*Combo\s*\(?\s*3\s*\)?\s*[-–—:]\s*Deal damage to 3 random enemy followers instead\.?/i, () => {
+      const targets = chooseRandomDistinct(enemyFollowers(), combo() >= 3 ? 3 : 1);
+      for (const target of targets) damageUnit(target, 3, ctx.opponent, ctx.player, ctx, actions);
+      actions.push(`Elder Sagebrush: 3 damage ×${targets.length}`);
+    });
+  }
+  if (name === "dwarven malletman") {
+    consume(/Select an enemy follower on the field and deal it 4 damage\.\s*Combo\s*\(?\s*3\s*\)?\s*[-–—:]\s*Deal damage to all enemy followers instead\.?/i, () => {
+      if (combo() >= 3) damageEnemyAll(4);
+      else { const target = choosePlannedTarget(ctx, enemyFollowers()); if (target) damageUnit(target, 4, ctx.opponent, ctx.player, ctx, actions); }
+    });
+  }
+  if (name === "marlone, scales of the past") {
+    consume(/Destroy X random enemy followers\.\s*X is the number of enemy followers on the field minus the number of allied followers on the field\.?/i, () => {
+      const x = Math.max(0, enemyFollowers().length - alliedFollowers().length);
+      for (const target of chooseRandomDistinct(enemyFollowers(), x)) destroyObjectExact(ctx.opponent, ctx.player, target, ctx.enemyIndex, ctx.playerIndex);
+      actions.push(`Marlone: destroy ${x}`);
+    });
+  }
+  if (name === "macrobear") text = text.replace(/Can'?t take more than 3 damage at a time\.?/i, " ");
+  if (name === "opulent rose queen") {
+    consume(/Transform all Forestcraft cards in your hand that cost 2 or less into copies of Bramble Burst\.?/i, () => {
+      const next = findByName(ctx.cardMap, "Bramble Burst") ?? related(ctx.card, ctx.cardMap).find(card => norm(card.name) === "bramble burst");
+      let count = 0;
+      if (next) for (const item of ctx.player.hand) if (norm(item.card?.class) === "forestcraft" && costOf(item) <= 2) { transformHandInstance(item, next); count += 1; }
+      actions.push(`Opulent Rose Queen: transform ${count} hand cards`);
+    });
+  }
+
+  // Havencraft -------------------------------------------------------------
+  if (name === "sister of strategic development") {
+    consume(/If there are at least 3 allied amulets on the field, select an enemy follower on the field and deal it 5 damage\.?/i, () => {
+      if (amuletCount() >= 3) { const target = choosePlannedTarget(ctx, enemyFollowers()); if (target) damageUnit(target, 5, ctx.opponent, ctx.player, ctx, actions); }
+    });
+  }
+  if (name === "colette, barrage exorcist") {
+    consume(/Do this 1 time:\s*["“]Deal 2 damage to a random enemy follower\.["”]\s*If there are at least 2 allied amulets on the field, do it 2 times instead\.?/i, () => {
+      const count = amuletCount() >= 2 ? 2 : 1;
+      for (let i = 0; i < count; i += 1) { const pool = enemyFollowers(); if (!pool.length) break; const target = pool[Math.floor(ctx.rng() * pool.length)]; damageUnit(target, 2, ctx.opponent, ctx.player, ctx, actions); actions.push(...cleanup(ctx.opponent, ctx.player, ctx.enemyIndex, ctx.playerIndex, ctx.stats, ctx.rng, ctx.cardMap)); }
+      actions.push(`Colette: random 2 damage ×${count}`);
+    });
+  }
+  if (name === "deacon of security") {
+    consume(/If there are at least 3 allied amulets on the field, evolve this follower and give it Barrier\.?/i, () => {
+      if (amuletCount() >= 3 && source) { evolveUnitByAbility(ctx, source, actions); addKeyword(source, "Barrier"); }
+    });
+  }
+  if (name === "skullfane of demise") {
+    consume(/Destroy all allied amulets\.\s*Deal X damage to all enemies\.\s*X is the number of amulets destroyed by this ability\.?/i, () => {
+      const targets = [...ctx.player.board].filter(unit => unit.type === "Amulet");
+      let destroyed = 0;
+      for (const unit of targets) { const before = ctx.player.board.length; destroyObjectExact(ctx.player, ctx.opponent, unit, ctx.playerIndex, ctx.enemyIndex); if (ctx.player.board.length < before) destroyed += 1; }
+      if (destroyed) { damageEnemyAll(destroyed); const leader = damageEnemyLeader(destroyed); actions.push(`Skullfane: ${destroyed} damage to all enemies (${leader} leader)`); }
+    });
+  }
+  if (name === "vira, luminous primal knight") text = text.replace(/Can'?t take more than 3 damage at a time\.?/i, " ");
+
+  // Neutral ----------------------------------------------------------------
+  if (name === "monster litterateur") {
+    consume(/If there'?s another 1-base-cost card on the field, give this follower \+1\/\+1\.?/i, () => {
+      const hasOne = [...ctx.player.board, ...ctx.opponent.board].some(unit => unit.uid !== source?.uid && Number(unit.card?.cost) === 1);
+      if (hasOne) buff(source, 1, 1);
+    });
+  }
+  if (name === "cheretta, angelic maid") {
+    consume(/If you'?ve unlocked super-evolution, give this follower \+0\/\+3\.?/i, () => { if (superEvolutionUnlocked()) buff(source, 0, 3); });
+  }
+  if (name === "vyrn, bestest pal") {
+    consume(/If you'?ve unlocked super-evolution, evolve this follower\.?/i, () => { if (superEvolutionUnlocked() && source) evolveUnitByAbility(ctx, source, actions); });
+  }
+  if (name === "apostle of voracity") {
+    consume(/Select another follower on the field and give it \+4\/-4\.?/i, () => {
+      const enemy = [...enemyFollowers()].sort((a,b) => followerThreatValue(b) - followerThreatValue(a))[0] ?? null;
+      const ally = [...otherAlliedFollowers()].sort((a,b) => followerThreatValue(a) - followerThreatValue(b))[0] ?? null;
+      const target = enemy ?? ally;
+      if (target) { buff(target, 4, -4); actions.push(`Apostle: ${target.name} +4/-4`); }
+      actions.push(...cleanup(ctx.player, ctx.opponent, ctx.playerIndex, ctx.enemyIndex, ctx.stats, ctx.rng, ctx.cardMap), ...cleanup(ctx.opponent, ctx.player, ctx.enemyIndex, ctx.playerIndex, ctx.stats, ctx.rng, ctx.cardMap));
+    });
+  }
+  if (name === "demon of purgatory") {
+    consume(/Select 2 enemy followers on the field and deal 6 damage to them and the enemy leader\.?/i, () => {
+      const targets = [...enemyFollowers()].sort((a,b) => followerThreatValue(b) - followerThreatValue(a)).slice(0, 2);
+      for (const unit of targets) damageUnit(unit, 6, ctx.opponent, ctx.player, ctx, actions);
+      const leader = damageEnemyLeader(6); actions.push(`Demon of Purgatory: 6 damage to ${targets.length} followers and ${leader} to leader`);
+    });
+  }
+  if (name === "katalina, sky's protector") {
+    consume(/Skybound Art\s*:\s*Deal 5 damage to 2 random enemy followers\.?/i, () => {
+      const gauge = skyboundCountForInstance(ctx);
+      if (gauge >= 10) for (const unit of chooseRandomDistinct(enemyFollowers(), 2)) damageUnit(unit, 5, ctx.opponent, ctx.player, ctx, actions);
+      actions.push(`Katalina: Skybound gauge ${gauge}`);
+    });
+    text = text.replace(/Can'?t take more than 3 damage at a time\.?/i, " ");
+  }
+  if (name === "beast lost to the dark") {
+    consume(/Give this follower 3 random abilities from the following\.\s*1\.\s*Storm\.\s*2\.\s*Bane\.\s*3\.\s*Intimidate\.\s*4\.\s*Drain\.\s*5\.\s*Aura\.\s*6\.\s*Barrier\.?/i, () => {
+      const pool = ["Storm", "Bane", "Intimidate", "Drain", "Aura", "Barrier"];
+      const chosen = chooseRandomDistinct(pool, 3);
+      for (const keyword of chosen) addKeyword(source, keyword);
+      actions.push(`Beast Lost to the Dark: ${chosen.join(", ")}`);
+    });
+  }
+
+  // Portalcraft ------------------------------------------------------------
+  if (name === "vier, heart slayer") {
+    consume(/Select a Puppetry follower in your hand and transform it into a Doll Slayer\.?/i, () => {
+      const target = ctx.player.hand.find(item => item.card?.type === "Follower" && (item.card?.traits ?? []).some(value => norm(value) === "puppetry"));
+      const next = findByName(ctx.cardMap, "Doll Slayer") ?? related(ctx.card, ctx.cardMap).find(card => norm(card.name) === "doll slayer");
+      if (target && next) { const before = target.card.name; transformHandInstance(target, next); actions.push(`Vier: transform ${before} into Doll Slayer`); }
+    });
+  }
+  if (name === "sho, reborn night king") {
+    consume(/If you'?ve unlocked super-evolution, give this follower Barrier\.?/i, () => { if (superEvolutionUnlocked()) addKeyword(source, "Barrier"); });
+  }
+  if (name === "devotee of destruction") {
+    consume(/Give this follower \+X\/\+X\.\s*X is the number of other allied cards on the field\.\s*Destroy all other allied cards on the field\.?/i, () => {
+      const others = ctx.player.board.filter(unit => unit.uid !== source?.uid);
+      const x = others.length; buff(source, x, x);
+      for (const unit of [...others]) destroyObjectExact(ctx.player, ctx.opponent, unit, ctx.playerIndex, ctx.enemyIndex);
+      actions.push(`Devotee of Destruction: +${x}/+${x}, destroy ${x} allied cards`);
+    });
+  }
+  if (name === "asher & lydia, paths beyond") {
+    consume(/Select an enemy follower on the field and give it Ward\.?/i, () => {
+      const target = choosePlannedTarget(ctx, enemyFollowers());
+      if (target) { addKeyword(target, "Ward"); actions.push(`Asher & Lydia: give Ward to ${target.name}`); }
+    });
+  }
+  if (name === "cassius, sky-yearning arrival") {
+    consume(/Select an Artifact follower in your hand and deal X damage to all enemy followers\.\s*X is the selected follower'?s attack\.?/i, () => {
+      const target = ctx.player.hand.filter(item => item.card?.type === "Follower" && (item.card?.traits ?? []).some(value => norm(value) === "artifact"))
+        .sort((a,b) => ((Number(b.card.attack)||0)+(Number(b.attackBonus)||0))-((Number(a.card.attack)||0)+(Number(a.attackBonus)||0)))[0] ?? null;
+      const x = target ? Math.max(0, (Number(target.card.attack)||0)+(Number(target.attackBonus)||0)) : 0;
+      damageEnemyAll(x); actions.push(`Cassius: ${x} damage to enemy board`);
+    });
+  }
+  if (name === "neuron disrupter") {
+    consume(/Recover X play points\.\s*X is the number of other allied followers on the field\.?/i, () => {
+      const x = otherAlliedFollowers().length; const before = ctx.player.pp; ctx.player.pp = Math.min(Number(ctx.player.maxPp)||0, (Number(ctx.player.pp)||0)+x); actions.push(`Neuron Disrupter: recover ${ctx.player.pp-before} PP`);
+    });
+  }
+  if (name === "congregant of destruction") {
+    consume(/Destroy X random enemy followers\.\s*X is the number of other allied cards on the field\.\s*Destroy all other allied cards on the field\.?/i, () => {
+      const others = ctx.player.board.filter(unit => unit.uid !== source?.uid); const x = others.length;
+      for (const target of chooseRandomDistinct(enemyFollowers(), x)) destroyObjectExact(ctx.opponent, ctx.player, target, ctx.enemyIndex, ctx.playerIndex);
+      for (const unit of [...others]) destroyObjectExact(ctx.player, ctx.opponent, unit, ctx.playerIndex, ctx.enemyIndex);
+      actions.push(`Congregant of Destruction: destroy up to ${x} enemies and ${others.length} allied cards`);
+    });
+  }
+  if (name === "noah, thread of death") {
+    consume(/Add 3 copies of Puppet to your hand\.\s*Give all Puppetry followers in your hand \+1\/\+0\.?/i, () => {
+      const puppet = findByName(ctx.cardMap, "Puppet") ?? related(ctx.card, ctx.cardMap).find(card => norm(card.name) === "puppet");
+      const added = puppet ? addHand(ctx.player, puppet, 3, ctx.playerIndex, ctx.stats) : 0;
+      if (added) ctx.stats.cardsGenerated[ctx.playerIndex] += added;
+      let buffed = 0; for (const item of ctx.player.hand) if (item.card?.type === "Follower" && (item.card?.traits ?? []).some(value => norm(value) === "puppetry")) { item.attackBonus = (Number(item.attackBonus)||0)+1; buffed += 1; }
+      actions.push(`Noah: add ${added} Puppet, buff ${buffed} Puppetry followers`);
+    });
+  }
+  if (name === "scarlet, anathema of dislocation") {
+    consume(/Deal X damage to all enemy followers\.\s*X is the number of differently named allied Artifact followers that have entered the field this match\.?/i, () => {
+      const x = new Set([...(ctx.player.artifactFollowerNamesEntered ?? [])].map(norm)).size;
+      damageEnemyAll(x); actions.push(`Scarlet: X=${x}`);
+    });
+  }
+
+  // Runecraft --------------------------------------------------------------
+  if (name === "ezecrain, portent of vengeance") {
+    consume(/Select 2 enemy followers on the field and deal them 4 damage\.\s*Gain 2 earth sigils\.?/i, () => {
+      const targets = [...enemyFollowers()].sort((a,b) => followerThreatValue(b)-followerThreatValue(a)).slice(0,2);
+      for (const unit of targets) damageUnit(unit, 4, ctx.opponent, ctx.player, ctx, actions);
+      ctx.player.earthSigils = (Number(ctx.player.earthSigils)||0)+2; actions.push(`Ezecrain: 4 damage ×${targets.length}, Earth Sigils +2`);
+    });
+  }
+  if (name === "waterbending charmwielder") {
+    consume(/Deal 3 damage to 3 random enemy followers\.\s*Spellboost your hand 3 times\.?/i, () => {
+      for (const unit of chooseRandomDistinct(enemyFollowers(), 3)) damageUnit(unit, 3, ctx.opponent, ctx.player, ctx, actions);
+      spellboostHand(ctx.player, 3, ctx.cardMap, actions); actions.push("Waterbending Charmwielder: Spellboost ×3");
+    });
+  }
+  if (name === "emperor of elements") text = text.replace(/Whenever an allied Golem follower enters the field, Earth Rite\s*\(?\s*1\s*\)?\s*[-–—:]\s*Evolve it\.?/i, " ");
+  if (name === "ginger, disastrous word") text = text.replace(/Whenever another allied follower enters the field, give it Rush and spellboost your hand\.?/i, " ");
+  if (name === "raio, elimination manifest") {
+    consume(/Reduce the cost of all followers in your deck by 3\.\s*Transform a random spell in your hand into an Ersatz Elimination\.\s*It costs 0 until the end of the turn\.?/i, () => {
+      for (const item of ctx.player.deck) if (item.card?.type === "Follower") item.costDelta = (Number(item.costDelta)||0)-3;
+      const spells = ctx.player.hand.filter(item => item.card?.type === "Spell"); const target = spells.length ? spells[Math.floor(ctx.rng()*spells.length)] : null;
+      const next = findByName(ctx.cardMap, "Ersatz Elimination") ?? related(ctx.card, ctx.cardMap).find(card => norm(card.name) === "ersatz elimination");
+      if (target && next) { transformHandInstance(target, next); const current = costOf(target); target.costDelta = (Number(target.costDelta)||0)-current; target.raioTemporaryZeroCost = current; actions.push(`Raio: transform ${target.card.name} at 0 PP this turn`); }
+      actions.push("Raio: follower deck costs -3");
+    });
+  }
+
+  // Swordcraft -------------------------------------------------------------
+  if (name === "ignominious samurai") {
+    consume(/If you'?ve unlocked super-evolution, give this follower Bane\.?/i, () => { if (superEvolutionUnlocked()) addKeyword(source, "Bane"); });
+  }
+  if (name === "nonja, silent maid") {
+    consume(/If there'?s an allied Prim, Princess'?s Picnic on the field, give this follower \+1\/\+1 and Bane\.?/i, () => {
+      if (ctx.player.board.some(unit => norm(unit.name) === "prim, princess's picnic")) { buff(source,1,1); addKeyword(source,"Bane"); }
+    });
+  }
+  if (name === "seria, gunslinger maid") {
+    consume(/Deal 1 damage to 2 random enemy followers\.?/i, () => { for (const unit of chooseRandomDistinct(enemyFollowers(),2)) damageUnit(unit,1,ctx.opponent,ctx.player,ctx,actions); });
+  }
+  if (name === "okita souji") {
+    consume(/If you'?ve unlocked super-evolution, evolve this follower\.?/i, () => { if (superEvolutionUnlocked() && source) evolveUnitByAbility(ctx,source,actions); });
+    text = text.replace(/\bRush\s+Follower\b/i, "Rush");
+  }
+  if (name === "smoke-shrouded beauty") {
+    consume(/If you have at least 2 spells in your hand, give this follower \+1\/\+1 and Ward\.?/i, () => {
+      if (ctx.player.hand.filter(item => item.card?.type === "Spell").length >= 2) { buff(source,1,1); addKeyword(source,"Ward"); }
+    });
+  }
+  if (name === "gildaria, anathema of attunement") text = text.replace(/During your turn, whenever another allied follower enters the field, give it Rush\.?/i, " ");
+  if (name === "navy cat") {
+    consume(/Destroy all enemy followers with 1 defense\.?/i, () => {
+      const targets = enemyFollowers().filter(unit => Number(unit.defense) === 1);
+      for (const unit of [...targets]) destroyObjectExact(ctx.opponent,ctx.player,unit,ctx.enemyIndex,ctx.playerIndex);
+      actions.push(`Navy Cat: destroy ${targets.length} defense-1 followers`);
+    });
+  }
+
+  return { text: text.replace(/\s+/g, " ").trim(), actions: uniq(actions) };
+}
+`;
+
+const helperNeedle = "function resolveHighRiskGenericText(textValue, ctx) {";
+if (!src.includes(helperNeedle)) throw new Error("resolveHighRiskGenericText anchor not found");
+src = src.replace(helperNeedle, `${helper}\n${helperNeedle}`);
+
+const callNeedle = "  const cardName = norm(ctx.card?.name);\n\n  // Generic article-bearing tutors";
+if (!src.includes(callNeedle)) throw new Error("Fanfare pass call anchor not found");
+src = src.replace(callNeedle, `  const cardName = norm(ctx.card?.name);\n\n  const fanfarePass = resolveFanfareAccuracyPass(text, ctx);\n  text = fanfarePass.text;\n  actions.push(...fanfarePass.actions);\n\n  // Generic article-bearing tutors`);
+
+// Restore Raio's explicitly temporary 0-cost transformation at the end of its controller's turn.
+const turnNeedle = "function highRiskHandTurnEndTriggers(player) {\n  const actions = [];";
+if (!src.includes(turnNeedle)) throw new Error("turn-end hand trigger anchor not found");
+src = src.replace(turnNeedle, `function highRiskHandTurnEndTriggers(player) {\n  const actions = [];\n  for (const item of player.hand ?? []) {\n    const amount = Number(item.raioTemporaryZeroCost) || 0;\n    if (!amount) continue;\n    item.costDelta = (Number(item.costDelta) || 0) + amount;\n    delete item.raioTemporaryZeroCost;\n    actions.push(\`Raio: restore \${item.card?.name ?? "card"} cost\`);\n  }`);
+
+fs.writeFileSync(file, src);
+console.log("Materialized Battle Sim Fanfare accuracy pass");
