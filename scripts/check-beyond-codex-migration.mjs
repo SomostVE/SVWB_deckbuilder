@@ -8,7 +8,7 @@ const loader = read("js/data-loader.js");
 const report = read("js/update-report.js");
 const referenceWorkflow = read(".github/workflows/update-reference-decks.yml");
 
-assert.equal(version, "01.04.002", "Beyond Codex migration must remain intact in app version 01.04.002");
+assert.match(version, /^01\.04\.\d{3}$/, "Beyond Codex migration must remain on the 01.04 application line");
 assert.match(codex, /SomostVE\/beyond_codex\/main\/api\/v1/, "Beyond Decks must consume Beyond Codex v1");
 assert.match(codex, /LOCAL_OFFICIAL_BASE = "\.\/data\/official"/, "Embedded official data must remain as a safe migration fallback");
 assert.match(loader, /loadOfficialCardData/, "Main data loader must use the Beyond Codex client");
@@ -20,6 +20,6 @@ assert.equal(fs.existsSync(".github/workflows/update-cards.yml"), false, "Offici
 assert.equal(fs.existsSync(".github/workflows/update-reference-decks.yml"), true, "Beyond Decks must retain its application-specific reference deck updater");
 assert.doesNotMatch(referenceWorkflow, /schedule:/, "Beyond Decks must not run a weekly official-data schedule");
 assert.doesNotMatch(referenceWorkflow, /scripts\/update-cards\.mjs/, "Reference deck workflow must not call the removed official card updater");
-assert.equal(fs.existsSync("data/official/cards.json"), true, "Migration fallback snapshot must remain until Codex has proven stable");
+assert.equal(fs.existsSync("data/official/cards.json"), true, "Migration fallback snapshot must remain as a resilience fallback");
 
-console.log("Beyond Codex migration regression: OK");
+console.log(`Beyond Codex migration regression: OK · Beyond Decks ${version}`);
