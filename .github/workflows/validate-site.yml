@@ -30,15 +30,14 @@ jobs:
       - name: Materialize final release files
         if: github.event_name == 'pull_request' && github.head_ref == 'fix/fanfare-audit-evo-labels-01.03.002'
         run: |
-          node scripts/apply-battle-fanfare-accuracy-pass.mjs
-          node scripts/apply-fanfare-pass-order-fix.mjs
+          node scripts/apply-battle-evo-labels.mjs
           if git diff --quiet; then
             echo "No materialized changes"
           else
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add -A
-            git commit -m "fix: materialize Fanfare and Evo display pass"
+            git commit -m "fix: materialize Evo display pass"
             git push origin HEAD:${{ github.head_ref }}
           fi
 
