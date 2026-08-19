@@ -9,7 +9,7 @@ if (shell) {
   topbar.className = "mobile-topbar";
   topbar.innerHTML = `
     <button class="mobile-menu-toggle" type="button" aria-label="Open filters and controls" aria-expanded="false">☰</button>
-    <strong class="mobile-brand">Deci Builder</strong>
+    <strong class="mobile-brand">Beyond Decks</strong>
     <span class="mobile-view-label">Cards</span>
   `;
   document.body.insertBefore(topbar, appHeader ?? shell);
