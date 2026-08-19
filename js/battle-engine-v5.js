@@ -4354,8 +4354,58 @@ function applyHavencraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, 
 }
 
 function resolveHavencraftCardText(raw, ctx) {
-  let text = String(raw ?? "").trim();
-  const actions = [];
+  // [[battle-fanfare-raw-priority-v1]]
+  let fanfarePriorityRaw = highRiskRaw;
+  const fanfarePriorityActions = [];
+
+  if (highRiskName === "meg, girl next door") {
+    const clause = /Skybound Art\s*:\s*Super-evolve this follower\.?/i;
+    if (clause.test(fanfarePriorityRaw)) {
+      const gauge = skyboundCountForInstance(ctx);
+      if (gauge >= 10 && ctx.sourceUnit) superEvolveUnitByAbility(ctx, ctx.sourceUnit, fanfarePriorityActions);
+      fanfarePriorityActions.push(`Meg: Skybound gauge ${gauge}`);
+      fanfarePriorityRaw = fanfarePriorityRaw.replace(clause, " ");
+    }
+  }
+
+  if (highRiskName === "katalina, sky's protector") {
+    const clause = /Skybound Art\s*:\s*Deal 5 damage to 2 random enemy followers\.?/i;
+    if (clause.test(fanfarePriorityRaw)) {
+      const gauge = skyboundCountForInstance(ctx);
+      if (gauge >= 10) {
+        const pool = [...ctx.opponent.board].filter(unit => unit.type === "Follower");
+        for (let i = 0; i < 2 && pool.length; i += 1) {
+          const index = Math.floor(ctx.rng() * pool.length);
+          const target = pool.splice(index, 1)[0];
+          damageUnit(target, 5, ctx.opponent, ctx.player, ctx, fanfarePriorityActions);
+        }
+      }
+      fanfarePriorityActions.push(`Katalina: Skybound gauge ${gauge}`);
+      fanfarePriorityRaw = fanfarePriorityRaw.replace(clause, " ");
+    }
+    fanfarePriorityRaw = fanfarePriorityRaw.replace(/Can'?t take more than 3 damage at a time\.?/i, " ");
+  }
+
+  if (highRiskName === "ezecrain, portent of vengeance") {
+    const clause = /Select 2 enemy followers on the field and deal them 4 damage\.\s*Gain 2 earth sigils\.?/i;
+    if (clause.test(fanfarePriorityRaw)) {
+      const targets = [...ctx.opponent.board]
+        .filter(unit => unit.type === "Follower")
+        .sort((a, b) => followerThreatValue(b) - followerThreatValue(a))
+        .slice(0, 2);
+      for (const target of targets) damageUnit(target, 4, ctx.opponent, ctx.player, ctx, fanfarePriorityActions);
+      ctx.player.earthSigils = (Number(ctx.player.earthSigils) || 0) + 2;
+      fanfarePriorityActions.push(`Ezecrain: 4 damage ×${targets.length} · Earth Sigils +2`);
+      fanfarePriorityRaw = fanfarePriorityRaw.replace(clause, " ");
+    }
+  }
+
+  if (highRiskName === "emperor of elements") {
+    fanfarePriorityRaw = fanfarePriorityRaw.replace(/Whenever an allied Golem follower enters the field, Earth Rite\s*\(?\s*1\s*\)?\s*[-–—:]\s*Evolve it\.?/i, " ");
+  }
+
+  let text = String(fanfarePriorityRaw ?? "").trim();
+  const actions = [...fanfarePriorityActions];
   const name = norm(ctx.card?.name);
 
   if (name === "torrent of despair") {
