@@ -1,45 +1,54 @@
 import fs from "node:fs/promises";
-import { analyzeCardSupport } from "../js/battle-engine-v5.js";
+import { analyzeCardSupport, inspectHighRiskCandidateResolution } from "../js/battle-engine-v5.js";
 
 const root = new URL("../", import.meta.url);
 const cards = JSON.parse(await fs.readFile(new URL("data/official/cards.json", root), "utf8"));
-const scriptNames = (await fs.readdir(new URL("scripts/", root))).filter(name => /^check-battle-.*\.mjs$/i.test(name) && name !== "check-battle-fanfare-audit.mjs");
-const checkCorpus = (await Promise.all(scriptNames.map(name => fs.readFile(new URL(`scripts/${name}`, root), "utf8")))).join("\n").toLowerCase();
-const engineCorpus = [
-  await fs.readFile(new URL("js/battle-engine-v5.js", root), "utf8"),
-  await fs.readFile(new URL("js/battle-rules.js", root), "utf8"),
-  await fs.readFile(new URL("js/battle-rules-core.js", root), "utf8")
-].join("\n").toLowerCase();
-
-const norm = value => String(value ?? "").toLowerCase().replace(/[’‘]/g, "'").replace(/\s+/g, " ").trim();
 const fanfares = cards.filter(card => /\bfanfare\s*:/i.test(String(card.text ?? "")));
 const byClass = new Map();
 for (const card of fanfares) byClass.set(card.class, (byClass.get(card.class) ?? 0) + 1);
 
+const ids = fanfares.map(card => Number(card.id));
+const probeRows = inspectHighRiskCandidateResolution({ cards, cardIds: ids })
+  .filter(row => row.event === "base" && ids.includes(Number(row.id)));
+const rowsById = new Map();
+for (const row of probeRows) {
+  if (!rowsById.has(Number(row.id))) rowsById.set(Number(row.id), []);
+  rowsById.get(Number(row.id)).push(row);
+}
+
 const gaps = [];
 for (const card of fanfares) {
-  const name = norm(card.name);
   const support = analyzeCardSupport(card);
-  const tested = checkCorpus.includes(name);
-  const explicit = engineCorpus.includes(name);
-  if (support.level !== "full" || (!tested && !explicit)) {
-    gaps.push({ card, support, tested, explicit });
+  const probes = rowsById.get(Number(card.id)) ?? [];
+  const unresolved = probes.filter(row => row.unresolved);
+  if (support.level !== "full" || !probes.length || unresolved.length) {
+    gaps.push({ card, support, probes, unresolved });
   }
 }
 
-console.log("=== FANFARE INVENTORY AUDIT ===");
+console.log("=== FANFARE RUNTIME AUDIT ===");
 console.log(`Fanfare cards: ${fanfares.length}`);
 for (const [className, count] of [...byClass.entries()].sort((a, b) => String(a[0]).localeCompare(String(b[0])))) {
   console.log(`${className}: ${count}`);
 }
-console.log(`Audit gaps: ${gaps.length}`);
+console.log(`Runtime gaps: ${gaps.length}`);
 for (const row of gaps) {
-  console.log(`FANFARE_GAP|${row.card.class}|${row.card.id}|${row.card.name}|support=${row.support.level}|tested=${row.tested ? "yes" : "no"}|explicit=${row.explicit ? "yes" : "no"}|${row.support.reason}`);
+  const probeSummary = row.probes.length
+    ? row.probes.map(probe => `mode${probe.modeIndex}:${probe.unresolved ? "UNRESOLVED" : "ok"}:${(probe.actions ?? []).join(" · ")}`).join(" || ")
+    : "NO_BASE_PROBE";
+  console.log(`FANFARE_GAP|${row.card.class}|${row.card.id}|${row.card.name}|support=${row.support.level}|${row.support.reason}|${probeSummary}`);
+}
+
+const jeanne = fanfares.find(card => card.name === "Jeanne, Saintly Knight");
+if (!jeanne) throw new Error("Jeanne, Saintly Knight missing from official Fanfare inventory");
+const jeanneProbe = rowsById.get(Number(jeanne.id)) ?? [];
+if (!jeanneProbe.length || jeanneProbe.some(row => row.unresolved)) {
+  throw new Error("Jeanne, Saintly Knight Fanfare must resolve through the same runtime audit as every other Fanfare");
 }
 
 if (gaps.length) {
-  console.error(`Fanfare audit failed: ${gaps.length} card(s) lack Full support or an executable/tested path.`);
+  console.error(`Fanfare runtime audit failed: ${gaps.length}/${fanfares.length} card(s) have unresolved base-play Fanfare paths.`);
   process.exitCode = 1;
 } else {
-  console.log(`Fanfare audit pass: ${fanfares.length}/${fanfares.length} Fanfare cards have Full support and a generic/explicit tested path.`);
+  console.log(`Fanfare runtime audit pass: ${fanfares.length}/${fanfares.length} Fanfare cards resolve in the v5 runtime probe.`);
 }
