@@ -1,0 +1,37 @@
+name: Materialize Fanfare pass
+
+on:
+  push:
+    branches: [fix/fanfare-audit-evo-labels-01.03.002]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: materialize-fanfare-pass
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: fix/fanfare-audit-evo-labels-01.03.002
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Apply Fanfare accuracy pass
+        run: node scripts/apply-battle-fanfare-accuracy-pass.mjs
+      - name: Commit materialized engine
+        run: |
+          if git diff --quiet; then
+            echo "No materialized changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/battle-engine-v5.js
+          git commit -m "fix: materialize Fanfare accuracy pass"
+          git push origin HEAD:fix/fanfare-audit-evo-labels-01.03.002
