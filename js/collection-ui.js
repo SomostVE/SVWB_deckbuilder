@@ -7,7 +7,7 @@ function resetCollectionScroll() {
     const header = document.querySelector(".collection-body > .tools-header");
     const offset = Number(header?.getBoundingClientRect().height || 0) + 8;
     const top = page.getBoundingClientRect().top + window.scrollY - offset;
-    window.scrollTo({ top: Math.max(0, top), behavior: "instant" });
+    window.scrollTo({ top: Math.max(0, top), behavior: "auto" });
   });
 }
 
