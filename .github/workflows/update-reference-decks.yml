@@ -1,0 +1,50 @@
+name: Update reference decks
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "data/custom/reference-decks.source.json"
+      - "scripts/resolve-reference-decks.mjs"
+      - ".github/workflows/update-reference-decks.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: beyond-decks-reference-decks
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Resolve Battle Sim reference decks
+        run: node scripts/resolve-reference-decks.mjs
+
+      - name: Validate reference deck pool
+        run: |
+          node -e "const fs=require('fs');const data=JSON.parse(fs.readFileSync('data/custom/reference-decks.json','utf8'));if(!Array.isArray(data.decks)||data.decks.length<7)throw new Error('Reference deck pool is incomplete');for(const d of data.decks){const n=(d.cards||[]).reduce((s,c)=>s+Number(c.qty||0),0);if(n!==40)throw new Error(d.name+': '+n+'/40 cards');if(!(d.cards||[]).every(c=>Number(c.cardId)>0))throw new Error(d.name+': unresolved card IDs')}console.log(data.decks.length+' reference decks validated')"
+
+      - name: Commit changes
+        run: |
+          if git diff --quiet -- data/custom/reference-decks.json; then
+            echo "Reference decks are already current."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/custom/reference-decks.json
+          git commit -m "chore: update Battle Sim reference decks"
+          git push
