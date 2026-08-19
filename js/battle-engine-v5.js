@@ -8482,9 +8482,26 @@ function effectContextBare(ctx) {
   };
 }
 
+// [[class-mechanic-boundaries-v1]]
+export function isSpellboostRecipient(card) {
+  if (!card) return false;
+  const keywords = (card.keywords ?? []).map(value => norm(value));
+  return keywords.includes("on spellboost") || /\bon spellboost\s*:/i.test(String(card.text ?? ""));
+}
+
+export function inspectSpellboostBoundary(cards, { handNames = [], amount = 1 } = {}) {
+  const map = new Map((cards ?? []).map(card => [Number(card.id), card]));
+  const byName = name => [...map.values()].find(card => norm(card.name) === norm(name));
+  const player = { name: "Spellboost Inspector", nextSerial: 0, hand: [] };
+  player.hand = handNames.map(name => byName(name)).filter(Boolean).map(card => instance(player, card));
+  spellboostHand(player, Math.max(0, Number(amount) || 0), map, []);
+  return player.hand.map(item => ({ name: item.card.name, class: item.card.class, spellboost: Number(item.spellboost) || 0, x: Number(item.x) || 0 }));
+}
+
 function spellboostHand(player, amount, cardMap, actions = []) {
   for (let count = 0; count < amount; count += 1) {
     for (const inst of player.hand) {
+      if (!isSpellboostRecipient(inst.card)) continue;
       inst.spellboost = (Number(inst.spellboost) || 0) + 1;
       const text = section(inst.card.text, "on spellboost");
       if (!text) continue;
@@ -9747,7 +9764,7 @@ function snap(frames, players, meta, stats, record) {
 
 function cardView(item) {
   const card = item.card;
-  return { id: Number(card.id), name: card.name, image: card.image, type: card.type, cost: costOf(item), attack: (Number(card.attack)||0)+(Number(item.attackBonus)||0), defense: (Number(card.defense)||0)+(Number(item.defenseBonus)||0), spellboost: Number(item.spellboost)||0, x: Number(item.x)||0, fusedNames: [...(item.fusedNames ?? [])], keywords: [...(card.keywords ?? [])] };
+  return { id: Number(card.id), name: card.name, image: card.image, type: card.type, cost: costOf(item), attack: (Number(card.attack)||0)+(Number(item.attackBonus)||0), defense: (Number(card.defense)||0)+(Number(item.defenseBonus)||0), spellboost: isSpellboostRecipient(card) ? (Number(item.spellboost)||0) : 0, x: Number(item.x)||0, fusedNames: [...(item.fusedNames ?? [])], keywords: [...(card.keywords ?? [])] };
 }
 function unitView(unit) { const { card, ...view } = unit; return { ...view, keywords: [...(unit.keywords ?? [])] }; }
 function cloneStats(stats) { return Object.fromEntries(Object.entries(stats).map(([key,value]) => [key, Array.isArray(value) ? [...value] : value])); }
