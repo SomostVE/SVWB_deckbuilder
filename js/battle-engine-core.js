@@ -257,6 +257,13 @@ function makePlayer(name, deck, strategy, cardMap, rng) {
   return player;
 }
 
+// [[class-mechanic-boundaries-v1]]
+function isSpellboostRecipient(card) {
+  if (!card) return false;
+  const keywords = (card.keywords ?? []).map(value => String(value).trim().toLowerCase());
+  return keywords.includes("on spellboost") || /\bon spellboost\s*:/i.test(String(card.text ?? ""));
+}
+
 function createInstance(player, card) {
   return {
     uid: `${player.name}-${player.nextSerial++}`,
@@ -442,7 +449,10 @@ function playCard(instance, mode, player, opponent, playerIndex, enemyIndex, sta
   if (card.type === "Spell" || mode.kind === "accelerate") {
     stats.spellsPlayed[playerIndex] += 1;
     player.spellsPlayedThisTurn += 1;
-    for (const handCard of player.hand) handCard.spellboost = (Number(handCard.spellboost) || 0) + 1;
+    for (const handCard of player.hand) {
+      if (!isSpellboostRecipient(handCard.card)) continue;
+      handCard.spellboost = (Number(handCard.spellboost) || 0) + 1;
+    }
     sendToCemetery(player, instance);
   }
 
@@ -908,7 +918,7 @@ function cardView(instance) {
     cost: getBaseCost(instance),
     attack: (Number(card.attack) || 0) + (Number(instance.attackBonus) || 0),
     defense: (Number(card.defense) || 0) + (Number(instance.defenseBonus) || 0),
-    spellboost: Number(instance.spellboost) || 0,
+    spellboost: isSpellboostRecipient(card) ? (Number(instance.spellboost) || 0) : 0,
     keywords: [...(card.keywords ?? [])]
   };
 }

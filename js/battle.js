@@ -267,8 +267,8 @@ function renderPlayer(player, opponent, active) {
       <div class="battle-leader-stats">
         <span class="battle-hp">♥ ${player.hp}/${player.maxHp}</span>
         <span>PP ${player.pp}/${player.maxPp}</span>
-        <span>EP ${player.ep}</span>
-        <span>SEP ${player.sep}</span>
+        <span>Evo ${player.ep}</span>
+        <span>Super Evo ${player.sep}</span>
         <span>Shadows ${player.shadows ?? 0}</span>
         ${player.bonusPpAvailable ? "<span>+PP ready</span>" : ""}
       </div>

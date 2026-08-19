@@ -44,6 +44,9 @@ jobs:
       - name: Run Battle Sim exact-rule regressions
         run: node scripts/check-battle-rules.mjs
 
+      - name: Run Battle Sim class mechanic boundary regression
+        run: node scripts/check-battle-class-mechanics.mjs
+
       - name: Run Battle Sim reactive-event regressions
         run: node scripts/check-battle-reactive-events.mjs
 
