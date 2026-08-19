@@ -1,0 +1,33 @@
+name: Materialize class rule hardening
+
+on:
+  push:
+    branches: [release/battle-sim-finish-01.05.000]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: materialize-class-rule-hardening
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: release/battle-sim-finish-01.05.000
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - run: node scripts/apply-class-rule-hardening.mjs
+      - name: Commit hardening
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/battle-engine-v5.js
+          git commit -m "fix: hard-lock bespoke class rules to their leaders"
+          git push origin HEAD:release/battle-sim-finish-01.05.000
