@@ -1,20 +1,16 @@
-import "./version-guard.js?v=01.00.000";
+import "./version-guard.js?v=01.04.000";
+import { loadOfficialCardData } from "./codex-client.js";
 
 export async function loadData() {
-  const [cardsResponse, metadataResponse, packagesResponse, tagsResponse, exclusionsResponse] = await Promise.all([
-    fetch("./data/official/cards.json"),
-    fetch("./data/official/metadata.json"),
+  const [officialData, packagesResponse, tagsResponse, exclusionsResponse] = await Promise.all([
+    loadOfficialCardData(),
     fetch("./data/custom/packages.json"),
     fetch("./data/custom/tags.json"),
     fetch("./data/custom/exclusions.json")
   ]);
 
-  if (!cardsResponse.ok) {
-    throw new Error("Unable to load data/official/cards.json");
-  }
-
-  const cards = await cardsResponse.json();
-  const metadata = metadataResponse.ok ? await metadataResponse.json() : {};
+  const cards = officialData.cards;
+  const metadata = officialData.metadata ?? {};
   const packageData = packagesResponse.ok ? await packagesResponse.json() : { packages: [] };
   const tagData = tagsResponse.ok ? await tagsResponse.json() : { cards: {} };
   const exclusionData = exclusionsResponse.ok ? await exclusionsResponse.json() : { global: [] };

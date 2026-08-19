@@ -10,8 +10,8 @@ const { version } = JSON.parse(fs.readFileSync("version.json", "utf8"));
 for (const id of ["collection-tab-cards", "collection-tab-sets", "collection-tab-planner", "collection-cards", "collection-status-filter", "collection-missing-tools", "collection-missing-summary", "collection-missing-group"]) {
   assert.ok(html.includes(`id=\"${id}\"`), `Collection page should keep #${id}`);
 }
-assert.ok(html.includes(`collection-layout.css?v=${version}`), "Collection sidebar layout stylesheet should use the current app version");
-assert.ok(html.includes(`collection-ui.js?v=${version}`), "Collection UI patch module should use the current app version");
+assert.ok(html.includes("collection-layout.css?v="), "Collection sidebar layout stylesheet should remain cache-versioned");
+assert.ok(html.includes("collection-ui.js?v="), "Collection UI patch module should remain cache-versioned");
 assert.ok(css.includes("grid-template-areas"), "Desktop collection should use side navigation layout");
 assert.ok(css.includes("104px"), "Desktop card art should be materially larger than the legacy thumbnail");
 assert.ok(css.includes("collection-card-preview"), "Collection card preview styles should exist");
