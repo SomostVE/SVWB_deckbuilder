@@ -3680,7 +3680,7 @@ function section(textValue, label) {
 }
 
 function targetableEnemyFollowers(board) {
-  return board.filter(unit => unit.type === "Follower" && !unit.aura && !unit.ambush);
+  return board.filter(unit => unit.type === "Follower" && !unit.aura && !unit.ambush && !unit.untargetableByOpponentAbility);
 }
 
 function targetEffectSpec(item) {
@@ -3744,7 +3744,11 @@ function expandPlayTargetBranches(item, opponent) {
   const spec = targetEffectSpec(item);
   if (!spec) return [{ ...item, targetPlan: null }];
   const targets = targetableEnemyFollowers(opponent.board);
-  if (!targets.length) return [{ ...item, targetPlan: null }];
+  if (!targets.length) {
+    const spellLike = item?.instance?.card?.type === "Spell" || item?.mode?.kind === "accelerate";
+    if (spec.selectedGrammar && spellLike) return [];
+    return [{ ...item, targetPlan: null }];
+  }
   return targets.map(unit => ({
     ...item,
     targetPlan: { enemyUid: unit.uid, enemyName: unit.name, kind: spec.kind, amount: spec.amount, selectedGrammar: Boolean(spec.selectedGrammar) }
@@ -4093,7 +4097,7 @@ function playCard(inst, mode, player, opponent, playerIndex, enemyIndex, stats, 
     } else if (card.type === "Amulet") {
       source = boardAmulet(inst);
       player.board.push(source);
-      if ((card.traits ?? []).includes("Earth Sigil") && canUseClassMechanic(player, "earthRite", card)) player.earthSigils += 1;
+      if ((card.traits ?? []).includes("Earth Sigil") && canUseClassMechanic(player, "earthRite", card)) registerEarthSigilEntry(player, source, actions);
     }
   }
 
@@ -4391,7 +4395,7 @@ function resolveHavencraftCardText(raw, ctx) {
       if (Number.isFinite(ctx.sourceUnit.countdown)) ctx.sourceUnit.countdown -= amount;
       actions.push(`${ctx.card.name}: advance count by ${amount}`);
       text = text.replace(engageAdvance, " ");
-      if (ctx.sourceUnit.countdown <= 0 && ctx.player.board.includes(ctx.sourceUnit)) actions.push(...destroyObject(ctx.player, ctx.opponent, ctx.sourceUnit, ctx.playerIndex, ctx.enemyIndex, ctx.stats, ctx.rng, ctx.cardMap, true));
+      if (ctx.sourceUnit.countdown <= 0 && ctx.player.board.includes(ctx.sourceUnit)) actions.push(...destroyObject(ctx.player, ctx.opponent, ctx.sourceUnit, ctx.playerIndex, ctx.enemyIndex, ctx.stats, ctx.rng, ctx.cardMap, true, true));
     }
     if (name === "temple of repose") {
       const lw = /Restore 2 defense to your leader\.\s*Give your leader Barrier\.?/i;
@@ -4418,7 +4422,7 @@ function resolveHavencraftCardText(raw, ctx) {
     const engage = /Destroy this card\.\s*Select an unevolved allied follower on the field and evolve it\.?/i;
     if (engage.test(text) && ctx.sourceUnit) {
       const candidates = ctx.player.board.filter(unit => unit.type === "Follower" && !unit.evolved && !unit.superEvolved);
-      if (ctx.player.board.includes(ctx.sourceUnit)) actions.push(...destroyObject(ctx.player, ctx.opponent, ctx.sourceUnit, ctx.playerIndex, ctx.enemyIndex, ctx.stats, ctx.rng, ctx.cardMap, true));
+      if (ctx.player.board.includes(ctx.sourceUnit)) actions.push(...destroyObject(ctx.player, ctx.opponent, ctx.sourceUnit, ctx.playerIndex, ctx.enemyIndex, ctx.stats, ctx.rng, ctx.cardMap, true, true));
       const target = candidates.sort((a,b)=>(Number(b.attack)+Number(b.defense))-(Number(a.attack)+Number(a.defense)))[0] ?? null;
       if (target) evolveUnitByAbility(ctx, target, actions);
       text = text.replace(engage, " ");
@@ -4459,7 +4463,7 @@ function resolveHavencraftCardText(raw, ctx) {
     ctx.player.havenFaithActive = true;
     const fanfare = /Select 3 other cards on the field and destroy them\.?/i;
     if (fanfare.test(text)) {
-      const enemy = ctx.opponent.board.map(unit => ({ owner: ctx.opponent, unit, enemy: true })).sort((a,b)=>(Number(b.unit.attack)+Number(b.unit.defense))-(Number(a.unit.attack)+Number(a.unit.defense)));
+      const enemy = ctx.opponent.board.filter(unit => !unit.untargetableByOpponentAbility).map(unit => ({ owner: ctx.opponent, unit, enemy: true })).sort((a,b)=>(Number(b.unit.attack)+Number(b.unit.defense))-(Number(a.unit.attack)+Number(a.unit.defense)));
       const allied = ctx.player.board.filter(unit => unit !== ctx.sourceUnit).map(unit => ({ owner: ctx.player, unit, enemy: false })).sort((a,b)=>(Number(a.unit.attack)+Number(a.unit.defense))-(Number(b.unit.attack)+Number(b.unit.defense)));
       const selected = [...enemy, ...allied].slice(0, 3);
       for (const entry of selected) actions.push(...destroyObject(entry.owner, entry.owner === ctx.player ? ctx.opponent : ctx.player, entry.unit, entry.owner === ctx.player ? ctx.playerIndex : ctx.enemyIndex, entry.owner === ctx.player ? ctx.enemyIndex : ctx.playerIndex, ctx.stats, ctx.rng, ctx.cardMap, true));
@@ -4761,8 +4765,9 @@ function applyPortalcraftEntryEvents(ctx, unit) {
       if (sourceName === "myuu, hot on his heels") {
         const target = chooseRandomTarget(ctx.opponent.board, ctx.rng);
         if (target) {
-          damageUnit(target, 3, ctx.opponent, ctx.player, ctx, actions);
-          actions.push(`Myuu: 3 damage to ${target.name}`);
+          const dealt = damageUnit(target, 3, ctx.opponent, ctx.player, ctx, actions);
+          removeAmbushAfterAbilityDamage(source, dealt, actions);
+          actions.push(`Myuu: ${dealt} damage to ${target.name}`);
         }
       }
     }
@@ -5116,13 +5121,11 @@ function transformFollowerInto(owner, target, card) {
   if (index < 0 || !card) return null;
   const replacement = boardFollower(instance(owner, card));
   replacement.uid = target.uid;
-  replacement.summonedThisTurn = target.summonedThisTurn;
-  replacement.attacked = target.attacked;
-  replacement.attacksMade = target.attacksMade;
-  if (!replacement.summonedThisTurn) {
-    replacement.canAttackLeader = !/can't attack followers or leaders/i.test(String(card.text ?? ""));
-    replacement.canAttackFollower = replacement.canAttackLeader;
-  }
+  replacement.summonedThisTurn = true;
+  replacement.attacked = false;
+  replacement.attacksMade = 0;
+  replacement.canAttackLeader = false;
+  replacement.canAttackFollower = false;
   owner.board[index] = replacement;
   return replacement;
 }
@@ -5677,15 +5680,12 @@ function transformEnemyFollowerInto(ctx, target, card, actions) {
   if (!target || !card) return null;
   const index = ctx.opponent.board.indexOf(target);
   if (index < 0) return null;
-  notifyFollowerLeavesField(ctx.opponent, target);
   const replacement = boardFollower(instance(ctx.opponent, card));
-  replacement.summonedThisTurn = target.summonedThisTurn;
-  replacement.attacksMade = Number(target.attacksMade) || 0;
-  replacement.attacked = Boolean(target.attacked);
-  if (!replacement.summonedThisTurn) {
-    replacement.canAttackLeader = !/can't attack followers or leaders/i.test(String(replacement.card?.text ?? ""));
-    replacement.canAttackFollower = !/can't attack followers or leaders/i.test(String(replacement.card?.text ?? ""));
-  }
+  replacement.summonedThisTurn = true;
+  replacement.attacksMade = 0;
+  replacement.attacked = false;
+  replacement.canAttackLeader = false;
+  replacement.canAttackFollower = false;
   ctx.opponent.board[index] = replacement;
   actions.push(`${target.name} transforms into ${replacement.name}`);
   return replacement;
@@ -5831,11 +5831,105 @@ function recordDestroyedShikigami(player, unit) {
   player.shikigamiDestroyedBaseDefenseThisTurn = (Number(player.shikigamiDestroyedBaseDefenseThisTurn) || 0) + Math.max(0, Number(unit.card?.defense) || 0);
 }
 
+
+function isEarthSigilAmulet(unit) {
+  return unit?.type === "Amulet" && (unit.card?.traits ?? []).some(trait => norm(trait) === "earth sigil");
+}
+
+function findEarthSigilAmulet(player) {
+  return (player?.board ?? []).find(isEarthSigilAmulet) ?? null;
+}
+
+function configureEarthSigilAmulet(unit, count = 1) {
+  if (!unit || !isEarthSigilAmulet(unit)) return unit;
+  unit.earthSigilCount = Math.max(0, Number(count) || 0);
+  unit.abilityDestructionImmune = true;
+  unit.untargetableByOpponentAbility = true;
+  return unit;
+}
+
+function syncEarthSigils(player) {
+  const sigil = findEarthSigilAmulet(player);
+  if (sigil) player.earthSigils = Math.max(0, Number(sigil.earthSigilCount) || 0);
+  else if ((player?.board ?? []).some(isEarthSigilAmulet)) player.earthSigils = 0;
+  return Math.max(0, Number(player?.earthSigils) || 0);
+}
+
+function registerEarthSigilEntry(player, unit, actions = []) {
+  if (!isEarthSigilAmulet(unit)) return false;
+  let total = 1;
+  for (const old of [...player.board]) {
+    if (old === unit || !isEarthSigilAmulet(old)) continue;
+    total += Math.max(1, Number(old.earthSigilCount) || 1);
+    player.board = player.board.filter(item => item.uid !== old.uid);
+    player.banished.push({ uid: old.uid, card: old.card });
+    actions.push(`Earth Sigil merge: banish ${old.name}`);
+  }
+  configureEarthSigilAmulet(unit, total);
+  player.earthSigils = total;
+  actions.push(`Earth Sigils ${total}`);
+  return true;
+}
+
+function gainEarthSigils(ctx, amountValue, actions = []) {
+  if (!canUseClassMechanic(ctx.player, "earthRite", ctx.card)) return 0;
+  const amount = Math.max(0, Number(amountValue) || 0);
+  if (!amount) return 0;
+  let sigil = findEarthSigilAmulet(ctx.player);
+  if (!sigil) {
+    if ((ctx.player.board?.length ?? 0) >= 5) {
+      actions.push(`Earth Sigils +${amount} unavailable: field full`);
+      return 0;
+    }
+    const card = findByName(ctx.cardMap, "Earth Essence") ?? ctx.cardMap?.get?.(90031210) ?? null;
+    if (!card) {
+      actions.push("Earth Sigil generation unavailable: Earth Essence missing");
+      return 0;
+    }
+    sigil = boardAmulet(instance(ctx.player, card));
+    configureEarthSigilAmulet(sigil, amount);
+    ctx.player.board.push(sigil);
+    ctx.player.earthSigils = amount;
+    if (ctx.stats?.cardsGenerated && Number.isFinite(ctx.playerIndex)) ctx.stats.cardsGenerated[ctx.playerIndex] += 1;
+    actions.push(`summon Earth Essence · Earth Sigils ${amount}`);
+    return amount;
+  }
+  sigil.earthSigilCount = Math.max(0, Number(sigil.earthSigilCount) || 0) + amount;
+  ctx.player.earthSigils = sigil.earthSigilCount;
+  actions.push(`Earth Sigils +${amount} (${ctx.player.earthSigils})`);
+  return amount;
+}
+
+function removeAmbushAfterAbilityDamage(unit, dealt, actions = []) {
+  if (!unit || !(Number(dealt) > 0) || !unit.ambush) return false;
+  unit.ambush = false;
+  unit.keywords = (unit.keywords ?? []).filter(keyword => norm(keyword) !== "ambush");
+  actions.push(`${unit.name} loses Ambush after dealing ability damage`);
+  return true;
+}
+
 function performEarthRite(player, amountValue, actions = []) {
   if (player.className && !canUseClassMechanic(player, "earthRite")) return false;
   const amount = Math.max(1, Number(amountValue) || 1);
-  if ((Number(player.earthSigils) || 0) < amount) return false;
-  player.earthSigils -= amount;
+  const sigil = findEarthSigilAmulet(player);
+  const available = sigil ? Math.max(0, Number(sigil.earthSigilCount) || 0) : Math.max(0, Number(player.earthSigils) || 0);
+  if (available < amount) return false;
+  if (sigil) {
+    sigil.earthSigilCount = available - amount;
+    player.earthSigils = sigil.earthSigilCount;
+    if (sigil.earthSigilCount <= 0) {
+      player.board = player.board.filter(item => item.uid !== sigil.uid);
+      player.destroyedAmulets ??= [];
+      player.destroyedAmulets.push({ card: sigil.card });
+      toCemetery(player, { uid: sigil.uid, card: sigil.card });
+      player.earthSigils = 0;
+      actions.push(`${sigil.name} destroyed at 0 Earth Sigils`);
+    }
+  } else {
+    // Compatibility for internal deterministic QA states that predate field-backed
+    // Earth Sigils. Normal simulations always create the field amulet.
+    player.earthSigils = available - amount;
+  }
   for (const item of player.hand ?? []) {
     const name = norm(item.card?.name);
     if (name !== "bottomless gluttony" && name !== "heel, my dearie") continue;
@@ -6119,7 +6213,7 @@ function applyInstituteChangedCostTrigger(player, opponent, playedCard, changed,
     if (Number.isFinite(institute.countdown)) institute.countdown = Math.max(0, institute.countdown - 1);
     actions.push(`Institute of Truth: draw ${drawn} · advance countdown by 1`);
     if (Number.isFinite(institute.countdown) && institute.countdown <= 0) {
-      actions.push(...destroyObject(player, opponent, institute, playerIndex, enemyIndex, stats, rng, map, true));
+      actions.push(...destroyObject(player, opponent, institute, playerIndex, enemyIndex, stats, rng, map, true, true));
     }
   }
 }
@@ -6927,7 +7021,7 @@ function resolveHighRiskGenericText(textValue, ctx) {
   if (cardName === "unholy vessel") {
     const effect = /Destroy this card and all followers\.?/i;
     if (effect.test(text)) {
-      if (ctx.sourceUnit) actions.push(...destroyObject(ctx.player, ctx.opponent, ctx.sourceUnit, ctx.playerIndex, ctx.enemyIndex, ctx.stats, ctx.rng, ctx.cardMap, true));
+      if (ctx.sourceUnit) actions.push(...destroyObject(ctx.player, ctx.opponent, ctx.sourceUnit, ctx.playerIndex, ctx.enemyIndex, ctx.stats, ctx.rng, ctx.cardMap, true, true));
       for (const unit of [...ctx.player.board].filter(unit => unit.type === "Follower")) destroyUnit(ctx.player, unit);
       for (const unit of [...ctx.opponent.board].filter(unit => unit.type === "Follower")) destroyUnit(ctx.opponent, unit);
       actions.push("Unholy Vessel: destroy self and all followers");
@@ -7130,7 +7224,7 @@ function resolveHighRiskGenericText(textValue, ctx) {
   // Structural labels/state that do not themselves perform an action.
   text = text.replace(/\bCountdown\s*\(?\s*\d+\s*\)?\.?/gi, " ");
   text = text.replace(/\bActivates in hand\.?/gi, " ");
-  text = text.replace(/^Earth Sigil\.?/i, () => { if (canUseClassMechanic(ctx.player, "earthRite", ctx.card)) { ctx.player.earthSigils += 1; actions.push(`Earth Sigils +1 (${ctx.player.earthSigils})`); } return " "; });
+  text = text.replace(/^Earth Sigil\.?/i, " ");
   const leaveBanish = /When this card leaves the field, banish it\.?/i;
   if (leaveBanish.test(text) && ctx.sourceUnit) { ctx.sourceUnit.banishOnLeave = true; actions.push(`${ctx.sourceUnit.name}: banish on leave`); text = text.replace(leaveBanish, " "); }
   const banishThis = /Banish this card\.?/i;
@@ -7278,10 +7372,7 @@ function resolveHighRiskGenericText(textValue, ctx) {
   // Some imported cards use singular lower-case wording which historically
   // escaped the resource pass after other sentence fragments were rewritten.
   for (const match of [...text.matchAll(/Gain\s+(?:an?|one|1)\s+earth sigil\.?/gi)]) {
-    if (canUseClassMechanic(ctx.player, "earthRite", ctx.card)) {
-      ctx.player.earthSigils += 1;
-      actions.push(`Earth Sigils +1 (${ctx.player.earthSigils})`);
-    }
+    gainEarthSigils(ctx, 1, actions);
     text = text.replace(match[0], " ");
   }
 
@@ -7381,10 +7472,7 @@ function resolveHighRiskGenericText(textValue, ctx) {
   if (damageSigil) {
     const target = choosePlannedTarget(ctx, ctx.opponent.board.filter(unit => unit.type === "Follower"));
     if (target) damageUnit(target, Number(damageSigil[1]) || 0, ctx.opponent, ctx.player, ctx, actions);
-    if (canUseClassMechanic(ctx.player, "earthRite", ctx.card)) {
-      ctx.player.earthSigils += 1;
-      actions.push(`selected damage ${damageSigil[1]} · Earth Sigil +1`);
-    }
+    if (gainEarthSigils(ctx, 1, actions)) actions.push(`selected damage ${damageSigil[1]} · Earth Sigil +1`);
     text = text.replace(damageSigil[0], " ");
   }
 
@@ -7482,7 +7570,7 @@ function resolveHighRiskGenericText(textValue, ctx) {
   }
   const banishEnemyAddCopy = /Select an enemy card on the field, banish it, and add a copy of it to your hand\.?/i;
   if (banishEnemyAddCopy.test(text)) {
-    const target = [...ctx.opponent.board].sort((a,b) => (Number(b.card?.cost)||0) - (Number(a.card?.cost)||0))[0] ?? null;
+    const target = [...ctx.opponent.board].filter(unit => !unit.untargetableByOpponentAbility).sort((a,b) => (Number(b.card?.cost)||0) - (Number(a.card?.cost)||0))[0] ?? null;
     if (target) {
       banish(ctx.opponent, target);
       highRiskAddCopyToHand(ctx, target.card, { exact: false });
@@ -7873,7 +7961,7 @@ function resolveHighRiskGenericText(textValue, ctx) {
   // Self-destruction is common on Engage abilities.
   const destroyThis = /Destroy this card\.?/i;
   if (destroyThis.test(text) && ctx.sourceUnit) {
-    actions.push(...destroyObject(ctx.player, ctx.opponent, ctx.sourceUnit, ctx.playerIndex, ctx.enemyIndex, ctx.stats, ctx.rng, ctx.cardMap, true));
+    actions.push(...destroyObject(ctx.player, ctx.opponent, ctx.sourceUnit, ctx.playerIndex, ctx.enemyIndex, ctx.stats, ctx.rng, ctx.cardMap, true, true));
     text = text.replace(destroyThis, " ");
   }
 
@@ -8152,14 +8240,11 @@ function resolveText(raw, ctx) {
   text = runecraft.text;
   actions.push(...runecraft.actions);
 
-  // Earth Sigils are a numeric field resource in the simulator. Spells and Engage
-  // effects can create them directly without occupying an additional board slot.
+  // Earth Sigils are represented by their actual merged field amulet. The
+  // numeric mirror remains synchronized for formulas and UI.
   for (const match of [...text.matchAll(/gain\s+(an?|one|two|three|four|five|\d+)\s+earth sigils?/gi)]) {
     const amount = word(match[1]) || 1;
-    if (canUseClassMechanic(ctx.player, "earthRite", ctx.card)) {
-      ctx.player.earthSigils += amount;
-      actions.push(`Earth Sigils +${amount} (${ctx.player.earthSigils})`);
-    }
+    gainEarthSigils(ctx, amount, actions);
     text = text.replace(match[0], " ");
   }
 
@@ -8857,7 +8942,7 @@ function turnStart(player, opponent, playerIndex, enemyIndex, stats, rng, map) {
   for (const amulet of [...player.board].filter(unit => unit.type === "Amulet" && Number.isFinite(unit.countdown))) {
     amulet.countdown -= 1;
     actions.push(`${amulet.name} countdown ${Math.max(0, amulet.countdown)}`);
-    if (amulet.countdown <= 0) actions.push(...destroyObject(player, opponent, amulet, playerIndex, enemyIndex, stats, rng, map, true));
+    if (amulet.countdown <= 0) actions.push(...destroyObject(player, opponent, amulet, playerIndex, enemyIndex, stats, rng, map, true, true));
   }
 
   invokeCards(player, opponent, playerIndex, enemyIndex, stats, rng, map, actions);
@@ -9569,7 +9654,7 @@ function reactDamage(unit, owner, opponent, ctx, actions) {
 }
 
 function chooseTarget(board, targeted) {
-  return board.filter(unit => unit.type === "Follower" && (!targeted || (!unit.aura && !unit.ambush))).sort((a,b)=>b.attack+b.defense-a.attack-a.defense)[0] ?? null;
+  return board.filter(unit => unit.type === "Follower" && (!targeted || (!unit.aura && !unit.ambush && !unit.untargetableByOpponentAbility))).sort((a,b)=>b.attack+b.defense-a.attack-a.defense)[0] ?? null;
 }
 
 function choosePlannedTarget(ctx, board) {
@@ -9712,7 +9797,8 @@ function cleanup(player, opponent, playerIndex, enemyIndex, stats, rng, map) {
   return actions;
 }
 
-function destroyObject(player, opponent, unit, playerIndex, enemyIndex, stats, rng, map, lastWordsEnabled) {
+function destroyObject(player, opponent, unit, playerIndex, enemyIndex, stats, rng, map, lastWordsEnabled, rulesDestroy = false) {
+  if (!rulesDestroy && (unit?.abilityDestructionImmune || (unit?.superEvolved && player?.isActive))) return [];
   // [[battle-high-risk-destroyed-amulet-history]]
   if (unit?.type === "Amulet") {
     player.destroyedAmulets ??= [];
@@ -9746,13 +9832,14 @@ function getUnitTriggeredText(unit, event) {
   return getTriggeredText({ ...unit.card, text: unit.overrideText }, event);
 }
 
-function toCemetery(player, item, addShadow = false) { player.cemetery.push(item); if (addShadow) player.shadows += 1; }
+function toCemetery(player, item, addShadow = true) { player.cemetery.push(item); player.shadows += 1; }
 function destroyUnit(player, unit) { if (unit.abilityDestructionImmune) return false; if (unit.superEvolved && player.isActive) return false; unit.defense = 0; return true; }
-function banish(player, unit) { if (unit.type === "Follower") notifyFollowerLeavesField(player, unit); player.board = player.board.filter(item => item.uid !== unit.uid); player.banished.push({ uid: unit.uid, card: unit.card }); return true; }
+function banish(player, unit) { if (unit.type === "Follower") notifyFollowerLeavesField(player, unit); player.board = player.board.filter(item => item.uid !== unit.uid); player.banished.push({ uid: unit.uid, card: unit.card }); if (isEarthSigilAmulet(unit)) player.earthSigils = 0; return true; }
 function bounce(player, unit) {
   if (unit?.banishOnLeave) return banish(player, unit);
   if (unit.type === "Follower") notifyFollowerLeavesField(player, unit);
   player.board = player.board.filter(item => item.uid !== unit.uid);
+  if (isEarthSigilAmulet(unit)) player.earthSigils = 0;
   const item = instance(player, unit.card);
   if (player.hand.length >= 9) { toCemetery(player, item, false); return false; }
   player.hand.push(item);
@@ -9786,7 +9873,7 @@ function snap(frames, players, meta, stats, record) {
       name: player.name, className: player.className, hp: player.hp, maxHp: player.maxHp, pp: player.pp, maxPp: player.maxPp, ep: player.ep, sep: player.sep,
       shadows: player.shadows, rally: player.rally, earthSigils: player.earthSigils, cardsPlayedThisTurn: player.cardsPlayedThisTurn,
       classMechanics: classMechanicStatus(player), bonusPpAvailable: player.bonusPpAvailable, bonusPpUses: player.bonusPpUses,
-      personalTurn: player.personalTurn, deckCount: player.deck.length, cemeteryCount: player.cemetery.length, fusedCount: player.fusedCards?.length ?? 0,
+      personalTurn: player.personalTurn, deckCount: player.deck.length, cemeteryCount: player.shadows, fusedCount: player.fusedCards?.length ?? 0,
       hand: player.hand.map(cardView), board: player.board.map(unitView), crests: player.crests.map(crest => Number.isFinite(crest.countdown) ? `${crest.name} (${crest.countdown})` : crest.name)
     })),
     stats: cloneStats(stats)
@@ -9809,3 +9896,114 @@ function word(value) { const map = { a:1, an:1, one:1, two:2, three:3, four:4, f
 function createRng(seedValue) { let seed = 2166136261; for (const ch of String(seedValue ?? "")) { seed ^= ch.charCodeAt(0); seed = Math.imul(seed, 16777619); } seed >>>= 0; return () => { seed += 0x6D2B79F5; let t = seed; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 function shuffle(array, rng) { for (let index = array.length - 1; index > 0; index -= 1) { const other = Math.floor(rng() * (index + 1)); [array[index], array[other]] = [array[other], array[index]]; } }
 function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
+
+
+export function inspectOfficialMechanicsAudit({ cards = [] } = {}) {
+  const rawMap = new Map(cards.map(card => [Number(card.id), card]));
+  const map = prepareSimulationCardMap(rawMap);
+  const mk = (seed, className = "Runecraft") => {
+    const rng = createRng(`official-mechanics:${seed}`);
+    const stats = createStats();
+    const player = makePlayer("You", [], { style: "midrange" }, map, rng, className);
+    const opponent = makePlayer("Opponent", [], { style: "midrange" }, map, rng, className);
+    player.isActive = true;
+    opponent.isActive = false;
+    return { rng, stats, player, opponent, ctx: () => ({ player, opponent, playerIndex: 0, enemyIndex: 1, stats, rng, cardMap: map, card: null }) };
+  };
+  const syntheticFollower = (name, attack = 2, defense = 2) => ({ id: -990000 - name.length, name, class: "Neutral", type: "Follower", cost: 2, attack, defense, text: "", keywords: [], traits: [], relatedCards: [] });
+
+  const transform = mk("transform", "Forestcraft");
+  const oldCard = syntheticFollower("Transform Old", 4, 4);
+  const newCard = syntheticFollower("Transform New", 7, 7);
+  const old = boardFollower(instance(transform.opponent, oldCard));
+  old.summonedThisTurn = false;
+  old.attacked = true;
+  old.attacksMade = 1;
+  old.canAttackLeader = true;
+  old.canAttackFollower = true;
+  transform.opponent.board = [old];
+  const bayleCard = { ...syntheticFollower("Bayle, Luxglaive Warrior"), class: "Forestcraft" };
+  const bayle = instance(transform.opponent, bayleCard);
+  transform.opponent.hand = [bayle];
+  const transformed = transformEnemyFollowerInto(transform.ctx(), old, newCard, []);
+
+  const cemetery = mk("cemetery", "Abysscraft");
+  cemetery.player.hand = Array.from({ length: 9 }, (_, i) => instance(cemetery.player, syntheticFollower(`Full Hand ${i}`)));
+  cemetery.player.deck = [instance(cemetery.player, syntheticFollower("Burned Draw"))];
+  const cemeteryBeforeDraw = cemetery.player.shadows;
+  drawCards(cemetery.player, 1, cemetery.stats, 0);
+  const bounceTarget = boardFollower(instance(cemetery.player, syntheticFollower("Bounce Target")));
+  cemetery.player.board = [bounceTarget];
+  const cemeteryBeforeBounce = cemetery.player.shadows;
+  bounce(cemetery.player, bounceTarget);
+
+  const earth = mk("earth", "Runecraft");
+  const essenceCard = map.get(90031210) ?? findByName(map, "Earth Essence");
+  const earthCards = [...map.values()].filter(card => card.type === "Amulet" && (card.traits ?? []).some(trait => norm(trait) === "earth sigil"));
+  const firstCard = earthCards.find(card => Number(card.id) !== Number(essenceCard?.id)) ?? essenceCard;
+  let earthResult = null;
+  if (firstCard && essenceCard) {
+    const first = boardAmulet(instance(earth.player, firstCard));
+    earth.player.board.push(first);
+    registerEarthSigilEntry(earth.player, first, []);
+    first.engagedThisTurn = true;
+    const second = boardAmulet(instance(earth.player, firstCard));
+    earth.player.board.push(second);
+    registerEarthSigilEntry(earth.player, second, []);
+    const merged = { count: earth.player.earthSigils, board: earth.player.board.filter(isEarthSigilAmulet).length, oldBanished: earth.player.banished.some(item => item.uid === first.uid), newEngaged: Boolean(second.engagedThisTurn) };
+
+    const generated = mk("earth-generated", "Runecraft");
+    gainEarthSigils({ ...generated.ctx(), card: firstCard }, 2, []);
+    const generatedSigil = findEarthSigilAmulet(generated.player);
+    const beforeRiteCemetery = generated.player.shadows;
+    performEarthRite(generated.player, 2, []);
+
+    const immune = mk("earth-immune", "Runecraft");
+    const immuneSigil = boardAmulet(instance(immune.player, firstCard));
+    immune.player.board.push(immuneSigil);
+    registerEarthSigilEntry(immune.player, immuneSigil, []);
+    destroyObject(immune.player, immune.opponent, immuneSigil, 0, 1, immune.stats, immune.rng, map, true);
+
+    const full = mk("earth-full", "Runecraft");
+    full.player.board = Array.from({ length: 5 }, (_, i) => boardFollower(instance(full.player, syntheticFollower(`Full Board ${i}`))));
+    const fullGain = gainEarthSigils({ ...full.ctx(), card: firstCard }, 1, []);
+
+    earthResult = {
+      merged,
+      generated: { name: generatedSigil?.name ?? null, count: generatedSigil?.earthSigilCount ?? null },
+      rite: { board: generated.player.board.filter(isEarthSigilAmulet).length, cemeteryDelta: generated.player.shadows - beforeRiteCemetery },
+      abilityDestroyImmune: immune.player.board.includes(immuneSigil),
+      fieldFullGain: fullGain
+    };
+  }
+
+  const myuu = mk("myuu", "Portalcraft");
+  const myuuCard = findByName(map, "Myuu, Hot on His Heels");
+  const artifactCard = findByName(map, "Ancient Artifact");
+  let myuuResult = null;
+  if (myuuCard && artifactCard) {
+    const source = boardFollower(instance(myuu.player, myuuCard));
+    giveKeyword(source, "Ambush");
+    const artifact = boardFollower(instance(myuu.player, artifactCard));
+    const victim = boardFollower(instance(myuu.opponent, syntheticFollower("Myuu Victim", 1, 10)));
+    myuu.player.board = [source, artifact];
+    myuu.opponent.board = [victim];
+    applyEntryEvents({ ...myuu.ctx(), card: artifactCard, sourceUnit: artifact }, artifact);
+    const losesOnDamage = !source.ambush;
+
+    const noTarget = mk("myuu-no-target", "Portalcraft");
+    const source2 = boardFollower(instance(noTarget.player, myuuCard));
+    giveKeyword(source2, "Ambush");
+    const artifact2 = boardFollower(instance(noTarget.player, artifactCard));
+    noTarget.player.board = [source2, artifact2];
+    applyEntryEvents({ ...noTarget.ctx(), card: artifactCard, sourceUnit: artifact2 }, artifact2);
+    myuuResult = { losesOnDamage, keepsWithoutDamage: source2.ambush };
+  }
+
+  return {
+    transform: { bayleCostDelta: bayle.costDelta, summonedThisTurn: transformed?.summonedThisTurn, attacked: transformed?.attacked, attacksMade: transformed?.attacksMade, canAttackLeader: transformed?.canAttackLeader },
+    cemetery: { drawOverflowDelta: cemeteryBeforeDraw == null ? null : cemetery.player.shadows - cemeteryBeforeBounce, bounceOverflowDelta: cemetery.player.shadows - cemeteryBeforeBounce },
+    earth: earthResult,
+    myuu: myuuResult
+  };
+}
