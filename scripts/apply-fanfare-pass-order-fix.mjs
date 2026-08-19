@@ -20,3 +20,4 @@ if (!src.includes(mark)) {
 }
 
 await import("./apply-fanfare-raw-priority-fix.mjs");
+await import("./apply-battle-evo-labels.mjs");
