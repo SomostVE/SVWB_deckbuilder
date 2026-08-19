@@ -8,6 +8,7 @@ import {
   applyBuffedFollowerEffects
 } from "./battle-rules.js";
 import { analyzeCardSupport as analyzeCardSupportV4 } from "./battle-engine-v4.js";
+import { canUseClassMechanic, classMechanicStatus, isSpellboostRecipientCard, resolveDeckClass } from "./battle-class-mechanics.js";
 
 export const BATTLE_RULES_VERSION = 5;
 
@@ -239,15 +240,22 @@ const HANDLED_REACTIVE_CLAUSES = [
   /During your turn, whenever an allied Departed follower enters the field, give it \+1\/\+0, Rush, and Ward and deal 1 damage to the enemy leader\.?/gi
 ];
 
-export function simulateBattle({ playerDeck, opponentDeck, cardMap, playerStrategy = {}, opponentStrategy = {}, seed = "deci-builder", playerSide = "random", recordFrames = true }) {
+export function simulateBattle({ playerDeck, opponentDeck, cardMap, playerStrategy = {}, opponentStrategy = {}, playerClass = null, opponentClass = null, seed = "deci-builder", playerSide = "random", recordFrames = true }) {
   const simulationMap = prepareSimulationCardMap(cardMap);
+  const inferClass = (deck, requested) => {
+    if (requested) return resolveDeckClass(deck, simulationMap, requested);
+    try { return resolveDeckClass(deck, simulationMap); }
+    catch { return null; }
+  };
+  const resolvedPlayerClass = inferClass(playerDeck, playerClass);
+  const resolvedOpponentClass = inferClass(opponentDeck, opponentClass);
   const rng = createRng(seed);
   const side = playerSide === "first" ? 0 : playerSide === "second" ? 1 : (rng() < .5 ? 0 : 1);
   const first = side === 0 ? 0 : 1;
   const second = 1 - first;
   const players = [
-    makePlayer("You", playerDeck, playerStrategy, simulationMap, rng),
-    makePlayer("Opponent", opponentDeck, opponentStrategy, simulationMap, rng)
+    makePlayer("You", playerDeck, playerStrategy, simulationMap, rng, resolvedPlayerClass),
+    makePlayer("Opponent", opponentDeck, opponentStrategy, simulationMap, rng, resolvedOpponentClass)
   ];
   players[first].goingFirst = true;
   players[second].goingSecond = true;
@@ -1943,9 +1951,9 @@ function createStats() {
   };
 }
 
-function makePlayer(name, deck, strategy, cardMap, rng) {
+function makePlayer(name, deck, strategy, cardMap, rng, className = null) {
   const player = {
-    name, strategy: normStrategy(strategy), hp: 20, maxHp: 20, maxPp: 0, pp: 0, ep: 2, sep: 2,
+    name, className, strategy: normStrategy(strategy), hp: 20, maxHp: 20, maxPp: 0, pp: 0, ep: 2, sep: 2,
     shadows: 0, rally: 0, earthSigils: 0, faith: 0, faithActive: false, faithEnhanceBuffs: 0, forestFaithActive: false, forestFaithEvolveDamage: 0,
     abyssFaithActive: false, abyssFaithModeBonus: 0, havenFaithActive: false, crests: [], bonusPpAvailable: false, bonusPpUses: 0,
     leaderDamageCap: null, leaderDamageCapUntilOpponentTurnEnd: false, leaderBarrier: 0, leaderDamageTakenBonus: 0,
@@ -3967,13 +3975,13 @@ function timingLookaheadValue(item, player, opponent) {
     if (reachableNext) score -= 5.5;
   }
 
-  if (!urgent && /if overflow is active/.test(norm(raw)) && (Number(player.maxPp) || 0) === 6) score -= 2.5;
+  if (!urgent && canUseClassMechanic(player, "overflow", card) && /if overflow is active/.test(norm(raw)) && (Number(player.maxPp) || 0) === 6) score -= 2.5;
 
   const rallyNeed = Number(raw.match(/Rally\s*\(?\s*(\d+)\s*\)?\s*:/i)?.[1] ?? 0);
-  if (!urgent && rallyNeed > 0 && (Number(player.rally) || 0) < rallyNeed && rallyNeed - (Number(player.rally) || 0) <= 2) score -= 1.5;
+  if (!urgent && canUseClassMechanic(player, "rally", card) && rallyNeed > 0 && (Number(player.rally) || 0) < rallyNeed && rallyNeed - (Number(player.rally) || 0) <= 2) score -= 1.5;
 
   const necroNeed = Number(raw.match(/Necromancy\s*\(?\s*(\d+)\s*\)?\s*[-–—:]/i)?.[1] ?? 0);
-  if (!urgent && necroNeed > 0 && (Number(player.shadows) || 0) < necroNeed) score -= 1.5;
+  if (!urgent && canUseClassMechanic(player, "necromancy", card) && necroNeed > 0 && (Number(player.shadows) || 0) < necroNeed) score -= 1.5;
 
   // Purely contextual cards should not be dumped just because PP is available.
   if (!urgent && /restore .*leader/.test(text) && (Number(player.hp) || 0) >= (Number(player.maxHp) || 20)) score -= 1.5;
@@ -4085,7 +4093,7 @@ function playCard(inst, mode, player, opponent, playerIndex, enemyIndex, stats, 
     } else if (card.type === "Amulet") {
       source = boardAmulet(inst);
       player.board.push(source);
-      if ((card.traits ?? []).includes("Earth Sigil")) player.earthSigils += 1;
+      if ((card.traits ?? []).includes("Earth Sigil") && canUseClassMechanic(player, "earthRite", card)) player.earthSigils += 1;
     }
   }
 
@@ -7116,7 +7124,7 @@ function resolveHighRiskGenericText(textValue, ctx) {
   // Structural labels/state that do not themselves perform an action.
   text = text.replace(/\bCountdown\s*\(?\s*\d+\s*\)?\.?/gi, " ");
   text = text.replace(/\bActivates in hand\.?/gi, " ");
-  text = text.replace(/^Earth Sigil\.?/i, () => { ctx.player.earthSigils += 1; actions.push(`Earth Sigils +1 (${ctx.player.earthSigils})`); return " "; });
+  text = text.replace(/^Earth Sigil\.?/i, () => { if (canUseClassMechanic(ctx.player, "earthRite", ctx.card)) { ctx.player.earthSigils += 1; actions.push(`Earth Sigils +1 (${ctx.player.earthSigils})`); } return " "; });
   const leaveBanish = /When this card leaves the field, banish it\.?/i;
   if (leaveBanish.test(text) && ctx.sourceUnit) { ctx.sourceUnit.banishOnLeave = true; actions.push(`${ctx.sourceUnit.name}: banish on leave`); text = text.replace(leaveBanish, " "); }
   const banishThis = /Banish this card\.?/i;
@@ -7264,8 +7272,10 @@ function resolveHighRiskGenericText(textValue, ctx) {
   // Some imported cards use singular lower-case wording which historically
   // escaped the resource pass after other sentence fragments were rewritten.
   for (const match of [...text.matchAll(/Gain\s+(?:an?|one|1)\s+earth sigil\.?/gi)]) {
-    ctx.player.earthSigils += 1;
-    actions.push(`Earth Sigils +1 (${ctx.player.earthSigils})`);
+    if (canUseClassMechanic(ctx.player, "earthRite", ctx.card)) {
+      ctx.player.earthSigils += 1;
+      actions.push(`Earth Sigils +1 (${ctx.player.earthSigils})`);
+    }
     text = text.replace(match[0], " ");
   }
 
@@ -7365,8 +7375,10 @@ function resolveHighRiskGenericText(textValue, ctx) {
   if (damageSigil) {
     const target = choosePlannedTarget(ctx, ctx.opponent.board.filter(unit => unit.type === "Follower"));
     if (target) damageUnit(target, Number(damageSigil[1]) || 0, ctx.opponent, ctx.player, ctx, actions);
-    ctx.player.earthSigils += 1;
-    actions.push(`selected damage ${damageSigil[1]} · Earth Sigil +1`);
+    if (canUseClassMechanic(ctx.player, "earthRite", ctx.card)) {
+      ctx.player.earthSigils += 1;
+      actions.push(`selected damage ${damageSigil[1]} · Earth Sigil +1`);
+    }
     text = text.replace(damageSigil[0], " ");
   }
 
@@ -8038,6 +8050,7 @@ function resolveText(raw, ctx) {
 
   if (highRiskName === "fediel, darkness personified" && /Necromancy/i.test(highRiskRaw) && /evolve them/i.test(highRiskRaw)) {
     const actions = [];
+    if (!canUseClassMechanic(ctx.player, "necromancy", ctx.card)) return { applied: false, actions: ["Necromancy unavailable outside Abysscraft"], unresolved: false };
     const summoned = [];
     if ((Number(ctx.player.shadows) || 0) >= 6) {
       ctx.player.shadows -= 6;
@@ -8133,8 +8146,10 @@ function resolveText(raw, ctx) {
   // effects can create them directly without occupying an additional board slot.
   for (const match of [...text.matchAll(/gain\s+(an?|one|two|three|four|five|\d+)\s+earth sigils?/gi)]) {
     const amount = word(match[1]) || 1;
-    ctx.player.earthSigils += amount;
-    actions.push(`Earth Sigils +${amount} (${ctx.player.earthSigils})`);
+    if (canUseClassMechanic(ctx.player, "earthRite", ctx.card)) {
+      ctx.player.earthSigils += amount;
+      actions.push(`Earth Sigils +${amount} (${ctx.player.earthSigils})`);
+    }
     text = text.replace(match[0], " ");
   }
 
@@ -8189,6 +8204,7 @@ function resolveText(raw, ctx) {
 
   const necromancy = text.match(/Necromancy\s*\(?\s*(\d+)\s*\)?\s*[-–—:]\s*(.*)$/i);
   if (necromancy) {
+    if (!canUseClassMechanic(ctx.player, "necromancy", ctx.card)) return { actions: ["Necromancy unavailable outside Abysscraft"], applied: false, unresolved: false };
     if (ctx.player.shadows < Number(necromancy[1])) return { actions: [`Necromancy ${necromancy[1]} unavailable`], applied: false, unresolved: false };
     ctx.player.shadows -= Number(necromancy[1]);
     actions.push(`Necromancy ${necromancy[1]}`);
@@ -8196,12 +8212,14 @@ function resolveText(raw, ctx) {
   }
   const rally = text.match(/Rally\s*\(?\s*(\d+)\s*\)?\s*:\s*(.*)$/i);
   if (rally) {
+    if (!canUseClassMechanic(ctx.player, "rally", ctx.card)) return { actions: ["Rally unavailable outside Swordcraft"], applied: false, unresolved: false };
     if (ctx.player.rally < Number(rally[1])) return { actions: [`Rally ${ctx.player.rally}/${rally[1]}`], applied: false, unresolved: false };
     actions.push(`Rally ${rally[1]}`);
     text = rally[2];
   }
   const combo = text.match(/Combo\s*\(?\s*(\d+)\s*\)?\s*:\s*(.*)$/i);
   if (combo) {
+    if (!canUseClassMechanic(ctx.player, "combo", ctx.card)) return { actions: ["Combo unavailable outside Forestcraft"], applied: false, unresolved: false };
     if (ctx.player.cardsPlayedThisTurn < Number(combo[1])) return { actions: [`Combo ${ctx.player.cardsPlayedThisTurn}/${combo[1]}`], applied: false, unresolved: false };
     text = combo[2];
   }
@@ -8219,9 +8237,10 @@ function resolveText(raw, ctx) {
     text = skybound[2];
     actions.push("Skybound Art");
   }
-  if (/if overflow is active/i.test(text) && ctx.player.maxPp < 7) text = text.replace(/if overflow is active[^.]*\.?/ig, "");
+  if (/if overflow is active/i.test(text) && (!canUseClassMechanic(ctx.player, "overflow", ctx.card) || ctx.player.maxPp < 7)) text = text.replace(/if overflow is active[^.]*\.?/ig, "");
   else if (/if overflow is active/i.test(text)) text = text.replace(/if overflow is active[, ]*/ig, "");
   if (/Earth Rite\s*\(?\s*(\d+)?\s*\)?\s*[-–—:]/i.test(text)) {
+    if (!canUseClassMechanic(ctx.player, "earthRite", ctx.card)) return { actions: ["Earth Rite unavailable outside Runecraft"], applied: false, unresolved: false };
     const amount = Number(text.match(/Earth Rite\s*\(?\s*(\d+)?/i)?.[1] ?? 1);
     if (ctx.player.earthSigils < amount) return { actions: [`Earth Rite ${ctx.player.earthSigils}/${amount}`], applied: false, unresolved: false };
     performEarthRite(ctx.player, amount, actions);
@@ -8486,9 +8505,7 @@ function effectContextBare(ctx) {
 
 // [[class-mechanic-boundaries-v1]]
 export function isSpellboostRecipient(card) {
-  if (!card) return false;
-  const keywords = (card.keywords ?? []).map(value => norm(value));
-  return keywords.includes("on spellboost") || /\bon spellboost\s*:/i.test(String(card.text ?? ""));
+  return isSpellboostRecipientCard(card);
 }
 
 export function inspectSpellboostBoundary(cards, { handNames = [], amount = 1 } = {}) {
@@ -8503,6 +8520,7 @@ export function inspectSpellboostBoundary(cards, { handNames = [], amount = 1 } 
 function spellboostHand(player, amount, cardMap, actions = []) {
   for (let count = 0; count < amount; count += 1) {
     for (const inst of player.hand) {
+      if (!canUseClassMechanic(player, "spellboost", inst.card)) continue;
       if (!isSpellboostRecipient(inst.card)) continue;
       inst.spellboost = (Number(inst.spellboost) || 0) + 1;
       const text = section(inst.card.text, "on spellboost");
@@ -9755,8 +9773,9 @@ function snap(frames, players, meta, stats, record) {
   frames.push({
     index: frames.length, round: meta.round, active: meta.active, phase: meta.phase, action: meta.action,
     players: players.map(player => ({
-      name: player.name, hp: player.hp, maxHp: player.maxHp, pp: player.pp, maxPp: player.maxPp, ep: player.ep, sep: player.sep,
-      shadows: player.shadows, rally: player.rally, bonusPpAvailable: player.bonusPpAvailable, bonusPpUses: player.bonusPpUses,
+      name: player.name, className: player.className, hp: player.hp, maxHp: player.maxHp, pp: player.pp, maxPp: player.maxPp, ep: player.ep, sep: player.sep,
+      shadows: player.shadows, rally: player.rally, earthSigils: player.earthSigils, cardsPlayedThisTurn: player.cardsPlayedThisTurn,
+      classMechanics: classMechanicStatus(player), bonusPpAvailable: player.bonusPpAvailable, bonusPpUses: player.bonusPpUses,
       personalTurn: player.personalTurn, deckCount: player.deck.length, cemeteryCount: player.cemetery.length, fusedCount: player.fusedCards?.length ?? 0,
       hand: player.hand.map(cardView), board: player.board.map(unitView), crests: player.crests.map(crest => Number.isFinite(crest.countdown) ? `${crest.name} (${crest.countdown})` : crest.name)
     })),

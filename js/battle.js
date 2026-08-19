@@ -2,6 +2,7 @@ import { loadData } from "./data-loader.js";
 import { state } from "./state.js";
 import { loadWorkspace, applyWorkspace } from "./storage.js";
 import { simulateBattle, analyzeDeckCoverage } from "./battle-engine.js";
+import { resolveDeckClass } from "./battle-class-mechanics.js";
 
 const els = {
   yourDeck: document.getElementById("battle-your-deck"),
@@ -114,11 +115,21 @@ function refreshSetup() {
     coverageCard(opponent?.name ?? "Opponent", opponentCoverage)
   ].join("");
 
-  const ready = playerCount === 40 && opponentCount === 40;
-  els.start.disabled = !ready;
-  els.status.dataset.type = ready ? "info" : "warn";
+  let classError = "";
+  try {
+    resolveDeckClass(player.deck, state.cardMap, player.class);
+    resolveDeckClass(opponentDeck, state.cardMap, opponent?.class);
+  } catch (error) {
+    classError = error.message;
+  }
 
-  if (playerCount !== 40) {
+  const ready = playerCount === 40 && opponentCount === 40 && !classError;
+  els.start.disabled = !ready;
+  els.status.dataset.type = classError ? "error" : ready ? "info" : "warn";
+
+  if (classError) {
+    els.status.textContent = classError;
+  } else if (playerCount !== 40) {
     els.status.textContent = `Your Main Deck needs 40 cards for a normal simulation. Current: ${playerCount}/40.`;
   } else if (opponentCount !== 40) {
     els.status.textContent = "The local reference deck is waiting for its official card-ID resolution workflow.";
@@ -147,6 +158,8 @@ function runSimulation() {
     cardMap: state.cardMap,
     playerStrategy: strategy,
     opponentStrategy: opponent.strategy ?? {},
+    playerClass: player.class,
+    opponentClass: opponent.class,
     seed: els.seed.value || makeSeed(),
     playerSide: els.side.value
   });
@@ -262,14 +275,14 @@ function renderPlayer(player, opponent, active) {
     <div class="battle-leader-row ${active ? "active" : ""}">
       <div>
         <strong>${escapeHtml(player.name)}</strong>
-        <span>${opponent ? "Opponent" : "Your deck"} · turn ${player.personalTurn}</span>
+        <span>${opponent ? "Opponent" : "Your deck"}${player.className ? ` · ${escapeHtml(player.className)}` : ""} · turn ${player.personalTurn}</span>
       </div>
       <div class="battle-leader-stats">
         <span class="battle-hp">♥ ${player.hp}/${player.maxHp}</span>
         <span>PP ${player.pp}/${player.maxPp}</span>
         <span>Evo ${player.ep}</span>
         <span>Super Evo ${player.sep}</span>
-        <span>Shadows ${player.shadows ?? 0}</span>
+        ${(player.classMechanics ?? []).map(mechanic => `<span class="battle-class-mechanic" data-mechanic="${escapeAttr(mechanic.key)}">${escapeHtml(mechanic.label)} ${escapeHtml(mechanic.value)}</span>`).join("")}
         ${player.bonusPpAvailable ? "<span>+PP ready</span>" : ""}
       </div>
     </div>

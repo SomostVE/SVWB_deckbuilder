@@ -201,6 +201,7 @@ function parseSide(area) {
     ep: number(/\b(?:Evo|EP)\s*(\d+)/i),
     sep: number(/\b(?:Super Evo|SEP)\s*(\d+)/i),
     shadows: number(/\bShadows\s*(\d+)/i),
+    classMechanics: [...area.querySelectorAll(".battle-class-mechanic")].map(item => String(item.textContent || "").trim()).filter(Boolean),
     handCount: number(/\bHand\s*(\d+)\/9/i),
     deckCount: number(/\bDeck\s*(\d+)/i),
     cemeteryCount: number(/\bCemetery\s*(\d+)/i),
@@ -249,6 +250,7 @@ function renderSideChanges(label, before, after) {
   addChange(rows, "Evo", before.ep, after.ep);
   addChange(rows, "Super Evo", before.sep, after.sep);
   addChange(rows, "Shadows", before.shadows, after.shadows);
+  addChange(rows, "Class mechanic", (before.classMechanics ?? []).join(" · "), (after.classMechanics ?? []).join(" · "));
   addChange(rows, "Hand", before.handCount, after.handCount);
   addChange(rows, "Deck", before.deckCount, after.deckCount);
   addChange(rows, "Cemetery", before.cemeteryCount, after.cemeteryCount);
