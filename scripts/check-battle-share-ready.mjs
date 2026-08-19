@@ -15,12 +15,13 @@ const replay = read("js/battle-replay-inspector.js");
 const workflow = read(".github/workflows/validate-site.yml");
 const readme = read("README.md");
 
-assert.equal(version, "01.05.000", "Share-ready Battle Sim release must be 01.05.000");
+assert.equal(version, "01.05.001", "Share-ready Battle Sim mechanics fix must be 01.05.001");
 assert.match(engineEntry, /battle-engine-v5\.js/, "Public Battle Sim engine must point to v5");
 
 for (const script of [
   "scripts/check-battle-class-contracts.mjs",
   "scripts/check-battle-class-mechanics.mjs",
+  "scripts/check-battle-official-mechanics.mjs",
   "scripts/check-battle-coverage-100.mjs",
   "scripts/audit-battle-final.mjs",
   "scripts/audit-battle-high-risk-runtime.mjs",
@@ -72,6 +73,7 @@ assert.match(benchmarkWorker, /opponentClass:\s*payload\.opponentClass/, "Benchm
 
 for (const step of [
   "Run Battle Sim exclusive class contracts",
+  "Run official Battle mechanics regression",
   "Run strict all-card Battle Sim audit",
   "Run Battle Sim high-risk runtime gate",
   "Run Battle Sim benchmark calibration",
@@ -92,7 +94,11 @@ for (const temporary of [
   "scripts/apply-class-rule-hardening.mjs",
   ".class-rule-hardening-trigger",
   ".github/workflows/materialize-fediel-cleanup.yml",
-  "scripts/fix-fediel-class-gate-dup.mjs"
+  "scripts/fix-fediel-class-gate-dup.mjs",
+  ".github/workflows/materialize-battle-official-mechanics-audit.yml",
+  "scripts/apply-battle-official-mechanics-audit.mjs",
+  ".github/workflows/materialize-battle-official-mechanics-cleanup.yml",
+  "scripts/cleanup-battle-official-mechanics-audit.mjs"
 ]) assert.equal(exists(temporary), false, `Temporary release materializer must not ship: ${temporary}`);
 
-console.log("Battle Sim share-ready gate: OK · class contracts + bespoke rules + replay + benchmark + publication checks locked");
+console.log("Battle Sim share-ready gate: OK · class contracts + official mechanics + replay + benchmark + publication checks locked");
