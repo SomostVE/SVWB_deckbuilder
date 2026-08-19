@@ -119,7 +119,6 @@ const gapResult = simulateBattle({
 });
 assert.ok(gapResult.summary.stats.unsupportedEffects[0] > 0, "Playing Partial cards must increment the benchmark rule-gap exposure counter");
 
-
 const altModeTester = {
   id: 40,
   name: "Alternative Mode Tester",
@@ -175,3 +174,4 @@ assert.ok(baneAttackFrame, "Bane regression must produce combat into Ward");
 assert.equal(baneAttackFrame.players[1].board.some(unit => unit.name === "Bane Ward Tester"), false, "Bane must destroy after combat even when actual combat damage is 0");
 
 console.log("Battle Sim exact-rule regressions: OK");
+await import("./check-battle-fanfare-audit.mjs");
