@@ -4325,10 +4325,10 @@ function havencraftCrestLastWords(crest, player, opponent, playerIndex, enemyInd
   return false;
 }
 
-function applyHavencraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map) {
+function applyHavencraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map, onlyCrest = null) {
   const actions = [];
   const ctx = { player, opponent, playerIndex, enemyIndex, stats, rng, cardMap: map };
-  for (const crest of player.crests ?? []) {
+  for (const crest of onlyCrest ? [onlyCrest] : [...(player.crests ?? [])]) {
     const name = norm(crest.name);
     if (name === "devotee of repose" && !player.followersAttackedThisTurn) {
       const candidates = player.board.filter(unit => unit.type === "Follower");
@@ -4584,8 +4584,9 @@ function applyNeutralMarkedEndTurnBanish(player) {
   return actions;
 }
 
-function applyNeutralCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map) {
+function applyNeutralCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map, onlyCrest = null) {
   const actions = [];
+  if (onlyCrest && norm(onlyCrest.name) !== "mjerrabaine, great manifest") return actions;
   if (!hasCrest(player, "Mjerrabaine, Great Manifest")) return actions;
   const kept = [];
   const discarded = [];
@@ -4834,9 +4835,11 @@ function applyPortalcraftSlausMode(owner, opponent, ownerIndex, enemyIndex, stat
   }
 }
 
-function applyPortalcraftPreTickCrestTurnStart(player, opponent, playerIndex, enemyIndex, stats, rng, map) {
+function applyPortalcraftPreTickCrestTurnStart(player, opponent, playerIndex, enemyIndex, stats, rng, map, onlyCrest = null) {
   const actions = [];
-  const crest = (player.crests ?? []).find(item => norm(item.name) === "slaus, revolving wheel of fortune");
+  const crest = onlyCrest
+    ? (norm(onlyCrest.name) === "slaus, revolving wheel of fortune" ? onlyCrest : null)
+    : (player.crests ?? []).find(item => norm(item.name) === "slaus, revolving wheel of fortune");
   if (!crest || (Number(crest.gainedTurn) || 0) >= player.personalTurn) return actions;
   const mode = chooseUnusedPortalMode(crest, "portalSlausUsedModes", rng);
   if (mode == null) return actions;
@@ -4844,8 +4847,9 @@ function applyPortalcraftPreTickCrestTurnStart(player, opponent, playerIndex, en
   return uniq(actions);
 }
 
-function applyPortalcraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map) {
+function applyPortalcraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map, onlyCrest = null) {
   const actions = [];
+  if (onlyCrest && norm(onlyCrest.name) !== "eudie, maiden reborn") return actions;
   if (!hasCrest(player, "Eudie, Maiden Reborn")) return actions;
   if ((player.hand?.length ?? 0) <= 5) {
     const drawn = drawCards(player, 1, stats, playerIndex);
@@ -5022,8 +5026,9 @@ function applyAbysscraftFollowerDestroyedEvents(owner, opponent, ownerIndex, opp
   return actions;
 }
 
-function applyAbysscraftCrestTurnStart(player, opponent, playerIndex, enemyIndex, stats, rng, map) {
+function applyAbysscraftCrestTurnStart(player, opponent, playerIndex, enemyIndex, stats, rng, map, onlyCrest = null) {
   const actions = [];
+  if (onlyCrest && norm(onlyCrest.name) !== "charon, stygian oarswoman") return actions;
   if (!hasCrest(player, "Charon, Stygian Oarswoman")) return actions;
   const unit = reanimate(player, 3, playerIndex, map, rng);
   if (!unit) return actions;
@@ -5042,10 +5047,10 @@ function handHasFourSameCost(player) {
   return false;
 }
 
-function applyAbysscraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map) {
+function applyAbysscraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map, onlyCrest = null) {
   const actions = [];
   const ctx = { player, opponent, playerIndex, enemyIndex, stats, rng, cardMap: map };
-  for (const crest of player.crests ?? []) {
+  for (const crest of onlyCrest ? [onlyCrest] : [...(player.crests ?? [])]) {
     const name = norm(crest.name);
     if (name === "rigor of the nightblossom") {
       const drawn = drawCards(player, 1, stats, playerIndex);
@@ -5390,10 +5395,10 @@ function applyDragoncraftFollowerTurnEnd(ctx, unit) {
   return [`Mari, Meg's Bestie: +1/+1 ${target.name}`];
 }
 
-function applyDragoncraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map) {
+function applyDragoncraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map, onlyCrest = null) {
   const actions = [];
   const ctx = { player, opponent, playerIndex, enemyIndex, stats, rng, cardMap: map };
-  for (const crest of player.crests ?? []) {
+  for (const crest of onlyCrest ? [onlyCrest] : [...(player.crests ?? [])]) {
     const name = norm(crest.name);
     if (name === "crescent tube ride") {
       const candidates = player.board.filter(unit => unit.type === "Follower");
@@ -5628,9 +5633,9 @@ function forestcraftCrestLastWords(crest, player, opponent, playerIndex, enemyIn
   return false;
 }
 
-function applyForestCrestTurnStart(player, opponent, playerIndex, enemyIndex, stats, rng, map) {
+function applyForestCrestTurnStart(player, opponent, playerIndex, enemyIndex, stats, rng, map, onlyCrest = null) {
   const actions = [];
-  if (hasCrest(player, "Titania, Queen of Fairies")) {
+  if ((!onlyCrest || norm(onlyCrest.name) === "titania, queen of fairies") && hasCrest(player, "Titania, Queen of Fairies")) {
     const fairy = findByName(map, "Fairy");
     const added = fairy ? addHand(player, fairy, 1, playerIndex, stats) : 0;
     if (added) stats.cardsGenerated[playerIndex] += added;
@@ -5639,10 +5644,10 @@ function applyForestCrestTurnStart(player, opponent, playerIndex, enemyIndex, st
   return actions;
 }
 
-function applyForestCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map) {
+function applyForestCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map, onlyCrest = null) {
   const actions = [];
   const combo = Math.max(0, Number(player.cardsPlayedThisTurn) || 0);
-  for (const crest of player.crests ?? []) {
+  for (const crest of onlyCrest ? [onlyCrest] : [...(player.crests ?? [])]) {
     const name = norm(crest.name);
     if (name === "thestae, anathema of distortion" && combo >= 3) {
       let count = 0;
@@ -5924,9 +5929,9 @@ function applySwordcraftLootCrestEvent(player, opponent, playerIndex, enemyIndex
   return true;
 }
 
-function applySwordcraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map) {
+function applySwordcraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map, onlyCrest = null) {
   const actions = [];
-  for (const crest of player.crests ?? []) {
+  for (const crest of onlyCrest ? [onlyCrest] : [...(player.crests ?? [])]) {
     if (norm(crest.name) !== "unkei, goldbloom") continue;
     const token = findByName(map, "Glittering Gold") ?? related(crest.card, map).find(card => norm(card.name) === "glittering gold");
     const added = token ? addHand(player, token, 1, playerIndex, stats) : 0;
@@ -6130,9 +6135,9 @@ function applyRunecraftAttackDeclaration(player, attacker, actions) {
   actions.push(`Shymm Crest: ${attacker.name} +1/+0`);
 }
 
-function applyRunecraftCrestTurnStart(player, opponent, playerIndex, enemyIndex, stats, rng, map) {
+function applyRunecraftCrestTurnStart(player, opponent, playerIndex, enemyIndex, stats, rng, map, onlyCrest = null) {
   const actions = [];
-  for (const crest of [...(player.crests ?? [])]) {
+  for (const crest of onlyCrest ? [onlyCrest] : [...(player.crests ?? [])]) {
     const name = norm(crest.name);
     if (name === "elmott, remembrance aflame") {
       const dealt = damageLeader(opponent, 1);
@@ -6159,9 +6164,9 @@ function applyRunecraftCrestTurnStart(player, opponent, playerIndex, enemyIndex,
   return uniq(actions);
 }
 
-function applyRunecraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map) {
+function applyRunecraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map, onlyCrest = null) {
   const actions = [];
-  for (const crest of [...(player.crests ?? [])]) {
+  for (const crest of onlyCrest ? [onlyCrest] : [...(player.crests ?? [])]) {
     const name = norm(crest.name);
     if (name === "pascale's dance") {
       const drawn = drawCards(player, 1, stats, playerIndex);
@@ -8826,6 +8831,26 @@ function afterLeaderHeal(player, healed, stats, playerIndex) {
   return actions;
 }
 
+function applyCrestTurnStartOrdered(player, opponent, playerIndex, enemyIndex, stats, rng, map) {
+  const actions = [];
+  for (const crest of [...(player.crests ?? [])]) {
+    const name = norm(crest.name);
+    actions.push(...applyPortalcraftPreTickCrestTurnStart(player, opponent, playerIndex, enemyIndex, stats, rng, map, crest));
+    actions.push(...applyAbysscraftCrestTurnStart(player, opponent, playerIndex, enemyIndex, stats, rng, map, crest));
+    actions.push(...applyForestCrestTurnStart(player, opponent, playerIndex, enemyIndex, stats, rng, map, crest));
+    actions.push(...applyRunecraftCrestTurnStart(player, opponent, playerIndex, enemyIndex, stats, rng, map, crest));
+    if (name === "burnite, anathema of ash") {
+      player.hp -= 2;
+      actions.push("Burnite Ash Crest: 2 damage to your leader");
+    }
+    if (name === "burnite, anathema of flame") {
+      player.hp -= 1;
+      actions.push("Burnite Flame Crest: 1 damage to your leader");
+    }
+  }
+  return actions;
+}
+
 function turnStart(player, opponent, playerIndex, enemyIndex, stats, rng, map) {
   const actions = [];
   bindHavencraftRuntime(player, opponent, playerIndex, enemyIndex, stats, rng, map);
@@ -8833,26 +8858,9 @@ function turnStart(player, opponent, playerIndex, enemyIndex, stats, rng, map) {
   // [[battle-swordcraft-yurius-turn-lock]]
   applySwordcraftTurnStartLocks(player);
 
-  // Slaus's opponent Crest has a start-of-turn ability at the same timing as
-  // Countdown. Resolve the ability before ticking so all three Countdown turns
-  // receive one of the three unique effects, including the expiring turn.
-  actions.push(...applyPortalcraftPreTickCrestTurnStart(player, opponent, playerIndex, enemyIndex, stats, rng, map));
+  // [[battle-crest-ordered-turn-start]]
+  actions.push(...applyCrestTurnStartOrdered(player, opponent, playerIndex, enemyIndex, stats, rng, map));
   tickCrests(player, opponent, playerIndex, enemyIndex, stats, rng, map, actions);
-  // [[battle-abysscraft-crest-turn-start]]
-  actions.push(...applyAbysscraftCrestTurnStart(player, opponent, playerIndex, enemyIndex, stats, rng, map));
-  // [[battle-forestcraft-crest-turn-start]]
-  actions.push(...applyForestCrestTurnStart(player, opponent, playerIndex, enemyIndex, stats, rng, map));
-  // [[battle-runecraft-crest-turn-start]]
-  actions.push(...applyRunecraftCrestTurnStart(player, opponent, playerIndex, enemyIndex, stats, rng, map));
-  if (hasCrest(player, "Burnite, Anathema of Ash")) {
-    player.hp -= 2;
-    actions.push("Burnite Ash Crest: 2 damage to your leader");
-  }
-  // [[battle-dragoncraft-burnite-flame-start]]
-  if (hasCrest(player, "Burnite, Anathema of Flame")) {
-    player.hp -= 1;
-    actions.push("Burnite Flame Crest: 1 damage to your leader");
-  }
 
   for (const amulet of [...player.board].filter(unit => unit.type === "Amulet" && Number.isFinite(unit.countdown))) {
     amulet.countdown -= 1;
@@ -8974,23 +8982,16 @@ function turnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map) {
 
 function applyCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map) {
   const actions = [];
-  // [[battle-forestcraft-crest-turn-end]]
-  actions.push(...applyForestCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map));
-  // [[battle-swordcraft-crest-turn-end]]
-  actions.push(...applySwordcraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map));
-  // [[battle-runecraft-crest-turn-end]]
-  actions.push(...applyRunecraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map));
-  // [[battle-dragoncraft-crest-turn-end]]
-  actions.push(...applyDragoncraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map));
-  // [[battle-abysscraft-crest-turn-end]]
-  actions.push(...applyAbysscraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map));
-  // [[battle-portalcraft-crest-turn-end]]
-  actions.push(...applyPortalcraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map));
-  // [[battle-neutral-crest-turn-end]]
-  actions.push(...applyNeutralCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map));
-  // [[battle-havencraft-final-crest-turn-end]]
-  actions.push(...applyHavencraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map));
-  for (const crest of player.crests ?? []) {
+  // [[battle-crest-lifecycle-order-v1]]
+  for (const crest of [...(player.crests ?? [])]) {
+    actions.push(...applyForestCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map, crest));
+    actions.push(...applySwordcraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map, crest));
+    actions.push(...applyRunecraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map, crest));
+    actions.push(...applyDragoncraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map, crest));
+    actions.push(...applyAbysscraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map, crest));
+    actions.push(...applyPortalcraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map, crest));
+    actions.push(...applyNeutralCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map, crest));
+    actions.push(...applyHavencraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map, crest));
     const name = norm(crest.name);
     if (name === "grimnir, heavenly gale" && player.board.some(unit => unit.type === "Follower" && unit.superEvolved)) {
       const targets = opponent.board.filter(unit => unit.type === "Follower");
