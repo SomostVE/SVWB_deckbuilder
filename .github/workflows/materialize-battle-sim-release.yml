@@ -23,7 +23,9 @@ jobs:
         with:
           node-version: "24"
       - name: Apply Battle Sim release changes
-        run: node scripts/apply-battle-sim-release.mjs
+        run: |
+          node scripts/apply-battle-sim-release.mjs
+          node scripts/apply-battle-benchmark-class.mjs
       - name: Commit materialized changes
         run: |
           if git diff --quiet; then
@@ -32,6 +34,6 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add js/battle-engine-v5.js js/battle-rules-core.js js/battle.js js/battle-replay-inspector.js
-          git commit -m "feat: enforce class mechanics in Battle Sim runtime"
+          git add js/battle-engine-v5.js js/battle-rules-core.js js/battle.js js/battle-replay-inspector.js js/battle-benchmark-fast.js js/battle-benchmark-fast-worker.js
+          git commit -m "feat: enforce class mechanics across Battle Sim"
           git push origin HEAD:release/battle-sim-finish-01.05.000
