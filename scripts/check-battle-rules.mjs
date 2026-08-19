@@ -91,9 +91,13 @@ const shadowResult = simulateBattle({
   playerSide: "first"
 });
 const firstSpellFrame = shadowResult.frames.find(frame => frame.active === 0 && frame.phase === "play" && /Overflowing Draw Tester/.test(frame.action));
-assert.ok(firstSpellFrame, "Shadow regression must produce a spell-play frame");
-assert.ok(firstSpellFrame.stats.cardsBurned[0] > 0, "The draw test must burn cards from a full hand");
-assert.equal(firstSpellFrame.players[0].shadows, 1, "Playing a spell adds one Shadow; burned cards add none");
+assert.ok(firstSpellFrame, "Cemetery regression must produce a spell-play frame");
+assert.ok(firstSpellFrame.stats.cardsBurned[0] > 0, "The draw test must send excess draws to the cemetery");
+assert.equal(
+  firstSpellFrame.players[0].shadows,
+  1 + firstSpellFrame.stats.cardsBurned[0],
+  "Playing a spell and every excess draw sent to the cemetery must each increase the current cemetery value"
+);
 
 const partialFollower = {
   id: 30,
