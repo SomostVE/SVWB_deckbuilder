@@ -1,0 +1,28 @@
+name: Materialize Ginger QA fix
+
+on:
+  push:
+    branches: [fix/class-mechanic-boundaries-01.04.003]
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: fix/class-mechanic-boundaries-01.04.003
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - run: node scripts/fix-ginger-spellboost-qa.mjs
+      - name: Commit materialized engine QA
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/battle-engine-v5.js
+          git commit -m "test: use On Spellboost recipient for Ginger QA"
+          git push origin HEAD:fix/class-mechanic-boundaries-01.04.003
