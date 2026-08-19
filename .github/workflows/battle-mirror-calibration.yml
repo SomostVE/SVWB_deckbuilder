@@ -1,11 +1,6 @@
 name: Battle Sim mirror calibration
 
 on:
-  push:
-    paths:
-      - "scripts/benchmark-reference-mirrors.mjs"
-      - "scripts/audit-battle-side-logic.mjs"
-      - ".github/workflows/battle-mirror-calibration.yml"
   workflow_dispatch:
 
 jobs:
