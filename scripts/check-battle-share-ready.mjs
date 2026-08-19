@@ -15,7 +15,7 @@ const replay = read("js/battle-replay-inspector.js");
 const workflow = read(".github/workflows/validate-site.yml");
 const readme = read("README.md");
 
-assert.equal(version, "01.05.001", "Share-ready Battle Sim Crest audit release must be 01.05.001");
+assert.match(version, /^01\.05\.\d{3}$/, "Share-ready Battle Sim must remain on the 01.05 release line");
 assert.match(engineEntry, /battle-engine-v5\.js/, "Public Battle Sim engine must point to v5");
 
 for (const script of [

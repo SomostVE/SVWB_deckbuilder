@@ -79,6 +79,7 @@ h1, h2, h3, p { margin-top: 0; }
   padding: .55rem .8rem;
   background: var(--panel-2);
   color: var(--text);
+  text-decoration: none;
 }
 .button:hover { border-color: var(--accent); }
 .button-danger { border-color: #6f3434; }
