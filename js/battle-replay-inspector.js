@@ -1,4 +1,4 @@
-import "./tool-page-nav.js?v=01.03.000";
+import "./tool-page-nav.js?v=01.03.002";
 
 const replay = document.getElementById("battle-replay");
 const timeline = document.getElementById("battle-timeline");
@@ -8,7 +8,7 @@ const playerArea = document.getElementById("battle-player-area");
 const opponentArea = document.getElementById("battle-opponent-area");
 
 if (replay && timeline && actionRoot && playerArea && opponentArea) {
-  ensureStylesheet("./css/battle-replay-inspector.css?v=01.03.000", "battle-replay-inspector.css");
+  ensureStylesheet("./css/battle-replay-inspector.css?v=01.03.002", "battle-replay-inspector.css");
   setupReplayInspector();
 }
 
@@ -198,8 +198,8 @@ function parseSide(area) {
     maxHp: number(/♥\s*(\d+)\/(\d+)/i, 2),
     pp: number(/\bPP\s*(\d+)\/(\d+)/i),
     maxPp: number(/\bPP\s*(\d+)\/(\d+)/i, 2),
-    ep: number(/\bEP\s*(\d+)/i),
-    sep: number(/\bSEP\s*(\d+)/i),
+    ep: number(/\b(?:Evo|EP)\s*(\d+)/i),
+    sep: number(/\b(?:Super Evo|SEP)\s*(\d+)/i),
     shadows: number(/\bShadows\s*(\d+)/i),
     handCount: number(/\bHand\s*(\d+)\/9/i),
     deckCount: number(/\bDeck\s*(\d+)/i),
@@ -246,8 +246,8 @@ function renderSideChanges(label, before, after) {
   const rows = [];
   addChange(rows, "HP", before.hp, after.hp);
   addChange(rows, "PP", fraction(before.pp, before.maxPp), fraction(after.pp, after.maxPp));
-  addChange(rows, "EP", before.ep, after.ep);
-  addChange(rows, "SEP", before.sep, after.sep);
+  addChange(rows, "Evo", before.ep, after.ep);
+  addChange(rows, "Super Evo", before.sep, after.sep);
   addChange(rows, "Shadows", before.shadows, after.shadows);
   addChange(rows, "Hand", before.handCount, after.handCount);
   addChange(rows, "Deck", before.deckCount, after.deckCount);
@@ -300,7 +300,7 @@ function renderState(frame) {
 function renderSideState(side) {
   const resources = [
     ["HP", fraction(side.hp, side.maxHp)], ["PP", fraction(side.pp, side.maxPp)],
-    ["EP", side.ep], ["SEP", side.sep], ["Shadows", side.shadows],
+    ["Evo", side.ep], ["Super Evo", side.sep], ["Shadows", side.shadows],
     ["Hand", side.handCount], ["Deck", side.deckCount], ["Cemetery", side.cemeteryCount], ["Field", side.boardCount]
   ];
   const hand = side.hand.length ? side.hand.map(card => `${card.name}${card.cost ? ` (${card.cost})` : ""}${card.detail ? ` · ${card.detail}` : ""}`).map(escapeHtml).join("<br>") : "Empty";

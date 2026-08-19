@@ -15,7 +15,7 @@ const mobileNavCss = read("css/mobile-nav.css");
 const collectionUi = read("js/collection-ui.js");
 const decisionSummary = read("js/battle-decision-summary.js");
 
-assert.equal(version, "01.03.001", "Replay Inspector readability patch must use version 01.03.001");
+assert.equal(version, "01.03.002", "Replay Inspector readability patch must use version 01.03.002");
 
 for (const tab of ["action", "changes", "decision", "state"]) {
   assert.match(inspector, new RegExp(`data-inspector-tab=\\"${tab}\\"`), `Missing Replay Inspector ${tab} tab`);

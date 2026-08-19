@@ -101,7 +101,7 @@ if (shell) {
 }
 
 function ensureMobileStyles() {
-  for (const href of ["./css/mobile.css", "./css/mobile-menu.css", "./css/mobile-nav.css?v=01.03.000"]) {
+  for (const href of ["./css/mobile.css", "./css/mobile-menu.css", "./css/mobile-nav.css?v=01.03.002"]) {
     const name = href.split("/").pop().split("?")[0];
     if (document.querySelector(`link[href*="${name}"]`)) continue;
     const link = document.createElement("link");
