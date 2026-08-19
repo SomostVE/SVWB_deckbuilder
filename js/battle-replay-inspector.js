@@ -23,12 +23,8 @@ function setupReplayInspector() {
   filters.className = "battle-timeline-filters";
   filters.setAttribute("aria-label", "Replay timeline filters");
   filters.innerHTML = [
-    ["all", "All"],
-    ["play", "Play"],
-    ["attack", "Attack"],
-    ["evolve", "Evolve"],
-    ["turn", "Turn"],
-    ["draw", "Draw"]
+    ["all", "All"], ["play", "Play"], ["attack", "Attack"],
+    ["evolve", "Evolve"], ["turn", "Turn"], ["draw", "Draw"]
   ].map(([key, label], index) => `<button type="button" data-replay-filter="${key}" class="${index === 0 ? "active" : ""}">${label}</button>`).join("");
   timeline.insertAdjacentElement("beforebegin", filters);
 
@@ -36,10 +32,7 @@ function setupReplayInspector() {
   inspector.className = "battle-inspector";
   inspector.innerHTML = `
     <div class="battle-inspector-head">
-      <div>
-        <strong>Replay Inspector</strong>
-        <span id="battle-inspector-frame"></span>
-      </div>
+      <div><strong>Replay Inspector</strong><span id="battle-inspector-frame"></span></div>
       <button id="battle-inspector-toggle" type="button" aria-expanded="true">Hide</button>
     </div>
     <div id="battle-inspector-body" class="battle-inspector-body">
@@ -68,17 +61,15 @@ function setupReplayInspector() {
     applyTimelineFilter();
   });
 
-  tabButtons.forEach(button => {
-    button.addEventListener("click", () => {
-      activeTab = button.dataset.inspectorTab || "action";
-      tabButtons.forEach(item => {
-        const selected = item === button;
-        item.classList.toggle("active", selected);
-        item.setAttribute("aria-selected", selected ? "true" : "false");
-      });
-      refreshInspector();
+  tabButtons.forEach(button => button.addEventListener("click", () => {
+    activeTab = button.dataset.inspectorTab || "action";
+    tabButtons.forEach(item => {
+      const selected = item === button;
+      item.classList.toggle("active", selected);
+      item.setAttribute("aria-selected", selected ? "true" : "false");
     });
-  });
+    refreshInspector();
+  }));
 
   inspectorToggle.addEventListener("click", () => {
     const open = inspectorToggle.getAttribute("aria-expanded") !== "true";
@@ -87,16 +78,26 @@ function setupReplayInspector() {
     inspectorBody.hidden = !open;
   });
 
-  const timelineObserver = new MutationObserver(() => {
-    if (sampling) return;
-    scheduleRefresh(timeline.querySelectorAll("[data-frame]").length !== cache.size);
-  });
-  timelineObserver.observe(timeline, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
+  // Replacing the timeline means a new simulation: discard snapshots.
+  new MutationObserver(() => scheduleRefresh(true)).observe(timeline, { childList: true });
 
-  const actionObserver = new MutationObserver(() => {
-    if (!sampling) scheduleRefresh(false);
+  // Changing only the active timeline button must never clear the cache. This is
+  // important because the Inspector briefly samples the previous frame itself.
+  new MutationObserver(() => scheduleRefresh(false)).observe(timeline, {
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["class"]
   });
-  actionObserver.observe(actionRoot, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["title"] });
+
+  new MutationObserver(() => {
+    if (!sampling) scheduleRefresh(false);
+  }).observe(actionRoot, {
+    childList: true,
+    subtree: true,
+    characterData: true,
+    attributes: true,
+    attributeFilter: ["title"]
+  });
 
   scheduleRefresh(true);
 
@@ -110,8 +111,7 @@ function setupReplayInspector() {
   }
 
   function applyTimelineFilter() {
-    const buttons = [...timeline.querySelectorAll("[data-frame]")];
-    for (const button of buttons) {
+    for (const button of timeline.querySelectorAll("[data-frame]")) {
       const label = String(button.textContent || "").toLowerCase();
       let visible = true;
       if (timelineFilter === "play") visible = label.includes("play");
@@ -135,19 +135,18 @@ function setupReplayInspector() {
     const index = Number(activeButton.dataset.frame);
     if (!Number.isFinite(index)) return;
 
-    const current = captureRenderedFrame(index, false);
-    cache.set(index, current);
-
+    cache.set(index, captureRenderedFrame(index, false));
     if (index > 0 && !cache.has(index - 1)) sampleFrame(index - 1, index);
+
+    const current = cache.get(index);
     const previous = index > 0 ? cache.get(index - 1) : null;
-    const stableCurrent = cache.get(index) || current;
+    if (!current) return;
 
-    inspectorFrame.textContent = `${stableCurrent.label}${frameLabel?.textContent ? ` · ${frameLabel.textContent}` : ""}`;
-
-    if (activeTab === "changes") inspectorContent.innerHTML = renderChanges(previous, stableCurrent);
-    else if (activeTab === "decision") inspectorContent.innerHTML = renderDecision(previous, stableCurrent);
-    else if (activeTab === "state") inspectorContent.innerHTML = renderState(stableCurrent);
-    else inspectorContent.innerHTML = renderAction(stableCurrent);
+    inspectorFrame.textContent = `${current.label}${frameLabel?.textContent ? ` · ${frameLabel.textContent}` : ""}`;
+    if (activeTab === "changes") inspectorContent.innerHTML = renderChanges(previous, current);
+    else if (activeTab === "decision") inspectorContent.innerHTML = renderDecision(previous, current);
+    else if (activeTab === "state") inspectorContent.innerHTML = renderState(current);
+    else inspectorContent.innerHTML = renderAction(current);
   }
 
   function sampleFrame(targetIndex, restoreIndex) {
@@ -156,9 +155,10 @@ function setupReplayInspector() {
     if (!target || !restore) return;
 
     sampling = true;
-    const touched = [target, restore];
-    const originalScroll = touched.map(button => button.scrollIntoView);
-    touched.forEach(button => { button.scrollIntoView = () => {}; });
+    const targetScroll = target.scrollIntoView;
+    const restoreScroll = restore.scrollIntoView;
+    target.scrollIntoView = () => {};
+    restore.scrollIntoView = () => {};
 
     try {
       target.click();
@@ -166,7 +166,8 @@ function setupReplayInspector() {
       restore.click();
       cache.set(restoreIndex, captureRenderedFrame(restoreIndex, true));
     } finally {
-      touched.forEach((button, i) => { button.scrollIntoView = originalScroll[i]; });
+      target.scrollIntoView = targetScroll;
+      restore.scrollIntoView = restoreScroll;
       sampling = false;
     }
   }
@@ -177,7 +178,6 @@ function captureRenderedFrame(index, rawMode) {
   const rawAction = rawMode
     ? String(actionRoot.textContent || "").trim()
     : String(actionRoot.title || actionRoot.textContent || "").trim();
-
   return {
     index,
     label: String(activeButton?.textContent || `Frame ${index + 1}`).trim(),
@@ -190,33 +190,21 @@ function captureRenderedFrame(index, rawMode) {
 
 function parseSide(area) {
   const text = String(area.textContent || "").replace(/\s+/g, " ").trim();
-  const name = area.querySelector(".battle-leader-row strong")?.textContent?.trim() || "Player";
-  const subtitle = area.querySelector(".battle-leader-row > div:first-child span")?.textContent?.trim() || "";
-  const hp = text.match(/♥\s*(\d+)\/(\d+)/i);
-  const pp = text.match(/\bPP\s*(\d+)\/(\d+)/i);
-  const ep = text.match(/\bEP\s*(\d+)/i);
-  const sep = text.match(/\bSEP\s*(\d+)/i);
-  const shadows = text.match(/\bShadows\s*(\d+)/i);
-  const hand = text.match(/\bHand\s*(\d+)\/9/i);
-  const deck = text.match(/\bDeck\s*(\d+)/i);
-  const cemetery = text.match(/\bCemetery\s*(\d+)/i);
-  const field = text.match(/\bField\s*(\d+)\/5/i);
-
+  const number = (pattern, group = 1) => numberOrNull(text.match(pattern)?.[group]);
   return {
-    name,
-    subtitle,
-    hp: numberOrNull(hp?.[1]),
-    maxHp: numberOrNull(hp?.[2]),
-    pp: numberOrNull(pp?.[1]),
-    maxPp: numberOrNull(pp?.[2]),
-    ep: numberOrNull(ep?.[1]),
-    sep: numberOrNull(sep?.[1]),
-    shadows: numberOrNull(shadows?.[1]),
-    handCount: numberOrNull(hand?.[1]),
-    deckCount: numberOrNull(deck?.[1]),
-    cemeteryCount: numberOrNull(cemetery?.[1]),
-    boardCount: numberOrNull(field?.[1]),
-    bonusPp: /\+PP ready/i.test(text),
+    name: area.querySelector(".battle-leader-row strong")?.textContent?.trim() || "Player",
+    subtitle: area.querySelector(".battle-leader-row > div:first-child span")?.textContent?.trim() || "",
+    hp: number(/♥\s*(\d+)\/(\d+)/i),
+    maxHp: number(/♥\s*(\d+)\/(\d+)/i, 2),
+    pp: number(/\bPP\s*(\d+)\/(\d+)/i),
+    maxPp: number(/\bPP\s*(\d+)\/(\d+)/i, 2),
+    ep: number(/\bEP\s*(\d+)/i),
+    sep: number(/\bSEP\s*(\d+)/i),
+    shadows: number(/\bShadows\s*(\d+)/i),
+    handCount: number(/\bHand\s*(\d+)\/9/i),
+    deckCount: number(/\bDeck\s*(\d+)/i),
+    cemeteryCount: number(/\bCemetery\s*(\d+)/i),
+    boardCount: number(/\bField\s*(\d+)\/5/i),
     hand: [...area.querySelectorAll(".battle-hand-card")].map(card => ({
       name: card.getAttribute("title") || card.querySelector("strong")?.textContent?.trim() || "Card",
       cost: card.querySelector(".battle-card-cost")?.textContent?.trim() || "",
@@ -248,12 +236,7 @@ function renderAction(frame) {
 
 function renderChanges(previous, current) {
   if (!previous) return '<div class="battle-inspector-empty">Opening frame: there is no previous state to compare.</div>';
-
-  const sections = [
-    renderSideChanges("You", previous.player, current.player),
-    renderSideChanges("Opponent", previous.opponent, current.opponent)
-  ].filter(Boolean);
-
+  const sections = [renderSideChanges("You", previous.player, current.player), renderSideChanges("Opponent", previous.opponent, current.opponent)].filter(Boolean);
   return sections.length
     ? `<div class="battle-inspector-change-columns">${sections.join("")}</div>`
     : '<div class="battle-inspector-empty">No visible state change between these two replay frames.</div>';
@@ -261,53 +244,49 @@ function renderChanges(previous, current) {
 
 function renderSideChanges(label, before, after) {
   const rows = [];
-  addScalarChange(rows, "HP", before.hp, after.hp);
-  addFractionChange(rows, "PP", before.pp, before.maxPp, after.pp, after.maxPp);
-  addScalarChange(rows, "EP", before.ep, after.ep);
-  addScalarChange(rows, "SEP", before.sep, after.sep);
-  addScalarChange(rows, "Shadows", before.shadows, after.shadows);
-  addScalarChange(rows, "Hand", before.handCount, after.handCount);
-  addScalarChange(rows, "Deck", before.deckCount, after.deckCount);
-  addScalarChange(rows, "Cemetery", before.cemeteryCount, after.cemeteryCount);
-  addScalarChange(rows, "Field", before.boardCount, after.boardCount);
+  addChange(rows, "HP", before.hp, after.hp);
+  addChange(rows, "PP", fraction(before.pp, before.maxPp), fraction(after.pp, after.maxPp));
+  addChange(rows, "EP", before.ep, after.ep);
+  addChange(rows, "SEP", before.sep, after.sep);
+  addChange(rows, "Shadows", before.shadows, after.shadows);
+  addChange(rows, "Hand", before.handCount, after.handCount);
+  addChange(rows, "Deck", before.deckCount, after.deckCount);
+  addChange(rows, "Cemetery", before.cemeteryCount, after.cemeteryCount);
+  addChange(rows, "Field", before.boardCount, after.boardCount);
 
-  const handDiff = diffNames(before.hand, after.hand);
-  const boardDiff = diffNames(before.board, after.board);
-
-  if (handDiff.added.length) rows.push(`<div><span>Hand +</span><strong>${escapeHtml(handDiff.added.join(", "))}</strong></div>`);
-  if (handDiff.removed.length) rows.push(`<div><span>Hand −</span><strong>${escapeHtml(handDiff.removed.join(", "))}</strong></div>`);
-  if (boardDiff.added.length) rows.push(`<div><span>Field +</span><strong>${escapeHtml(boardDiff.added.join(", "))}</strong></div>`);
-  if (boardDiff.removed.length) rows.push(`<div><span>Field −</span><strong>${escapeHtml(boardDiff.removed.join(", "))}</strong></div>`);
-
-  if (!rows.length) return "";
-  return `<section class="battle-inspector-change-card"><h3>${label}</h3>${rows.join("")}</section>`;
+  const hand = diffNames(before.hand, after.hand);
+  const board = diffNames(before.board, after.board);
+  if (hand.added.length) rows.push(changeRow("Hand +", hand.added.join(", ")));
+  if (hand.removed.length) rows.push(changeRow("Hand −", hand.removed.join(", ")));
+  if (board.added.length) rows.push(changeRow("Field +", board.added.join(", ")));
+  if (board.removed.length) rows.push(changeRow("Field −", board.removed.join(", ")));
+  return rows.length ? `<section class="battle-inspector-change-card"><h3>${label}</h3>${rows.join("")}</section>` : "";
 }
 
 function renderDecision(previous, current) {
-  const actorIsOpponent = current.actor === "Opponent";
-  const actorNow = actorIsOpponent ? current.opponent : current.player;
-  const actorBefore = previous ? (actorIsOpponent ? previous.opponent : previous.player) : null;
-  const enemyNow = actorIsOpponent ? current.player : current.opponent;
-  const enemyBefore = previous ? (actorIsOpponent ? previous.player : previous.opponent) : null;
+  const opponentActor = current.actor === "Opponent";
+  const now = opponentActor ? current.opponent : current.player;
+  const before = previous ? (opponentActor ? previous.opponent : previous.player) : null;
+  const enemyNow = opponentActor ? current.player : current.opponent;
+  const enemyBefore = previous ? (opponentActor ? previous.player : previous.opponent) : null;
   const factors = [];
   const phase = current.label.toLowerCase();
 
-  if (!previous || !actorBefore || !enemyBefore) {
+  if (!before || !enemyBefore) {
     factors.push("Opening-state action; no earlier frame is available for contextual comparison.");
   } else {
-    if (actorBefore.pp != null && actorNow.pp != null && actorNow.pp < actorBefore.pp) factors.push(`Spent ${actorBefore.pp - actorNow.pp} PP while keeping the action legal.`);
-    if (enemyBefore.hp != null && enemyNow.hp != null && enemyNow.hp < enemyBefore.hp) factors.push(`Applied ${enemyBefore.hp - enemyNow.hp} damage to the opposing leader.`);
-    if (actorBefore.hp != null && actorNow.hp != null && actorNow.hp > actorBefore.hp) factors.push(`Recovered ${actorNow.hp - actorBefore.hp} leader defense.`);
-    if (enemyBefore.boardCount != null && enemyNow.boardCount != null && enemyNow.boardCount < enemyBefore.boardCount) factors.push(`Reduced the opposing field by ${enemyBefore.boardCount - enemyNow.boardCount}.`);
-    if (actorBefore.boardCount != null && actorNow.boardCount != null && actorNow.boardCount > actorBefore.boardCount) factors.push(`Developed ${actorNow.boardCount - actorBefore.boardCount} additional board slot${actorNow.boardCount - actorBefore.boardCount === 1 ? "" : "s"}.`);
-    if (actorBefore.handCount != null && actorNow.handCount != null && actorNow.handCount > actorBefore.handCount) factors.push(`Finished the action with ${actorNow.handCount - actorBefore.handCount} more card${actorNow.handCount - actorBefore.handCount === 1 ? "" : "s"} in hand.`);
+    if (now.pp < before.pp) factors.push(`Spent ${before.pp - now.pp} PP while keeping the action legal.`);
+    if (enemyNow.hp < enemyBefore.hp) factors.push(`Applied ${enemyBefore.hp - enemyNow.hp} damage to the opposing leader.`);
+    if (now.hp > before.hp) factors.push(`Recovered ${now.hp - before.hp} leader defense.`);
+    if (enemyNow.boardCount < enemyBefore.boardCount) factors.push(`Reduced the opposing field by ${enemyBefore.boardCount - enemyNow.boardCount}.`);
+    if (now.boardCount > before.boardCount) factors.push(`Developed ${now.boardCount - before.boardCount} additional board slot${now.boardCount - before.boardCount === 1 ? "" : "s"}.`);
+    if (now.handCount > before.handCount) factors.push(`Finished with ${now.handCount - before.handCount} more card${now.handCount - before.handCount === 1 ? "" : "s"} in hand.`);
     if (phase.includes("attack") && enemyNow.boardCount === enemyBefore.boardCount && enemyNow.hp < enemyBefore.hp) factors.push("Chose leader pressure rather than a visible board trade.");
     if (phase.includes("attack") && enemyNow.boardCount < enemyBefore.boardCount) factors.push("Used the attack as a board trade/removal line.");
     if (phase.includes("evo") || phase.includes("super")) factors.push("Used an evolution resource at this point in the turn.");
   }
 
-  if (!factors.length) factors.push("The selected action follows the simulator's existing heuristic ordering; no additional visible state delta explains it further.");
-
+  if (!factors.length) factors.push("The selected action follows the simulator's existing heuristic ordering; no extra visible state delta explains it further.");
   return `
     <div class="battle-inspector-note">Observed decision context only. This inspector does not add a stronger AI layer or alter the simulator's choices.</div>
     <ul class="battle-inspector-events">${factors.map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
@@ -320,48 +299,38 @@ function renderState(frame) {
 
 function renderSideState(side) {
   const resources = [
-    ["HP", fraction(side.hp, side.maxHp)],
-    ["PP", fraction(side.pp, side.maxPp)],
-    ["EP", side.ep],
-    ["SEP", side.sep],
-    ["Shadows", side.shadows],
-    ["Hand", side.handCount],
-    ["Deck", side.deckCount],
-    ["Cemetery", side.cemeteryCount],
-    ["Field", side.boardCount]
+    ["HP", fraction(side.hp, side.maxHp)], ["PP", fraction(side.pp, side.maxPp)],
+    ["EP", side.ep], ["SEP", side.sep], ["Shadows", side.shadows],
+    ["Hand", side.handCount], ["Deck", side.deckCount], ["Cemetery", side.cemeteryCount], ["Field", side.boardCount]
   ];
-
+  const hand = side.hand.length ? side.hand.map(card => `${card.name}${card.cost ? ` (${card.cost})` : ""}${card.detail ? ` · ${card.detail}` : ""}`).map(escapeHtml).join("<br>") : "Empty";
+  const board = side.board.length ? side.board.map(card => `${card.name}${card.combat ? ` ${card.combat}` : ""}${card.detail ? ` · ${card.detail}` : ""}${card.spent ? " · spent" : ""}`).map(escapeHtml).join("<br>") : "Empty";
   return `
     <section class="battle-inspector-state-card">
-      <h3>${escapeHtml(side.name)}</h3>
-      <span class="battle-inspector-subtitle">${escapeHtml(side.subtitle)}</span>
-      <div class="battle-inspector-resource-grid">
-        ${resources.map(([label, value]) => `<div><span>${label}</span><strong>${escapeHtml(value ?? "—")}</strong></div>`).join("")}
-      </div>
-      <div class="battle-inspector-zone"><strong>Hand</strong><span>${side.hand.length ? side.hand.map(card => `${card.name}${card.cost ? ` (${card.cost})` : ""}${card.detail ? ` · ${card.detail}` : ""}`).map(escapeHtml).join("<br>") : "Empty"}</span></div>
-      <div class="battle-inspector-zone"><strong>Field</strong><span>${side.board.length ? side.board.map(card => `${card.name}${card.combat ? ` ${card.combat}` : ""}${card.detail ? ` · ${card.detail}` : ""}${card.spent ? " · spent" : ""}`).map(escapeHtml).join("<br>") : "Empty"}</span></div>
+      <h3>${escapeHtml(side.name)}</h3><span class="battle-inspector-subtitle">${escapeHtml(side.subtitle)}</span>
+      <div class="battle-inspector-resource-grid">${resources.map(([label, value]) => `<div><span>${label}</span><strong>${escapeHtml(value ?? "—")}</strong></div>`).join("")}</div>
+      <div class="battle-inspector-zone"><strong>Hand</strong><span>${hand}</span></div>
+      <div class="battle-inspector-zone"><strong>Field</strong><span>${board}</span></div>
     </section>
   `;
 }
 
-function addScalarChange(rows, label, before, after) {
+function addChange(rows, label, before, after) {
   if (before == null || after == null || before === after) return;
-  rows.push(`<div><span>${label}</span><strong>${before} → ${after}</strong></div>`);
+  rows.push(changeRow(label, `${before} → ${after}`));
 }
 
-function addFractionChange(rows, label, before, beforeMax, after, afterMax) {
-  if (before == null || after == null || (before === after && beforeMax === afterMax)) return;
-  rows.push(`<div><span>${label}</span><strong>${fraction(before, beforeMax)} → ${fraction(after, afterMax)}</strong></div>`);
+function changeRow(label, value) {
+  return `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`;
 }
 
 function diffNames(before, after) {
-  const beforeCounts = countNames(before);
-  const afterCounts = countNames(after);
+  const left = countNames(before);
+  const right = countNames(after);
   const added = [];
   const removed = [];
-  const names = new Set([...beforeCounts.keys(), ...afterCounts.keys()]);
-  for (const name of names) {
-    const delta = (afterCounts.get(name) || 0) - (beforeCounts.get(name) || 0);
+  for (const name of new Set([...left.keys(), ...right.keys()])) {
+    const delta = (right.get(name) || 0) - (left.get(name) || 0);
     if (delta > 0) added.push(delta > 1 ? `${delta}× ${name}` : name);
     if (delta < 0) removed.push(delta < -1 ? `${-delta}× ${name}` : name);
   }
@@ -369,9 +338,9 @@ function diffNames(before, after) {
 }
 
 function countNames(items) {
-  const map = new Map();
-  for (const item of items || []) map.set(item.name, (map.get(item.name) || 0) + 1);
-  return map;
+  const result = new Map();
+  for (const item of items || []) result.set(item.name, (result.get(item.name) || 0) + 1);
+  return result;
 }
 
 function detectActor(raw) {
@@ -386,14 +355,13 @@ function detectActor(raw) {
 }
 
 function parseSubject(raw) {
-  const patterns = [
+  for (const pattern of [
     /^(?:You|Opponent) plays (.+?) \(/i,
     /^(?:You|Opponent) super-evolves (.+?)(?:\.| ·|$)/i,
     /^(?:You|Opponent) evolves (.+?)(?:\.| ·|$)/i,
     /^(?:You|Opponent) engages (.+?)(?:\.| ·|$)/i,
     /^(.+?) attacks /i
-  ];
-  for (const pattern of patterns) {
+  ]) {
     const match = raw.match(pattern);
     if (match?.[1]) return match[1].trim();
   }
@@ -401,7 +369,7 @@ function parseSubject(raw) {
 }
 
 function fraction(value, max) {
-  if (value == null) return "—";
+  if (value == null) return null;
   return max == null ? String(value) : `${value}/${max}`;
 }
 
