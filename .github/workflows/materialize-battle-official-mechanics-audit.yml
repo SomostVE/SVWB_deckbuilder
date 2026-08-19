@@ -1,0 +1,37 @@
+name: Materialize Battle official mechanics audit
+
+on:
+  push:
+    branches: [fix/battle-mechanics-audit-01.05.001]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: materialize-battle-official-mechanics-audit
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: fix/battle-mechanics-audit-01.05.001
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Apply mechanics fixes
+        run: node scripts/apply-battle-official-mechanics-audit.mjs
+      - name: Commit materialized engine
+        run: |
+          if git diff --quiet; then
+            echo "No materialized changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/battle-engine-v5.js
+          git commit -m "fix: align Battle Sim with official mechanics"
+          git push origin HEAD:fix/battle-mechanics-audit-01.05.001
