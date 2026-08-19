@@ -4422,7 +4422,7 @@ function resolveHavencraftCardText(raw, ctx) {
     const engage = /Destroy this card\.\s*Select an unevolved allied follower on the field and evolve it\.?/i;
     if (engage.test(text) && ctx.sourceUnit) {
       const candidates = ctx.player.board.filter(unit => unit.type === "Follower" && !unit.evolved && !unit.superEvolved);
-      if (ctx.player.board.includes(ctx.sourceUnit)) actions.push(...destroyObject(ctx.player, ctx.opponent, ctx.sourceUnit, ctx.playerIndex, ctx.enemyIndex, ctx.stats, ctx.rng, ctx.cardMap, true, true));
+      if (ctx.player.board.includes(ctx.sourceUnit)) actions.push(...destroyObject(ctx.player, ctx.opponent, ctx.sourceUnit, ctx.playerIndex, ctx.enemyIndex, ctx.stats, ctx.rng, ctx.cardMap, true));
       const target = candidates.sort((a,b)=>(Number(b.attack)+Number(b.defense))-(Number(a.attack)+Number(a.defense)))[0] ?? null;
       if (target) evolveUnitByAbility(ctx, target, actions);
       text = text.replace(engage, " ");
@@ -5848,13 +5848,6 @@ function configureEarthSigilAmulet(unit, count = 1) {
   return unit;
 }
 
-function syncEarthSigils(player) {
-  const sigil = findEarthSigilAmulet(player);
-  if (sigil) player.earthSigils = Math.max(0, Number(sigil.earthSigilCount) || 0);
-  else if ((player?.board ?? []).some(isEarthSigilAmulet)) player.earthSigils = 0;
-  return Math.max(0, Number(player?.earthSigils) || 0);
-}
-
 function registerEarthSigilEntry(player, unit, actions = []) {
   if (!isEarthSigilAmulet(unit)) return false;
   let total = 1;
@@ -7021,7 +7014,7 @@ function resolveHighRiskGenericText(textValue, ctx) {
   if (cardName === "unholy vessel") {
     const effect = /Destroy this card and all followers\.?/i;
     if (effect.test(text)) {
-      if (ctx.sourceUnit) actions.push(...destroyObject(ctx.player, ctx.opponent, ctx.sourceUnit, ctx.playerIndex, ctx.enemyIndex, ctx.stats, ctx.rng, ctx.cardMap, true, true));
+      if (ctx.sourceUnit) actions.push(...destroyObject(ctx.player, ctx.opponent, ctx.sourceUnit, ctx.playerIndex, ctx.enemyIndex, ctx.stats, ctx.rng, ctx.cardMap, true));
       for (const unit of [...ctx.player.board].filter(unit => unit.type === "Follower")) destroyUnit(ctx.player, unit);
       for (const unit of [...ctx.opponent.board].filter(unit => unit.type === "Follower")) destroyUnit(ctx.opponent, unit);
       actions.push("Unholy Vessel: destroy self and all followers");
@@ -7961,7 +7954,7 @@ function resolveHighRiskGenericText(textValue, ctx) {
   // Self-destruction is common on Engage abilities.
   const destroyThis = /Destroy this card\.?/i;
   if (destroyThis.test(text) && ctx.sourceUnit) {
-    actions.push(...destroyObject(ctx.player, ctx.opponent, ctx.sourceUnit, ctx.playerIndex, ctx.enemyIndex, ctx.stats, ctx.rng, ctx.cardMap, true, true));
+    actions.push(...destroyObject(ctx.player, ctx.opponent, ctx.sourceUnit, ctx.playerIndex, ctx.enemyIndex, ctx.stats, ctx.rng, ctx.cardMap, true));
     text = text.replace(destroyThis, " ");
   }
 
@@ -9955,6 +9948,7 @@ export function inspectOfficialMechanicsAudit({ cards = [] } = {}) {
     const generated = mk("earth-generated", "Runecraft");
     gainEarthSigils({ ...generated.ctx(), card: firstCard }, 2, []);
     const generatedSigil = findEarthSigilAmulet(generated.player);
+    const generatedCount = generatedSigil?.earthSigilCount ?? null;
     const beforeRiteCemetery = generated.player.shadows;
     performEarthRite(generated.player, 2, []);
 
@@ -9970,7 +9964,7 @@ export function inspectOfficialMechanicsAudit({ cards = [] } = {}) {
 
     earthResult = {
       merged,
-      generated: { name: generatedSigil?.name ?? null, count: generatedSigil?.earthSigilCount ?? null },
+      generated: { name: generatedSigil?.name ?? null, count: generatedCount },
       rite: { board: generated.player.board.filter(isEarthSigilAmulet).length, cemeteryDelta: generated.player.shadows - beforeRiteCemetery },
       abilityDestroyImmune: immune.player.board.includes(immuneSigil),
       fieldFullGain: fullGain
