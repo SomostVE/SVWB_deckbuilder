@@ -57,6 +57,9 @@ for (const mechanic of ["combo", "necromancy", "overflow"]) {
   assert.match(rulesCore, new RegExp(`canUseClassMechanic\\([^\\n]+\\"${mechanic}\\"`), `Generic rules must gate ${mechanic} by class`);
 }
 
+const fedielFastPathGate = 'if (!canUseClassMechanic(ctx.player, "necromancy", ctx.card)) return { applied: false, actions: ["Necromancy unavailable outside Abysscraft"], unresolved: false };';
+assert.equal(engine.split(fedielFastPathGate).length - 1, 1, "Fediel must have one and only one dedicated Necromancy class guard");
+
 assert.match(battleUi, /resolveDeckClass\(player\.deck, state\.cardMap, player\.class\)/, "Battle UI must reject off-class deck content");
 assert.match(battleUi, /battle-class-mechanic/, "Battle UI must render class-specific resource state");
 assert.doesNotMatch(battleUi, /<span>Shadows \$\{player\.shadows/, "Battle UI must not leak Abysscraft Shadows to every class");
@@ -87,7 +90,9 @@ for (const temporary of [
   ".battle-sim-release-trigger",
   ".github/workflows/materialize-class-rule-hardening.yml",
   "scripts/apply-class-rule-hardening.mjs",
-  ".class-rule-hardening-trigger"
+  ".class-rule-hardening-trigger",
+  ".github/workflows/materialize-fediel-cleanup.yml",
+  "scripts/fix-fediel-class-gate-dup.mjs"
 ]) assert.equal(exists(temporary), false, `Temporary release materializer must not ship: ${temporary}`);
 
 console.log("Battle Sim share-ready gate: OK · class contracts + bespoke rules + replay + benchmark + publication checks locked");
