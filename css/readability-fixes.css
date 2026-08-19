@@ -1,0 +1,213 @@
+/* 01.03.001 readability and mobile layout fixes. */
+
+/* Battle Sim: the previous compact scale was too small on normal desktop displays. */
+.battle-body .tools-header,
+.battle-body .button,
+.battle-body select,
+.battle-body input {
+  font-size: .9rem;
+}
+
+.battle-body .battle-setup-grid label,
+.battle-body .benchmark-controls label {
+  font-size: .84rem;
+}
+
+.battle-body .battle-coverage-head {
+  font-size: .9rem;
+}
+
+.battle-body .battle-coverage-counts,
+.battle-body .battle-coverage-card small,
+.battle-body .battle-status,
+.battle-body #benchmark-progress-label {
+  font-size: .78rem;
+}
+
+.battle-body .battle-replay-controls strong {
+  font-size: .84rem;
+}
+
+.battle-body .battle-stat strong {
+  font-size: 1rem;
+}
+
+.battle-body .battle-stat span {
+  font-size: .72rem;
+}
+
+.battle-body .battle-timeline button,
+.battle-body .battle-timeline-filters button {
+  font-size: .76rem;
+}
+
+.battle-body .battle-action {
+  min-height: 48px;
+  font-size: .95rem;
+  line-height: 1.45;
+}
+
+.battle-body .battle-leader-row > div:first-child strong {
+  font-size: 1rem;
+}
+
+.battle-body .battle-leader-row > div:first-child span,
+.battle-body .battle-leader-stats span,
+.battle-body .battle-zone-label,
+.battle-body .battle-empty {
+  font-size: .76rem;
+}
+
+.battle-body .battle-card strong {
+  font-size: .68rem;
+  line-height: 1.3;
+}
+
+.battle-body .battle-card small {
+  font-size: .62rem;
+}
+
+.battle-body .battle-card-cost,
+.battle-body .battle-card-combat {
+  font-size: .7rem;
+}
+
+.battle-body .benchmark-table {
+  font-size: .84rem;
+}
+
+.battle-body .benchmark-table th {
+  font-size: .72rem;
+}
+
+.battle-body .benchmark-table td small,
+.battle-body .benchmark-coverage {
+  font-size: .7rem;
+}
+
+/* Replay Inspector readability. */
+.battle-body .battle-inspector-head strong {
+  font-size: .92rem;
+}
+
+.battle-body .battle-inspector-head span,
+.battle-body .battle-inspector-head button {
+  font-size: .72rem;
+}
+
+.battle-body .battle-inspector-tabs button {
+  font-size: .82rem;
+}
+
+.battle-body .battle-inspector-meta > span {
+  font-size: .78rem;
+}
+
+.battle-body .battle-inspector-meta strong {
+  font-size: .68rem;
+}
+
+.battle-body .battle-inspector-primary {
+  font-size: .92rem;
+}
+
+.battle-body .battle-inspector-events {
+  font-size: .82rem;
+}
+
+.battle-body .battle-inspector-note,
+.battle-body .battle-inspector-empty {
+  font-size: .8rem;
+}
+
+.battle-body .battle-inspector-change-card h3,
+.battle-body .battle-inspector-state-card h3 {
+  font-size: .88rem;
+}
+
+.battle-body .battle-inspector-change-card > div,
+.battle-body .battle-inspector-zone {
+  font-size: .78rem;
+}
+
+.battle-body .battle-inspector-subtitle {
+  font-size: .72rem;
+}
+
+.battle-body .battle-inspector-resource-grid span {
+  font-size: .66rem;
+}
+
+.battle-body .battle-inspector-resource-grid strong {
+  font-size: .82rem;
+}
+
+@media (max-width: 760px) {
+  /* Collection tabs belong in the document flow on phones. The previous sticky
+     position floated over card rows once the top navigation was added. */
+  .collection-body .collection-tabs {
+    position: static;
+    top: auto;
+    z-index: auto;
+    display: flex;
+    flex-wrap: nowrap;
+    gap: .35rem;
+    margin: .55rem 0 .75rem;
+    padding: .32rem;
+    overflow-x: auto;
+    border-radius: .65rem;
+    scrollbar-width: none;
+  }
+
+  .collection-body .collection-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .collection-body .collection-tab {
+    flex: 0 0 auto;
+    min-width: max-content;
+    min-height: 40px;
+    padding: .48rem .72rem;
+  }
+
+  .collection-body .collection-page {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom));
+  }
+
+  .battle-body .battle-page {
+    width: calc(100% - .4rem);
+  }
+
+  .battle-body .battle-replay {
+    padding: .55rem;
+  }
+
+  .battle-body .battle-action {
+    font-size: 1rem;
+  }
+
+  .battle-body .battle-leader-stats span,
+  .battle-body .battle-zone-label,
+  .battle-body .battle-inspector-note,
+  .battle-body .battle-inspector-empty {
+    font-size: .82rem;
+  }
+
+  .battle-body .battle-card strong {
+    font-size: .74rem;
+  }
+
+  .battle-body .battle-card small {
+    font-size: .68rem;
+  }
+
+  .battle-body .battle-inspector-tabs button {
+    font-size: .86rem;
+  }
+
+  .battle-body .battle-inspector-change-card > div,
+  .battle-body .battle-inspector-zone,
+  .battle-body .battle-inspector-events {
+    font-size: .84rem;
+  }
+}
