@@ -18,7 +18,7 @@ const collectionUi = read("js/collection-ui.js");
 const decisionSummary = read("js/battle-decision-summary.js");
 const versionGuard = read("js/version-guard.js");
 
-assert.equal(version, "01.05.000", "Battle Sim share-ready release must use version 01.05.000");
+assert.equal(version, "01.05.001", "Battle Sim Crest audit release must use version 01.05.001");
 
 for (const tab of ["action", "changes", "decision", "state"]) {
   assert.match(inspector, new RegExp(`data-inspector-tab=\\"${tab}\\"`), `Missing Replay Inspector ${tab} tab`);
@@ -54,7 +54,7 @@ assert.match(mobileNavCss, /repeat\(5, minmax\(0, 1fr\)\)/, "Main mobile bottom 
 assert.match(readabilityCss, /\.collection-body \.collection-tabs[\s\S]*position:\s*static/, "Collection tabs must not float over cards on mobile");
 assert.match(readabilityCss, /\.battle-body \.battle-action[\s\S]*font-size:\s*\.95rem/, "Battle action text must be enlarged");
 assert.match(readabilityCss, /\.battle-body \.battle-inspector-primary[\s\S]*font-size:\s*\.92rem/, "Replay Inspector primary text must be enlarged");
-assert.ok(battleHtml.includes("readability-fixes.css?v=01.05.000"), "Battle Sim must load the current readability stylesheet");
+assert.ok(battleHtml.includes("readability-fixes.css?v=01.05.001"), "Battle Sim must load the current readability stylesheet");
 assert.ok(collectionHtml.includes("readability-fixes.css?v="), "Collection must load the mobile tab fix");
 assert.match(battleHtml, /Battle Sim · Beyond Decks/, "Battle Sim browser title must use Beyond Decks");
 for (const module of ["version-guard", "battle", "battle-decision-summary", "battle-benchmark-fast"]) {
