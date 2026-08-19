@@ -8,7 +8,7 @@ const loader = read("js/data-loader.js");
 const report = read("js/update-report.js");
 const referenceWorkflow = read(".github/workflows/update-reference-decks.yml");
 
-assert.equal(version, "01.04.001", "Beyond Codex migration must remain intact in app version 01.04.001");
+assert.equal(version, "01.04.002", "Beyond Codex migration must remain intact in app version 01.04.002");
 assert.match(codex, /SomostVE\/beyond_codex\/main\/api\/v1/, "Beyond Decks must consume Beyond Codex v1");
 assert.match(codex, /LOCAL_OFFICIAL_BASE = "\.\/data\/official"/, "Embedded official data must remain as a safe migration fallback");
 assert.match(loader, /loadOfficialCardData/, "Main data loader must use the Beyond Codex client");

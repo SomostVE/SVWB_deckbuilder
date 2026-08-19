@@ -2,6 +2,8 @@ const VERSION_KEY = "svwb-app-version";
 const RELOAD_KEY = "svwb-version-reload";
 const MODULE_URL = import.meta.url;
 
+document.title = document.title.replaceAll("Deci Builder", "Beyond Decks");
+
 checkVersion();
 
 async function checkVersion() {
@@ -24,7 +26,7 @@ async function checkVersion() {
     return;
   }
 
-  console.info(`[SVWB Deckbuilder] Version ${version}`);
+  console.info(`[Beyond Decks] Version ${version}`);
 
   const localVersion = localStorage.getItem(VERSION_KEY);
   const registration = await registerWorker(version);
