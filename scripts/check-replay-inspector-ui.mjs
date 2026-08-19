@@ -11,6 +11,8 @@ const battleJs = read("js/battle.js");
 const collectionHtml = read("collection.html");
 const toolNav = read("js/tool-page-nav.js");
 const toolsMobile = read("css/tools-mobile.css");
+const toolHeaderCss = read("css/tool-header.css");
+const baseCss = read("css/base.css");
 const mobileUi = read("js/mobile-ui.js");
 const mobileMenuCss = read("css/mobile-menu.css");
 const mobileNavCss = read("css/mobile-nav.css");
@@ -18,7 +20,7 @@ const collectionUi = read("js/collection-ui.js");
 const decisionSummary = read("js/battle-decision-summary.js");
 const versionGuard = read("js/version-guard.js");
 
-assert.equal(version, "01.05.001", "Battle Sim Crest audit release must use version 01.05.001");
+assert.match(version, /^01\.05\.\d{3}$/, "Battle Sim UI must remain on the 01.05 release line");
 
 for (const tab of ["action", "changes", "decision", "state"]) {
   assert.match(inspector, new RegExp(`data-inspector-tab=\\"${tab}\\"`), `Missing Replay Inspector ${tab} tab`);
@@ -38,6 +40,10 @@ for (const href of ["\.\/index\.html", "\.\/collection\.html", "\.\/battle\.html
   assert.match(toolNav, new RegExp(href), `Shared tool navigation is missing ${href}`);
 }
 assert.match(toolsMobile, /\.tools-mobile-nav/, "Tool-page mobile navigation styles are missing");
+assert.match(toolNav, /tool-header\.css\?v=01\.05\.002/, "Tool pages must load the unified header stylesheet");
+assert.match(baseCss, /\.button\s*\{[\s\S]*?text-decoration:\s*none;/, "Button links must not use browser-default underlines");
+assert.match(toolHeaderCss, /\.tools-header \.tools-title[\s\S]*?border:[\s\S]*?background:/, "Current tool page must render as an active header pill");
+assert.match(toolHeaderCss, /text-decoration:\s*none\s*!important;/, "Tool header links must explicitly suppress underlines");
 assert.match(collectionUi, /tool-page-nav\.js\?v=01\.03\.000/, "Collection must load shared tool navigation");
 assert.match(decisionSummary, /battle-replay-inspector\.js\?v=01\.05\.000/, "Battle Sim must load the current Replay Inspector build");
 
@@ -54,7 +60,7 @@ assert.match(mobileNavCss, /repeat\(5, minmax\(0, 1fr\)\)/, "Main mobile bottom 
 assert.match(readabilityCss, /\.collection-body \.collection-tabs[\s\S]*position:\s*static/, "Collection tabs must not float over cards on mobile");
 assert.match(readabilityCss, /\.battle-body \.battle-action[\s\S]*font-size:\s*\.95rem/, "Battle action text must be enlarged");
 assert.match(readabilityCss, /\.battle-body \.battle-inspector-primary[\s\S]*font-size:\s*\.92rem/, "Replay Inspector primary text must be enlarged");
-assert.ok(battleHtml.includes("readability-fixes.css?v=01.05.001"), "Battle Sim must load the current readability stylesheet");
+assert.ok(battleHtml.includes(`readability-fixes.css?v=${version}`), "Battle Sim must load the current readability stylesheet");
 assert.ok(collectionHtml.includes("readability-fixes.css?v="), "Collection must load the mobile tab fix");
 assert.match(battleHtml, /Battle Sim · Beyond Decks/, "Battle Sim browser title must use Beyond Decks");
 for (const module of ["version-guard", "battle", "battle-decision-summary", "battle-benchmark-fast"]) {
@@ -73,4 +79,4 @@ assert.match(inspector, /\["Super Evo", side\.sep\]/, "Replay Inspector state mu
 assert.match(inspector, /\(\?:Evo\|EP\)/, "Replay Inspector must accept legacy EP snapshots while reading Evo");
 assert.match(inspector, /\(\?:Super Evo\|SEP\)/, "Replay Inspector must accept legacy SEP snapshots while reading Super Evo");
 
-console.log("Replay Inspector + class-aware Battle UI + share-ready navigation regression: OK");
+console.log("Replay Inspector + class-aware Battle UI + unified tool header regression: OK");
