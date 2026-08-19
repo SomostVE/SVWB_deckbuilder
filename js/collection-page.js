@@ -2,8 +2,11 @@ import { loadData } from "./data-loader.js";
 import { state } from "./state.js";
 import { loadWorkspace, applyWorkspace, saveWorkspace } from "./storage.js";
 import { exportCollection, importCollection } from "./collection.js";
-import { VIAL_COSTS, getCraftCost } from "./tools-common.js";
+import { getCraftCost } from "./tools-common.js";
 import { compareGameCardOrderAllClasses } from "./card-sort.js";
+
+const PAGE_SIZE = 100;
+const RARITY_ORDER = new Map([["Bronze", 0], ["Silver", 1], ["Gold", 2], ["Legendary", 3]]);
 
 const els = {
   stats: document.getElementById("collection-stats"),
@@ -13,8 +16,12 @@ const els = {
   classFilter: document.getElementById("collection-class"),
   setFilter: document.getElementById("collection-set"),
   rarityFilter: document.getElementById("collection-rarity"),
-  missingOnly: document.getElementById("collection-missing-only"),
-  ownedOnly: document.getElementById("collection-owned-only"),
+  sort: document.getElementById("collection-sort"),
+  statusFilter: document.getElementById("collection-status-filter"),
+  resultsCount: document.getElementById("collection-results-count"),
+  loadMore: document.getElementById("collection-load-more"),
+  loadStatus: document.getElementById("collection-load-status"),
+  setSort: document.getElementById("collection-set-sort"),
   plannerDecks: document.getElementById("planner-decks"),
   plannerSummary: document.getElementById("planner-summary"),
   plannerMissing: document.getElementById("planner-missing"),
@@ -24,6 +31,10 @@ const els = {
 };
 
 const selectedDecks = new Set();
+let activeTab = "cards";
+let cardStatus = "all";
+let visibleCardCount = PAGE_SIZE;
+
 init();
 
 async function init() {
@@ -39,12 +50,79 @@ async function init() {
   populateFilters();
   bindEvents();
   renderAll();
+  switchTab("cards", { focus: false });
 }
 
 function bindEvents() {
-  [els.search, els.classFilter, els.setFilter, els.rarityFilter, els.missingOnly, els.ownedOnly].forEach(el => {
-    el?.addEventListener("input", renderCards);
-    el?.addEventListener("change", renderCards);
+  els.search?.addEventListener("input", () => {
+    resetCardLimit();
+    renderCards();
+  });
+
+  [els.classFilter, els.setFilter, els.rarityFilter, els.sort].forEach(el => {
+    el?.addEventListener("change", () => {
+      resetCardLimit();
+      renderCards();
+    });
+  });
+
+  els.statusFilter?.addEventListener("click", event => {
+    const button = event.target.closest("[data-collection-status]");
+    if (!button) return;
+    cardStatus = button.dataset.collectionStatus || "all";
+    els.statusFilter.querySelectorAll("[data-collection-status]").forEach(item => {
+      item.classList.toggle("active", item === button);
+    });
+    resetCardLimit();
+    renderCards();
+  });
+
+  els.loadMore?.addEventListener("click", () => {
+    visibleCardCount += PAGE_SIZE;
+    renderCards();
+  });
+
+  els.setSort?.addEventListener("change", renderSetProgress);
+
+  document.querySelectorAll("[data-collection-tab]").forEach(button => {
+    button.addEventListener("click", () => switchTab(button.dataset.collectionTab));
+  });
+
+  els.setProgress?.addEventListener("click", event => {
+    const card = event.target.closest("[data-set-name]");
+    if (!card) return;
+    openSetInBrowser(card.dataset.setName);
+  });
+
+  els.cards?.addEventListener("click", event => {
+    const button = event.target.closest("[data-step]");
+    if (!button) return;
+    const row = button.closest("[data-card-id]");
+    const card = state.cardMap.get(Number(row?.dataset.cardId));
+    if (!card) return;
+
+    const next = Math.max(0, Math.min(Number(card.maxCopies ?? 3), owned(card) + Number(button.dataset.step)));
+    if (next > 0) state.owned.set(card.id, next);
+    else state.owned.delete(card.id);
+
+    saveWorkspace(state);
+    renderStats();
+    renderSetProgress();
+    renderCards();
+    if (activeTab === "planner") renderPlannerResults();
+  });
+
+  els.plannerMissing?.addEventListener("click", event => {
+    const item = event.target.closest("[data-card-id]");
+    if (!item) return;
+    openCardInBrowser(Number(item.dataset.cardId));
+  });
+  els.plannerMissing?.addEventListener("keydown", event => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    const item = event.target.closest("[data-card-id]");
+    if (!item) return;
+    event.preventDefault();
+    openCardInBrowser(Number(item.dataset.cardId));
   });
 
   document.getElementById("collection-export")?.addEventListener("click", () => openIo(true));
@@ -95,25 +173,58 @@ function renderStats() {
 function renderSetProgress() {
   const groups = new Map();
   for (const card of state.cards.filter(card => card.deckSelectable)) {
-    const group = groups.get(card.set) ?? { set: card.set, total: 0, owned: 0, full: 0, missingVials: 0 };
+    const group = groups.get(card.set) ?? {
+      set: card.set,
+      setId: Number(card.setId ?? 0),
+      total: 0,
+      owned: 0,
+      full: 0,
+      missingVials: 0
+    };
     group.total++;
+    group.setId = Math.max(group.setId, Number(card.setId ?? 0));
     if (owned(card) > 0) group.owned++;
     if (owned(card) >= Number(card.maxCopies ?? 3)) group.full++;
     group.missingVials += Math.max(0, Number(card.maxCopies ?? 3) - owned(card)) * getCraftCost(card);
     groups.set(card.set, group);
   }
 
-  els.setProgress.innerHTML = [...groups.values()]
-    .sort((a, b) => setSortKey(b.set) - setSortKey(a.set) || a.set.localeCompare(b.set))
-    .map(group => {
-      const pct = group.total ? Math.round(group.owned / group.total * 100) : 0;
-      return `<div class="tools-set-card">
-        <strong>${escapeHtml(group.set)}</strong>
-        <div class="tools-muted">${group.owned}/${group.total} cards · ${group.full} full playsets</div>
-        <div class="tools-muted">${formatNumber(group.missingVials)} vials to 3×</div>
-        <div class="tools-progress"><span style="width:${pct}%"></span></div>
-      </div>`;
-    }).join("");
+  const setSort = els.setSort?.value || "newest";
+  const sorted = [...groups.values()].sort((a, b) => {
+    const aUnique = a.total ? a.owned / a.total : 0;
+    const bUnique = b.total ? b.owned / b.total : 0;
+    const aFull = a.total ? a.full / a.total : 0;
+    const bFull = b.total ? b.full / b.total : 0;
+
+    if (setSort === "completion") {
+      return bFull - aFull || bUnique - aUnique || b.setId - a.setId || a.set.localeCompare(b.set);
+    }
+    if (setSort === "missing") {
+      return b.missingVials - a.missingVials || b.setId - a.setId || a.set.localeCompare(b.set);
+    }
+    return b.setId - a.setId || a.set.localeCompare(b.set);
+  });
+
+  els.setProgress.innerHTML = sorted.map(group => {
+    const uniquePct = group.total ? Math.round(group.owned / group.total * 100) : 0;
+    const fullPct = group.total ? Math.round(group.full / group.total * 100) : 0;
+    return `<button type="button" class="tools-set-card collection-set-card" data-set-name="${escapeAttr(group.set)}">
+      <strong>${escapeHtml(group.set)}</strong>
+      <div class="collection-set-meta tools-muted">
+        <span>${group.owned}/${group.total} unique</span><span>${uniquePct}%</span>
+        <span>${group.full}/${group.total} playsets</span><span>${fullPct}%</span>
+      </div>
+      <div class="collection-set-progress-block">
+        <div class="collection-set-progress-label"><span>Unique cards</span><span>${uniquePct}%</span></div>
+        <div class="tools-progress"><span style="width:${uniquePct}%"></span></div>
+      </div>
+      <div class="collection-set-progress-block playsets">
+        <div class="collection-set-progress-label"><span>Complete playsets</span><span>${fullPct}%</span></div>
+        <div class="tools-progress"><span style="width:${fullPct}%"></span></div>
+      </div>
+      <div class="tools-muted" style="margin-top:.5rem">${formatNumber(group.missingVials)} vials to 3×</div>
+    </button>`;
+  }).join("");
 }
 
 function renderCards() {
@@ -126,36 +237,119 @@ function renderCards() {
     .filter(card => !className || card.class === className)
     .filter(card => !setName || card.set === setName)
     .filter(card => !rarity || card.rarity === rarity)
-    .filter(card => !els.missingOnly.checked || owned(card) < Number(card.maxCopies ?? 3))
-    .filter(card => !els.ownedOnly.checked || owned(card) > 0)
-    .filter(card => !q || [card.name, card.set, card.class, card.rarity, ...(card.traits ?? []), ...(card.keywords ?? [])].join(" ").toLowerCase().includes(q))
-    .sort(compareGameCardOrderAllClasses);
+    .filter(card => matchesOwnershipStatus(card))
+    .filter(card => !q || [card.name, card.set, card.class, card.rarity, ...(card.traits ?? []), ...(card.keywords ?? [])].join(" ").toLowerCase().includes(q));
 
-  els.cards.innerHTML = cards.map(card => {
+  sortCards(cards, els.sort?.value || "game");
+
+  const ownedInResults = cards.filter(card => owned(card) > 0).length;
+  const visible = cards.slice(0, visibleCardCount);
+  els.resultsCount.textContent = `${formatNumber(cards.length)} cards · ${formatNumber(ownedInResults)} owned`;
+
+  els.cards.innerHTML = visible.map(card => {
     const have = owned(card);
     const max = Number(card.maxCopies ?? 3);
     const missingCost = Math.max(0, max - have) * getCraftCost(card);
-    return `<div class="collection-card-row" data-card-id="${card.id}">
+    const stateName = have >= max ? "complete" : have > 0 ? "partial" : "missing";
+    const stateLabel = stateName === "complete" ? `${have}/${max} complete` : stateName === "partial" ? `${have}/${max} partial` : `${have}/${max} missing`;
+    return `<div class="collection-card-row collection-state-${stateName}" data-card-id="${card.id}">
       <img src="${escapeAttr(card.image)}" alt="">
-      <div>
+      <div class="collection-card-copy">
         <strong>${escapeHtml(card.name)}</strong>
         <small>${escapeHtml(card.class)} · ${escapeHtml(card.rarity)} · ${escapeHtml(card.set)} · Cost ${card.cost}</small>
         <small>${have < max ? `${formatNumber(missingCost)} vials to ${max}×` : "Playset complete"}</small>
+        <span class="collection-card-state">${stateLabel}</span>
       </div>
-      <div class="owned-stepper">
-        <button type="button" data-step="-1">−</button><strong>${have}</strong><button type="button" data-step="1">+</button>
+      <div class="owned-stepper" aria-label="Owned copies">
+        <button type="button" data-step="-1" aria-label="Remove one ${escapeAttr(card.name)}">−</button>
+        <strong>${have}</strong>
+        <button type="button" data-step="1" aria-label="Add one ${escapeAttr(card.name)}">+</button>
       </div>
     </div>`;
   }).join("") || `<div class="tools-muted">No cards match these filters.</div>`;
 
-  els.cards.querySelectorAll("[data-card-id]").forEach(row => {
-    row.querySelectorAll("[data-step]").forEach(button => button.addEventListener("click", () => {
-      const card = state.cardMap.get(Number(row.dataset.cardId));
-      const next = Math.max(0, Math.min(Number(card.maxCopies ?? 3), owned(card) + Number(button.dataset.step)));
-      if (next > 0) state.owned.set(card.id, next); else state.owned.delete(card.id);
-      saveWorkspace(state);
-      renderAll();
-    }));
+  const shown = visible.length;
+  els.loadStatus.textContent = cards.length ? `Showing ${formatNumber(shown)} of ${formatNumber(cards.length)}` : "";
+  els.loadMore.hidden = shown >= cards.length;
+}
+
+function matchesOwnershipStatus(card) {
+  const have = owned(card);
+  const max = Number(card.maxCopies ?? 3);
+  if (cardStatus === "owned") return have > 0;
+  if (cardStatus === "missing") return have < max;
+  if (cardStatus === "complete") return have >= max;
+  return true;
+}
+
+function sortCards(cards, mode) {
+  const fallback = (a, b) => compareGameCardOrderAllClasses(a, b);
+  cards.sort((a, b) => {
+    if (mode === "name") return a.name.localeCompare(b.name) || fallback(a, b);
+    if (mode === "cost") return Number(a.cost ?? 0) - Number(b.cost ?? 0) || fallback(a, b);
+    if (mode === "rarity") return (RARITY_ORDER.get(a.rarity) ?? 99) - (RARITY_ORDER.get(b.rarity) ?? 99) || fallback(a, b);
+    if (mode === "set") return Number(b.setId ?? 0) - Number(a.setId ?? 0) || fallback(a, b);
+    if (mode === "owned") return owned(b) - owned(a) || fallback(a, b);
+    return fallback(a, b);
+  });
+}
+
+function resetCardLimit() {
+  visibleCardCount = PAGE_SIZE;
+}
+
+function switchTab(tab, { focus = true } = {}) {
+  if (!new Set(["cards", "sets", "planner"]).has(tab)) tab = "cards";
+  activeTab = tab;
+
+  document.querySelectorAll("[data-collection-tab]").forEach(button => {
+    const active = button.dataset.collectionTab === tab;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", active ? "true" : "false");
+  });
+
+  document.querySelectorAll("[data-collection-panel]").forEach(panel => {
+    const active = panel.dataset.collectionPanel === tab;
+    panel.hidden = !active;
+    panel.classList.toggle("active", active);
+  });
+
+  if (tab === "sets") renderSetProgress();
+  if (tab === "planner") renderPlanner();
+
+  if (focus) {
+    document.querySelector(`[data-collection-panel="${tab}"]`)?.scrollIntoView({ block: "start" });
+  }
+}
+
+function openSetInBrowser(setName) {
+  els.search.value = "";
+  els.classFilter.value = "";
+  els.rarityFilter.value = "";
+  els.setFilter.value = setName;
+  setCardStatus("all");
+  resetCardLimit();
+  switchTab("cards");
+  renderCards();
+}
+
+function openCardInBrowser(cardId) {
+  const card = state.cardMap.get(Number(cardId));
+  if (!card) return;
+  els.search.value = card.name;
+  els.classFilter.value = "";
+  els.setFilter.value = "";
+  els.rarityFilter.value = "";
+  setCardStatus("all");
+  resetCardLimit();
+  switchTab("cards");
+  renderCards();
+}
+
+function setCardStatus(status) {
+  cardStatus = status;
+  els.statusFilter?.querySelectorAll("[data-collection-status]").forEach(button => {
+    button.classList.toggle("active", button.dataset.collectionStatus === status);
   });
 }
 
@@ -166,7 +360,8 @@ function renderPlanner() {
   `).join("") : `<span class="tools-muted">No saved decks yet.</span>`;
 
   els.plannerDecks.querySelectorAll("[data-planner-deck]").forEach(input => input.addEventListener("change", () => {
-    if (input.checked) selectedDecks.add(input.dataset.plannerDeck); else selectedDecks.delete(input.dataset.plannerDeck);
+    if (input.checked) selectedDecks.add(input.dataset.plannerDeck);
+    else selectedDecks.delete(input.dataset.plannerDeck);
     renderPlannerResults();
   }));
   renderPlannerResults();
@@ -203,11 +398,11 @@ function renderPlannerResults() {
 
   els.plannerSummary.innerHTML = [
     stat(selectedDecks.size, "Selected decks"),
-    stat(totalRequired, "Unique requirements by copies"),
+    stat(totalRequired, "Required copies"),
     stat(missingCopies, "Missing copies"),
     stat(formatNumber(missingVials), "Vials needed")
   ].join("");
-  els.plannerMissing.innerHTML = missing.length ? missing.map(item => `<div class="planner-card">
+  els.plannerMissing.innerHTML = missing.length ? missing.map(item => `<div class="planner-card" role="button" tabindex="0" data-card-id="${item.card.id}">
     <strong>${escapeHtml(item.card.name)}</strong>
     <span class="tools-muted">Need ${item.qty} · Owned ${owned(item.card)} · Missing ${item.need} · ${formatNumber(item.cost)} vials</span>
   </div>`).join("") : `<div class="tools-muted">${selectedDecks.size ? "You already own everything required by the selected decks." : "Select one or more saved decks."}</div>`;
@@ -235,6 +430,5 @@ function owned(card) { return Math.max(0, Number(state.owned.get(card.id)) || 0)
 function unique(values) { return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b)); }
 function stat(value, label) { return `<div class="tools-stat"><strong>${value}</strong><span>${escapeHtml(label)}</span></div>`; }
 function formatNumber(value) { return new Intl.NumberFormat("en-US").format(Number(value) || 0); }
-function setSortKey(name) { const card = state.cards.find(item => item.set === name); return Number(card?.setId ?? 0); }
 function escapeHtml(value) { return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;"); }
 function escapeAttr(value) { return escapeHtml(value); }
