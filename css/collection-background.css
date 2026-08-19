@@ -1,0 +1,6 @@
+/* Keep the Collection backdrop anchored to the viewport while the long card list scrolls. */
+body.collection-body {
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  background-size: 100vw 100vh;
+}
