@@ -46,7 +46,7 @@ assert.equal(audit.myuu.losesOnDamage, true, "Myuu must lose Ambush after its ab
 assert.equal(audit.myuu.keepsWithoutDamage, true, "Myuu must keep Ambush when its ability deals no damage");
 
 // Official Select rule: a Select spell cannot be played unless all required
-// targets exist. The AI must therefore have no legal play with an empty enemy field.
+// targets exist. The AI must therefore pass instead of treating the spell as legal.
 const selectSpell = {
   id: -999991,
   name: "QA Select Spell",
@@ -68,7 +68,8 @@ const illegalSelectPlay = inspectAiPlayChoice({
   opponentBoard: [],
   strategy: { style: "midrange" }
 });
-assert.equal(illegalSelectPlay, null, "A Select spell with no legal target must not be a playable AI action");
+assert.equal(illegalSelectPlay.decision, "pass", "A Select spell with no legal target must not be a playable AI action");
+assert.equal(illegalSelectPlay.cardName, null, "The illegal Select spell must not be selected as the action");
 
 // Exact/special destroy handlers must respect the same ability-destruction and
 // active-turn Super-Evolve immunity as generic destruction.
