@@ -8,7 +8,7 @@ import {
   applyBuffedFollowerEffects
 } from "./battle-rules.js";
 import { analyzeCardSupport as analyzeCardSupportV4 } from "./battle-engine-v4.js";
-import { canUseClassMechanic, classMechanicStatus, isSpellboostRecipientCard, resolveDeckClass } from "./battle-class-mechanics.js";
+import { canUseClassMechanic, canUseClassRules, classMechanicStatus, isSpellboostRecipientCard, resolveDeckClass } from "./battle-class-mechanics.js";
 
 export const BATTLE_RULES_VERSION = 5;
 
@@ -5128,6 +5128,7 @@ function transformFollowerInto(owner, target, card) {
 }
 
 function resolveAbysscraftCardText(textValue, ctx) {
+  if (!canUseClassRules(ctx.player, "Abysscraft", ctx.card)) return { text: String(textValue ?? ""), actions: [] };
   let text = String(textValue ?? "");
   const actions = [];
   const name = norm(ctx.card?.name);
@@ -5451,6 +5452,7 @@ function applyAzurifritTripleDamage(ctx, sourceUnit, actions) {
 }
 
 function resolveDragoncraftCardText(textValue, ctx) {
+  if (!canUseClassRules(ctx.player, "Dragoncraft", ctx.card)) return { text: String(textValue ?? ""), actions: [] };
   let text = String(textValue ?? "");
   const actions = [];
   const name = norm(ctx.card?.name);
@@ -5690,6 +5692,7 @@ function transformEnemyFollowerInto(ctx, target, card, actions) {
 }
 
 function resolveForestcraftCardText(textValue, ctx) {
+  if (!canUseClassRules(ctx.player, "Forestcraft", ctx.card)) return { text: String(textValue ?? ""), actions: [] };
   let text = String(textValue ?? "");
   const actions = [];
   const name = norm(ctx.card?.name);
@@ -5829,6 +5832,7 @@ function recordDestroyedShikigami(player, unit) {
 }
 
 function performEarthRite(player, amountValue, actions = []) {
+  if (player.className && !canUseClassMechanic(player, "earthRite")) return false;
   const amount = Math.max(1, Number(amountValue) || 1);
   if ((Number(player.earthSigils) || 0) < amount) return false;
   player.earthSigils -= amount;
@@ -5962,6 +5966,7 @@ function clearSwordcraftTurnLocks(player) {
 }
 
 function resolveSwordcraftCardText(textValue, ctx) {
+  if (!canUseClassRules(ctx.player, "Swordcraft", ctx.card)) return { text: String(textValue ?? ""), actions: [] };
   let text = String(textValue ?? "");
   const actions = [];
   const name = norm(ctx.card?.name);
@@ -6228,6 +6233,7 @@ function transformAlliedFollowersFromDeck(ctx, actions) {
 }
 
 function resolveRunecraftCardText(textValue, ctx) {
+  if (!canUseClassRules(ctx.player, "Runecraft", ctx.card)) return { text: String(textValue ?? ""), actions: [] };
   let text = String(textValue ?? "");
   const actions = [];
   const name = norm(ctx.card?.name);
@@ -6736,7 +6742,7 @@ function resolveHighRiskGenericText(textValue, ctx) {
   }
   const overflowAuto = /If you'?re in Overflow, evolve this follower\.?/i;
   if (overflowAuto.test(text)) {
-    if ((Number(ctx.player.maxPp) || 0) >= 7 && ctx.sourceUnit) evolveUnitByAbility(ctx, ctx.sourceUnit, actions);
+    if (canUseClassMechanic(ctx.player, "overflow", ctx.card) && (Number(ctx.player.maxPp) || 0) >= 7 && ctx.sourceUnit) evolveUnitByAbility(ctx, ctx.sourceUnit, actions);
     text = text.replace(overflowAuto, " ");
   }
   const evolvedAllyAuto = /If there'?s an evolved allied follower on the field, evolve this follower\.?/i;
@@ -7164,7 +7170,7 @@ function resolveHighRiskGenericText(textValue, ctx) {
   const maxPpEvolve = /If you have 10 max play points, evolve this follower\.?/i;
   if (maxPpEvolve.test(text)) { if((Number(ctx.player.maxPp)||0)>=10 && ctx.sourceUnit) evolveUnitByAbility(ctx,ctx.sourceUnit,actions); text=text.replace(maxPpEvolve," "); }
   const overflowEvolve = /If you'?re in Overflow, evolve this follower\.?/i;
-  if (overflowEvolve.test(text)) { if((Number(ctx.player.maxPp)||0)>=7 && ctx.sourceUnit) evolveUnitByAbility(ctx,ctx.sourceUnit,actions); text=text.replace(overflowEvolve," "); }
+  if (overflowEvolve.test(text)) { if(canUseClassMechanic(ctx.player, "overflow", ctx.card) && (Number(ctx.player.maxPp)||0)>=7 && ctx.sourceUnit) evolveUnitByAbility(ctx,ctx.sourceUnit,actions); text=text.replace(overflowEvolve," "); }
   const evolvedAllyEvolve = /If there'?s an evolved allied follower on the field, evolve this follower\.?/i;
   if (evolvedAllyEvolve.test(text)) { if(ctx.player.board.some(unit=>unit.type==="Follower" && unit.uid!==ctx.sourceUnit?.uid && (unit.evolved||unit.superEvolved)) && ctx.sourceUnit) evolveUnitByAbility(ctx,ctx.sourceUnit,actions); text=text.replace(evolvedAllyEvolve," "); }
   const superAllyDamage = text.match(/If there'?s a super-evolved allied follower on the field, select an enemy follower on the field and deal it\s*(\d+)\s*damage\.?/i);
@@ -7782,10 +7788,12 @@ function resolveHighRiskGenericText(textValue, ctx) {
     text = text.replace(namedCopiesBuff[0], " ");
   }
   const comboBuff = /Give this follower \+X\/\+X\.\s*X is your Combo\.?/i;
-  if (comboBuff.test(text) && ctx.sourceUnit) {
-    const x = Math.max(0, Number(ctx.player.cardsPlayedThisTurn) || 0);
-    buff(ctx.sourceUnit, x, x);
-    actions.push(`this follower +${x}/+${x} from Combo`);
+  if (comboBuff.test(text)) {
+    if (ctx.sourceUnit && canUseClassMechanic(ctx.player, "combo", ctx.card)) {
+      const x = Math.max(0, Number(ctx.player.cardsPlayedThisTurn) || 0);
+      buff(ctx.sourceUnit, x, x);
+      actions.push(`this follower +${x}/+${x} from Combo`);
+    }
     text = text.replace(comboBuff, " ");
   }
 
@@ -7850,8 +7858,10 @@ function resolveHighRiskGenericText(textValue, ctx) {
   }
   const comboOne = /Increase your Combo by 1\.?/i;
   if (comboOne.test(text)) {
-    ctx.player.cardsPlayedThisTurn += 1;
-    actions.push(`Combo +1 (${ctx.player.cardsPlayedThisTurn})`);
+    if (canUseClassMechanic(ctx.player, "combo", ctx.card)) {
+      ctx.player.cardsPlayedThisTurn += 1;
+      actions.push(`Combo +1 (${ctx.player.cardsPlayedThisTurn})`);
+    }
     text = text.replace(comboOne, " ");
   }
   const spellboostHandClause = /Spellboost your hand\.?/i;
