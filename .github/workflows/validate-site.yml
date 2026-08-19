@@ -44,6 +44,12 @@ jobs:
       - name: Run Battle Sim exact-rule regressions
         run: node scripts/check-battle-rules.mjs
 
+      - name: Audit all Beyond Codex Crest cards
+        run: node scripts/audit-battle-crests.mjs
+
+      - name: Run Battle Sim Crest lifecycle regression
+        run: node scripts/check-battle-crests.mjs
+
       - name: Run Battle Sim class mechanic boundary regression
         run: node scripts/check-battle-class-mechanics.mjs
 
