@@ -1,3 +1,5 @@
+import "./battle-replay-inspector.js?v=01.03.000";
+
 const actionRoot = document.getElementById("battle-action");
 
 if (actionRoot) {

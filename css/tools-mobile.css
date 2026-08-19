@@ -1,0 +1,203 @@
+.tools-mobile-nav { display: none; }
+
+.tools-page-link.active {
+  border-color: rgba(124, 140, 255, .55);
+  background: rgba(124, 140, 255, .12);
+}
+
+@media (max-width: 760px) {
+  body.tools-body {
+    padding-bottom: calc(58px + env(safe-area-inset-bottom));
+    overflow-x: hidden;
+  }
+
+  .tools-header {
+    position: sticky;
+    z-index: 80;
+    top: 0;
+    min-height: 50px;
+    flex-wrap: nowrap !important;
+    gap: .35rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: .42rem .48rem;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tools-header::-webkit-scrollbar { display: none; }
+  .tools-header > * { flex: 0 0 auto; }
+  .tools-header .tools-page-link { display: none; }
+  .tools-header .tools-title {
+    order: -1;
+    margin-right: auto;
+    white-space: nowrap;
+  }
+
+  .tools-page {
+    width: calc(100% - .5rem) !important;
+    padding: .35rem 0 1rem;
+  }
+
+  .tools-panel {
+    margin-top: .5rem;
+    padding: .58rem;
+    border-radius: .62rem;
+  }
+
+  .tools-mobile-nav {
+    position: fixed;
+    z-index: 15000;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    min-height: 54px;
+    padding: 4px 5px max(4px, env(safe-area-inset-bottom));
+    border-top: 1px solid var(--border);
+    background: rgba(14, 19, 29, .98);
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, .38);
+  }
+
+  .tools-mobile-nav a {
+    display: grid;
+    place-items: center;
+    min-width: 0;
+    border: 1px solid transparent;
+    border-radius: .55rem;
+    color: var(--muted);
+    font-size: .72rem;
+    font-weight: 800;
+    text-decoration: none;
+  }
+
+  .tools-mobile-nav a.active {
+    border-color: rgba(124, 140, 255, .62);
+    background: rgba(124, 140, 255, .15);
+    color: var(--text);
+  }
+
+  .collection-page {
+    display: block !important;
+  }
+
+  .collection-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: .4rem !important;
+    margin-bottom: .55rem !important;
+  }
+
+  .collection-tabs {
+    top: 50px !important;
+    z-index: 50;
+    gap: .25rem;
+    margin-bottom: .55rem !important;
+    padding: .3rem !important;
+    background: rgba(19, 29, 44, .97);
+  }
+
+  .collection-tab {
+    min-height: 38px !important;
+    padding: .42rem .55rem !important;
+  }
+
+  #collection-tab-cards.active { display: block !important; }
+
+  #collection-tab-cards .collection-browser-toolbar {
+    position: static !important;
+    max-height: none !important;
+    margin-bottom: .6rem !important;
+    padding: .58rem !important;
+  }
+
+  .collection-filter-row {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: .42rem !important;
+  }
+
+  .collection-filter-row > select,
+  .collection-filter-row .collection-sort-label,
+  .collection-filter-row .collection-sort-label select,
+  .collection-status-filter {
+    width: 100% !important;
+  }
+
+  .collection-card-grid {
+    grid-template-columns: 1fr !important;
+    gap: .5rem !important;
+  }
+
+  .collection-card-row {
+    grid-template-columns: 82px minmax(0, 1fr) !important;
+    min-height: 132px !important;
+    gap: .48rem .55rem !important;
+    padding: .48rem !important;
+  }
+
+  .collection-card-row img {
+    width: 82px !important;
+    height: 114px !important;
+  }
+
+  .collection-card-copy > strong { font-size: .9rem !important; }
+  .collection-card-copy small { font-size: .66rem !important; }
+
+  #collection-tab-cards .collection-missing-tools {
+    grid-template-columns: 1fr !important;
+    margin-bottom: .6rem !important;
+    padding: .55rem !important;
+  }
+
+  .collection-missing-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .battle-setup-grid,
+  .battle-coverage {
+    grid-template-columns: 1fr !important;
+  }
+
+  .battle-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: .35rem !important;
+  }
+
+  .battle-replay-head {
+    gap: .5rem;
+  }
+
+  .battle-replay-controls {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .battle-replay-controls strong {
+    grid-column: 1 / -1;
+    width: 100%;
+    text-align: left !important;
+  }
+
+  .battle-action {
+    min-height: 38px;
+    padding: .48rem .55rem;
+  }
+
+  .battle-side-area { padding: .5rem; }
+  .battle-leader-stats { gap: .22rem; }
+  .battle-leader-stats span { font-size: .58rem; }
+
+  .battle-hand,
+  .battle-board {
+    gap: .28rem;
+    padding-bottom: .3rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .collection-stats { grid-template-columns: 1fr 1fr !important; }
+  .collection-missing-summary { grid-template-columns: 1fr !important; }
+  .battle-summary { grid-template-columns: 1fr 1fr !important; }
+}

@@ -25,11 +25,29 @@ if (shell) {
     drawerHead.className = "mobile-drawer-head";
     drawerHead.innerHTML = '<strong>Filters & controls</strong><button type="button" class="mobile-menu-close" aria-label="Close">×</button>';
     appHeader.prepend(drawerHead);
+
+    const primaryNav = document.createElement("nav");
+    primaryNav.className = "mobile-primary-nav";
+    primaryNav.setAttribute("aria-label", "Main pages");
+    primaryNav.innerHTML = `
+      <a href="./collection.html">Collection</a>
+      <a href="./battle.html">Battle Sim</a>
+      <a href="./engines.html">Engines</a>
+      <a href="./lab.html">Deck Lab</a>
+    `;
+    drawerHead.insertAdjacentElement("afterend", primaryNav);
   }
 
   const nav = document.createElement("nav");
   nav.className = "mobile-section-nav";
-  nav.innerHTML = '<button type="button" data-view="cards">Cards</button><button type="button" data-view="filters">Filters</button><button type="button" data-view="deck">Deck <span class="mobile-deck-count"></span></button>';
+  nav.setAttribute("aria-label", "Mobile navigation");
+  nav.innerHTML = `
+    <button type="button" data-view="cards">Cards</button>
+    <button type="button" data-view="filters">Filters</button>
+    <button type="button" data-view="deck">Deck <span class="mobile-deck-count"></span></button>
+    <a href="./collection.html">Collection</a>
+    <a href="./battle.html">Battle</a>
+  `;
   document.body.appendChild(nav);
 
   const buttons = [...nav.querySelectorAll("[data-view]")];
@@ -83,9 +101,9 @@ if (shell) {
 }
 
 function ensureMobileStyles() {
-  for (const href of ["./css/mobile.css", "./css/mobile-menu.css"]) {
-    const name = href.split("/").pop();
-    if (document.querySelector(`link[href$="${name}"]`)) continue;
+  for (const href of ["./css/mobile.css", "./css/mobile-menu.css", "./css/mobile-nav.css?v=01.03.000"]) {
+    const name = href.split("/").pop().split("?")[0];
+    if (document.querySelector(`link[href*="${name}"]`)) continue;
     const link = document.createElement("link");
     link.rel = "stylesheet";
     link.href = href;
