@@ -34,7 +34,7 @@ for (const [className, count] of [...byClass.entries()].sort((a, b) => String(a[
 console.log(`Runtime gaps: ${gaps.length}`);
 for (const row of gaps) {
   const probeSummary = row.probes.length
-    ? row.probes.map(probe => `mode${probe.modeIndex}:${probe.unresolved ? "UNRESOLVED" : "ok"}:${(probe.actions ?? []).join(" · ")}`).join(" || ")
+    ? row.probes.map(probe => `mode${probe.modeIndex}:${probe.unresolved ? "UNRESOLVED" : "ok"}:RAW=${String(probe.raw ?? "").replace(/\s+/g, " ").trim()}:ACTIONS=${(probe.actions ?? []).join(" · ")}`).join(" || ")
     : "NO_BASE_PROBE";
   console.log(`FANFARE_GAP|${row.card.class}|${row.card.id}|${row.card.name}|support=${row.support.level}|${row.support.reason}|${probeSummary}`);
 }
