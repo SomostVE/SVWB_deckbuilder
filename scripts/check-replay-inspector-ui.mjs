@@ -7,6 +7,7 @@ const inspector = read("js/battle-replay-inspector.js");
 const inspectorCss = read("css/battle-replay-inspector.css");
 const readabilityCss = read("css/readability-fixes.css");
 const battleHtml = read("battle.html");
+const battleJs = read("js/battle.js");
 const collectionHtml = read("collection.html");
 const toolNav = read("js/tool-page-nav.js");
 const toolsMobile = read("css/tools-mobile.css");
@@ -15,7 +16,7 @@ const mobileNavCss = read("css/mobile-nav.css");
 const collectionUi = read("js/collection-ui.js");
 const decisionSummary = read("js/battle-decision-summary.js");
 
-assert.equal(version, "01.03.002", "Replay Inspector readability patch must use version 01.03.002");
+assert.equal(version, "01.03.002", "Fanfare/Evo patch must use version 01.03.002");
 
 for (const tab of ["action", "changes", "decision", "state"]) {
   assert.match(inspector, new RegExp(`data-inspector-tab=\\"${tab}\\"`), `Missing Replay Inspector ${tab} tab`);
@@ -34,8 +35,8 @@ for (const href of ["\.\/index\.html", "\.\/collection\.html", "\.\/battle\.html
   assert.match(toolNav, new RegExp(href), `Shared tool navigation is missing ${href}`);
 }
 assert.match(toolsMobile, /\.tools-mobile-nav/, "Tool-page mobile navigation styles are missing");
-assert.match(collectionUi, /tool-page-nav\.js\?v=01\.03\.000/, "Collection must load shared tool navigation");
-assert.match(decisionSummary, /battle-replay-inspector\.js\?v=01\.03\.000/, "Battle Sim must load Replay Inspector");
+assert.match(collectionUi, /tool-page-nav\.js\?v=01\.03\.002/, "Collection must load shared tool navigation");
+assert.match(decisionSummary, /battle-replay-inspector\.js\?v=01\.03\.002/, "Battle Sim must load Replay Inspector");
 
 assert.match(mobileUi, /mobile-primary-nav/, "Main mobile drawer must expose primary page navigation");
 assert.match(mobileUi, /href=\"\.\/collection\.html\"/, "Main mobile UI must link directly to Collection");
@@ -48,4 +49,11 @@ assert.match(readabilityCss, /\.battle-body \.battle-inspector-primary[\s\S]*fon
 assert.ok(battleHtml.includes(`readability-fixes.css?v=${version}`), "Battle Sim must load the readability stylesheet with the current version");
 assert.ok(collectionHtml.includes(`readability-fixes.css?v=${version}`), "Collection must load the mobile tab fix with the current version");
 
-console.log("Replay Inspector + mobile navigation + readability regression: OK");
+assert.match(battleJs, /<span>Evo \$\{player\.ep\}<\/span>/, "Battle board must display Evo instead of EP");
+assert.match(battleJs, /<span>Super Evo \$\{player\.sep\}<\/span>/, "Battle board must display Super Evo instead of SEP");
+assert.match(inspector, /\["Evo", side\.ep\]/, "Replay Inspector state must display Evo");
+assert.match(inspector, /\["Super Evo", side\.sep\]/, "Replay Inspector state must display Super Evo");
+assert.match(inspector, /\(\?:Evo\|EP\)/, "Replay Inspector parser must accept current and legacy Evo labels");
+assert.match(inspector, /\(\?:Super Evo\|SEP\)/, "Replay Inspector parser must accept current and legacy Super Evo labels");
+
+console.log("Replay Inspector + mobile navigation + readability + Evo labels regression: OK");
