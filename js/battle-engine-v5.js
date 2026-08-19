@@ -9925,6 +9925,7 @@ export function inspectOfficialMechanicsAudit({ cards = [] } = {}) {
   cemetery.player.deck = [instance(cemetery.player, syntheticFollower("Burned Draw"))];
   const cemeteryBeforeDraw = cemetery.player.shadows;
   drawCards(cemetery.player, 1, cemetery.stats, 0);
+  const cemeteryAfterDraw = cemetery.player.shadows;
   const bounceTarget = boardFollower(instance(cemetery.player, syntheticFollower("Bounce Target")));
   cemetery.player.board = [bounceTarget];
   const cemeteryBeforeBounce = cemetery.player.shadows;
@@ -9996,7 +9997,7 @@ export function inspectOfficialMechanicsAudit({ cards = [] } = {}) {
 
   return {
     transform: { bayleCostDelta: bayle.costDelta, summonedThisTurn: transformed?.summonedThisTurn, attacked: transformed?.attacked, attacksMade: transformed?.attacksMade, canAttackLeader: transformed?.canAttackLeader },
-    cemetery: { drawOverflowDelta: cemeteryBeforeDraw == null ? null : cemetery.player.shadows - cemeteryBeforeBounce, bounceOverflowDelta: cemetery.player.shadows - cemeteryBeforeBounce },
+    cemetery: { drawOverflowDelta: cemeteryAfterDraw - cemeteryBeforeDraw, bounceOverflowDelta: cemetery.player.shadows - cemeteryBeforeBounce },
     earth: earthResult,
     myuu: myuuResult
   };
