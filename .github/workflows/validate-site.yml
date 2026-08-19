@@ -133,3 +133,6 @@ jobs:
 
       - name: Run paired benchmark comparison smoke test
         run: node scripts/check-battle-benchmark-compare.mjs
+
+      - name: Run Battle Sim share-ready release gate
+        run: node scripts/check-battle-share-ready.mjs
