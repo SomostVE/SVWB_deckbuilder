@@ -1,12 +1,12 @@
-# Shadowverse: Worlds Beyond Deck Builder
+# Beyond Decks
 
-**Live site:** https://somostve.github.io/SVWB_deckbuilder/
+**Live site:** https://somostve.github.io/beyond_decks/
 
-Browser-based deck builder and simulator for **Shadowverse: Worlds Beyond**.
+Browser-based deck builder, collection manager and Battle Sim for **Shadowverse: Worlds Beyond**.
 
 ## Main features
 
-- Official English card database and images
+- Official English card database and images supplied by Beyond Codex
 - Class + Neutral browsing with Cost / Type / Rarity / Set / Trait / Keyword filters
 - Adaptive high-density card grid
 - Deck building with Undo / Redo, saved variants and Import / Export
@@ -15,9 +15,11 @@ Browser-based deck builder and simulator for **Shadowverse: Worlds Beyond**.
 - Battle Sim with deterministic seeds, replay and AI decision-making
 - AI look-ahead, target selection, Fuse support and full-turn planning
 - Benchmarks against reference decks
-- Automatic card database updates through GitHub Actions
 
-## Card source
+## Data source
 
-Official Shadowverse: Worlds Beyond Deck Portal:
-https://shadowverse-wb.com/web/CardList/cardList
+Official card acquisition and normalization now live in **Beyond Codex**:
+
+https://github.com/SomostVE/beyond_codex
+
+Beyond Decks consumes the versioned Codex JSON API and keeps its last embedded official snapshot only as a temporary resilience fallback during the migration. Application-specific data such as packages, tags and Battle Sim reference decks remain in this repository.
