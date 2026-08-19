@@ -9,16 +9,17 @@ const CLASS_NAMES = [
   "Neutral"
 ];
 
-// Only mechanics that are actually exclusive in the current official data belong
-// here. Reanimate is intentionally absent: Neutral card Wills United uses it too.
+// Only mechanics that are actually leader-class-exclusive in the current official
+// data belong here. Reanimate is intentionally absent because Neutral Wills United
+// uses it; Departed is therefore treated as a game-state tag rather than a locked
+// leader resource.
 export const CLASS_MECHANIC_OWNERS = Object.freeze({
   combo: "Forestcraft",
   rally: "Swordcraft",
   spellboost: "Runecraft",
   earthRite: "Runecraft",
   overflow: "Dragoncraft",
-  necromancy: "Abysscraft",
-  departed: "Abysscraft"
+  necromancy: "Abysscraft"
 });
 
 export const EXCLUSIVE_MECHANIC_PATTERNS = Object.freeze([
@@ -27,8 +28,7 @@ export const EXCLUSIVE_MECHANIC_PATTERNS = Object.freeze([
   { mechanic: "spellboost", owner: "Runecraft", pattern: /\b(?:On\s+)?Spellboost\b/i },
   { mechanic: "earthRite", owner: "Runecraft", pattern: /\bEarth\s+Rite\b|\bearth\s+sigils?\b/i },
   { mechanic: "overflow", owner: "Dragoncraft", pattern: /\bOverflow\b/i },
-  { mechanic: "necromancy", owner: "Abysscraft", pattern: /\bNecromancy\b/i },
-  { mechanic: "departed", owner: "Abysscraft", pattern: /\bDeparted\b/i }
+  { mechanic: "necromancy", owner: "Abysscraft", pattern: /\bNecromancy\b/i }
 ]);
 
 export function normalizeClassName(value) {
@@ -64,7 +64,7 @@ export function resolveDeckClass(deck, cardMap, requestedClass = null) {
     throw new Error(`Illegal mixed-class deck: ${[...classes].join(" + ")}. A deck may contain one class + Neutral only.`);
   }
 
-  return [...classes][0] ?? requested ?? "Neutral";
+  return [...classes][0] ?? requested ?? null;
 }
 
 export function playerClassName(player) {
