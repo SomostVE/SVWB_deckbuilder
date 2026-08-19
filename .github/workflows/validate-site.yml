@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: write
+
 concurrency:
   group: validate-site-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -15,11 +18,28 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
           node-version: "24"
+
+      - name: Materialize Crest lifecycle fixes
+        if: github.event_name == 'pull_request' && github.head_ref == 'audit/crest-completeness-01.05.001'
+        run: |
+          node scripts/apply-crest-lifecycle-fixes.mjs
+          if git diff --quiet; then
+            echo "Crest lifecycle fixes already materialized"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add js/battle-engine-v5.js
+            git commit -m "fix: preserve Crest lifecycle timing and order"
+            git push origin HEAD:${{ github.head_ref }}
+          fi
 
       - name: Check JavaScript syntax
         run: |
