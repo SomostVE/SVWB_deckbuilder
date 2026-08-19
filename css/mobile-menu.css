@@ -1,6 +1,7 @@
 .mobile-topbar,
 .mobile-menu-backdrop,
-.mobile-drawer-head { display: none; }
+.mobile-drawer-head,
+.mobile-primary-nav { display: none; }
 
 @media (max-width: 760px) {
   .mobile-topbar {

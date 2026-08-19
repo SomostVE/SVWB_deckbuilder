@@ -11,11 +11,12 @@ const collectionHtml = read("collection.html");
 const toolNav = read("js/tool-page-nav.js");
 const toolsMobile = read("css/tools-mobile.css");
 const mobileUi = read("js/mobile-ui.js");
+const mobileMenuCss = read("css/mobile-menu.css");
 const mobileNavCss = read("css/mobile-nav.css");
 const collectionUi = read("js/collection-ui.js");
 const decisionSummary = read("js/battle-decision-summary.js");
 
-assert.equal(version, "01.04.000", "Beyond Codex migration must preserve the Replay Inspector in version 01.04.000");
+assert.equal(version, "01.04.001", "Desktop navigation fix must use version 01.04.001");
 
 for (const tab of ["action", "changes", "decision", "state"]) {
   assert.match(inspector, new RegExp(`data-inspector-tab=\\"${tab}\\"`), `Missing Replay Inspector ${tab} tab`);
@@ -40,6 +41,7 @@ assert.match(decisionSummary, /battle-replay-inspector\.js\?v=01\.03\.000/, "Bat
 assert.match(mobileUi, /mobile-primary-nav/, "Main mobile drawer must expose primary page navigation");
 assert.match(mobileUi, /href=\"\.\/collection\.html\"/, "Main mobile UI must link directly to Collection");
 assert.match(mobileUi, /href=\"\.\/battle\.html\"/, "Main mobile UI must link directly to Battle Sim");
+assert.match(mobileMenuCss, /\.mobile-drawer-head,\s*\.mobile-primary-nav\s*\{\s*display:\s*none;/, "Mobile drawer navigation must stay hidden on desktop");
 assert.match(mobileNavCss, /repeat\(5, minmax\(0, 1fr\)\)/, "Main mobile bottom navigation must support five destinations");
 
 assert.match(readabilityCss, /\.collection-body \.collection-tabs[\s\S]*position:\s*static/, "Collection tabs must not float over cards on mobile");
