@@ -49,9 +49,14 @@ for (const fn of [
   "applyRunecraftCrestTurnEnd",
   "applyDragoncraftCrestTurnEnd",
   "applyAbysscraftCrestTurnEnd",
-  "applyPortalcraftCrestTurnEnd",
   "applyHavencraftCrestTurnEnd"
 ]) patchLoopFunction(fn);
+
+replaceOnce(
+  "function applyPortalcraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map) {\n  const actions = [];",
+  "function applyPortalcraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map, onlyCrest = null) {\n  const actions = [];\n  if (onlyCrest && norm(onlyCrest.name) !== \"eudie, maiden reborn\") return actions;",
+  "Portal Crest end filter"
+);
 
 replaceOnce(
   "function applyNeutralCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map) {\n  const actions = [];",
