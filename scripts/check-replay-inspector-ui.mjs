@@ -18,7 +18,7 @@ const collectionUi = read("js/collection-ui.js");
 const decisionSummary = read("js/battle-decision-summary.js");
 const versionGuard = read("js/version-guard.js");
 
-assert.equal(version, "01.04.003", "Class mechanic boundary fix must use version 01.04.003");
+assert.equal(version, "01.05.000", "Battle Sim share-ready release must use version 01.05.000");
 
 for (const tab of ["action", "changes", "decision", "state"]) {
   assert.match(inspector, new RegExp(`data-inspector-tab=\\"${tab}\\"`), `Missing Replay Inspector ${tab} tab`);
@@ -31,6 +31,7 @@ for (const filter of ["all", "play", "attack", "evolve", "turn", "draw"]) {
 assert.match(inspector, /captureRenderedFrame/, "Replay Inspector must capture rendered frame state");
 assert.match(inspector, /renderChanges/, "Replay Inspector must compare adjacent frames");
 assert.match(inspector, /Observed decision context only/, "Decision tab must remain explanatory rather than strengthening the AI");
+assert.match(inspector, /classMechanics:/, "Replay Inspector must capture class-specific visible mechanics");
 assert.match(inspectorCss, /\.battle-inspector-state-grid/, "Replay Inspector responsive styles are missing");
 
 for (const href of ["\.\/index\.html", "\.\/collection\.html", "\.\/battle\.html"]) {
@@ -38,7 +39,7 @@ for (const href of ["\.\/index\.html", "\.\/collection\.html", "\.\/battle\.html
 }
 assert.match(toolsMobile, /\.tools-mobile-nav/, "Tool-page mobile navigation styles are missing");
 assert.match(collectionUi, /tool-page-nav\.js\?v=01\.03\.000/, "Collection must load shared tool navigation");
-assert.match(decisionSummary, /battle-replay-inspector\.js\?v=01\.04\.003/, "Battle Sim must load the current Replay Inspector build");
+assert.match(decisionSummary, /battle-replay-inspector\.js\?v=01\.05\.000/, "Battle Sim must load the current Replay Inspector build");
 
 assert.match(mobileUi, /mobile-primary-nav/, "Main mobile drawer must expose primary page navigation");
 assert.match(mobileUi, /href=\"\.\/collection\.html\"/, "Main mobile UI must link directly to Collection");
@@ -53,7 +54,7 @@ assert.match(mobileNavCss, /repeat\(5, minmax\(0, 1fr\)\)/, "Main mobile bottom 
 assert.match(readabilityCss, /\.collection-body \.collection-tabs[\s\S]*position:\s*static/, "Collection tabs must not float over cards on mobile");
 assert.match(readabilityCss, /\.battle-body \.battle-action[\s\S]*font-size:\s*\.95rem/, "Battle action text must be enlarged");
 assert.match(readabilityCss, /\.battle-body \.battle-inspector-primary[\s\S]*font-size:\s*\.92rem/, "Replay Inspector primary text must be enlarged");
-assert.ok(battleHtml.includes("readability-fixes.css?v="), "Battle Sim must load the readability stylesheet");
+assert.ok(battleHtml.includes("readability-fixes.css?v=01.05.000"), "Battle Sim must load the current readability stylesheet");
 assert.ok(collectionHtml.includes("readability-fixes.css?v="), "Collection must load the mobile tab fix");
 assert.match(battleHtml, /Battle Sim · Beyond Decks/, "Battle Sim browser title must use Beyond Decks");
 for (const module of ["version-guard", "battle", "battle-decision-summary", "battle-benchmark-fast"]) {
@@ -62,9 +63,14 @@ for (const module of ["version-guard", "battle", "battle-decision-summary", "bat
 
 assert.match(battleJs, /<span>Evo \$\{player\.ep\}<\/span>/, "Battle board must display Evo instead of EP");
 assert.match(battleJs, /<span>Super Evo \$\{player\.sep\}<\/span>/, "Battle board must display Super Evo instead of SEP");
+assert.match(battleJs, /battle-class-mechanic/, "Battle board must display only the active class mechanic resources");
+assert.doesNotMatch(battleJs, /<span>Shadows \$\{player\.shadows/, "Shadows must not be displayed globally for every class");
+assert.match(battleJs, /resolveDeckClass\(player\.deck, state\.cardMap, player\.class\)/, "Battle setup must validate the selected leader class");
+assert.match(battleJs, /playerClass:\s*player\.class/, "Battle simulation must pass the player class into the rules engine");
+assert.match(battleJs, /opponentClass:\s*opponent\.class/, "Battle simulation must pass the opponent class into the rules engine");
 assert.match(inspector, /\["Evo", side\.ep\]/, "Replay Inspector state must display Evo");
 assert.match(inspector, /\["Super Evo", side\.sep\]/, "Replay Inspector state must display Super Evo");
 assert.match(inspector, /\(\?:Evo\|EP\)/, "Replay Inspector must accept legacy EP snapshots while reading Evo");
 assert.match(inspector, /\(\?:Super Evo\|SEP\)/, "Replay Inspector must accept legacy SEP snapshots while reading Super Evo");
 
-console.log("Replay Inspector + navigation + readability + branding + Evo labels regression: OK");
+console.log("Replay Inspector + class-aware Battle UI + share-ready navigation regression: OK");
