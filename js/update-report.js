@@ -1,4 +1,5 @@
 import { state } from "./state.js";
+import { loadOfficialChangelog } from "./codex-client.js";
 
 if (!document.querySelector('link[href$="update-report.css"]')) {
   const link = document.createElement("link");
@@ -66,8 +67,7 @@ async function setupUpdateReport() {
   button.addEventListener("click", async () => {
     dialog.showModal();
     try {
-      const response = await fetch("./data/official/changelog.json", { cache: "no-store" });
-      const data = response.ok ? await response.json() : null;
+      const data = await loadOfficialChangelog();
       renderReport(dialog.querySelector(".update-report-content"), data);
     } catch {
       dialog.querySelector(".update-report-content").textContent = "No detailed changelog is available yet.";
