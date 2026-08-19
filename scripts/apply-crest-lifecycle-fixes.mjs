@@ -26,10 +26,21 @@ function patchLoopFunction(name) {
   const nextSignature = `function ${name}(player, opponent, playerIndex, enemyIndex, stats, rng, map, onlyCrest = null) {`;
   replaceOnce(signature, nextSignature, `${name} signature`);
   const range = functionRange(name);
-  const loopNeedle = "for (const crest of player.crests ?? []) {";
-  const loopStart = src.indexOf(loopNeedle, range.start);
-  if (loopStart < 0 || loopStart >= range.end) throw new Error(`Missing Crest loop in ${name}`);
-  src = src.slice(0, loopStart) + "for (const crest of onlyCrest ? [onlyCrest] : (player.crests ?? [])) {" + src.slice(loopStart + loopNeedle.length);
+  const variants = [
+    "for (const crest of player.crests ?? []) {",
+    "for (const crest of [...(player.crests ?? [])]) {"
+  ];
+  let loopStart = -1;
+  let loopNeedle = null;
+  for (const variant of variants) {
+    const found = src.indexOf(variant, range.start);
+    if (found >= 0 && found < range.end && (loopStart < 0 || found < loopStart)) {
+      loopStart = found;
+      loopNeedle = variant;
+    }
+  }
+  if (loopStart < 0 || !loopNeedle) throw new Error(`Missing Crest loop in ${name}`);
+  src = src.slice(0, loopStart) + "for (const crest of onlyCrest ? [onlyCrest] : [...(player.crests ?? [])]) {" + src.slice(loopStart + loopNeedle.length);
 }
 
 for (const fn of [
@@ -67,9 +78,17 @@ replaceOnce(
 );
 {
   const range = functionRange("applyRunecraftCrestTurnStart");
-  const loopNeedle = "for (const crest of [...(player.crests ?? [])]) {";
-  const loopStart = src.indexOf(loopNeedle, range.start);
-  if (loopStart < 0 || loopStart >= range.end) throw new Error("Missing Runecraft Crest start loop");
+  const variants = [
+    "for (const crest of [...(player.crests ?? [])]) {",
+    "for (const crest of player.crests ?? []) {"
+  ];
+  let loopStart = -1;
+  let loopNeedle = null;
+  for (const variant of variants) {
+    const found = src.indexOf(variant, range.start);
+    if (found >= 0 && found < range.end) { loopStart = found; loopNeedle = variant; break; }
+  }
+  if (loopStart < 0 || !loopNeedle) throw new Error("Missing Runecraft Crest start loop");
   src = src.slice(0, loopStart) + "for (const crest of onlyCrest ? [onlyCrest] : [...(player.crests ?? [])]) {" + src.slice(loopStart + loopNeedle.length);
 }
 
@@ -79,14 +98,22 @@ replaceOnce(
   "Slaus Crest start filter"
 );
 
-// End-turn Crest abilities with the same timing must resolve in Crest acquisition order.
+// End-turn Crest abilities with the same timing resolve in Crest acquisition order.
 {
   const { start, end } = functionRange("applyCrestTurnEnd");
   const fn = src.slice(start, end);
-  const loopNeedle = "  for (const crest of player.crests ?? []) {";
-  const loopStart = fn.indexOf(loopNeedle);
+  const variants = [
+    "  for (const crest of player.crests ?? []) {",
+    "  for (const crest of [...(player.crests ?? [])]) {"
+  ];
+  let loopStart = -1;
+  let loopNeedle = null;
+  for (const variant of variants) {
+    const found = fn.indexOf(variant);
+    if (found >= 0 && (loopStart < 0 || found < loopStart)) { loopStart = found; loopNeedle = variant; }
+  }
   const returnStart = fn.lastIndexOf("  return actions;");
-  if (loopStart < 0 || returnStart < 0 || returnStart <= loopStart) throw new Error("Could not isolate applyCrestTurnEnd generic loop");
+  if (loopStart < 0 || !loopNeedle || returnStart < 0 || returnStart <= loopStart) throw new Error("Could not isolate applyCrestTurnEnd generic loop");
   let loopAndTail = fn.slice(loopStart, returnStart);
   loopAndTail = loopAndTail.replace(loopNeedle, `  for (const crest of [...(player.crests ?? [])]) {\n    actions.push(...applyForestCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map, crest));\n    actions.push(...applySwordcraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map, crest));\n    actions.push(...applyRunecraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map, crest));\n    actions.push(...applyDragoncraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map, crest));\n    actions.push(...applyAbysscraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map, crest));\n    actions.push(...applyPortalcraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map, crest));\n    actions.push(...applyNeutralCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map, crest));\n    actions.push(...applyHavencraftCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map, crest));`);
   const rebuilt = `function applyCrestTurnEnd(player, opponent, playerIndex, enemyIndex, stats, rng, map) {\n  const actions = [];\n  ${MARK}\n${loopAndTail}  return actions;\n}\n`;
