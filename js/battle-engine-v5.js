@@ -660,7 +660,9 @@ export function inspectRunecraftExtendedRules({ cards = [] } = {}) {
   const gin = makePair("ginger");
   const ginger = boardFollower(instance(gin.player, byName("Ginger, Disastrous Word")));
   const gingerGolem = boardFollower(instance(gin.player, byName("Guardian Golem")));
-  const boostTarget = instance(gin.player, byName("Mysterian Missile"));
+  const boostTargetCard = cards.find(card => norm(card.class) === "runecraft" && isSpellboostRecipient(card));
+  if (!boostTargetCard) throw new Error("Runecraft QA requires an On Spellboost recipient");
+  const boostTarget = instance(gin.player, boostTargetCard);
   gin.player.hand = [boostTarget];
   gin.player.board = [ginger, gingerGolem];
   applyEntryEvents({ player: gin.player, opponent: gin.opponent, playerIndex: 0, enemyIndex: 1, stats: gin.stats, rng: gin.rng, cardMap: map }, gingerGolem);
