@@ -19,6 +19,9 @@ const els = {
   sort: document.getElementById("collection-sort"),
   statusFilter: document.getElementById("collection-status-filter"),
   resultsCount: document.getElementById("collection-results-count"),
+  missingTools: document.getElementById("collection-missing-tools"),
+  missingSummary: document.getElementById("collection-missing-summary"),
+  missingGroup: document.getElementById("collection-missing-group"),
   loadMore: document.getElementById("collection-load-more"),
   loadStatus: document.getElementById("collection-load-status"),
   setSort: document.getElementById("collection-set-sort"),
@@ -83,6 +86,10 @@ function bindEvents() {
   });
 
   els.setSort?.addEventListener("change", renderSetProgress);
+  els.missingGroup?.addEventListener("change", () => {
+    resetCardLimit();
+    renderCards();
+  });
 
   document.querySelectorAll("[data-collection-tab]").forEach(button => {
     button.addEventListener("click", () => switchTab(button.dataset.collectionTab));
@@ -242,35 +249,72 @@ function renderCards() {
 
   sortCards(cards, els.sort?.value || "game");
 
+  const missingView = cardStatus === "missing";
+  if (els.missingTools) els.missingTools.hidden = !missingView;
+  if (missingView && els.missingSummary) {
+    const missingCopies = cards.reduce((sum, card) => sum + Math.max(0, Number(card.maxCopies ?? 3) - owned(card)), 0);
+    const missingVials = cards.reduce((sum, card) => sum + Math.max(0, Number(card.maxCopies ?? 3) - owned(card)) * getCraftCost(card), 0);
+    els.missingSummary.innerHTML = [
+      stat(formatNumber(cards.length), "Missing cards"),
+      stat(formatNumber(missingCopies), "Missing copies"),
+      stat(formatNumber(missingVials), "Vials needed")
+    ].join("");
+  } else if (els.missingSummary) {
+    els.missingSummary.innerHTML = "";
+  }
+
   const ownedInResults = cards.filter(card => owned(card) > 0).length;
   const visible = cards.slice(0, visibleCardCount);
   els.resultsCount.textContent = `${formatNumber(cards.length)} cards · ${formatNumber(ownedInResults)} owned`;
 
-  els.cards.innerHTML = visible.map(card => {
-    const have = owned(card);
-    const max = Number(card.maxCopies ?? 3);
-    const missingCost = Math.max(0, max - have) * getCraftCost(card);
-    const stateName = have >= max ? "complete" : have > 0 ? "partial" : "missing";
-    const stateLabel = stateName === "complete" ? `${have}/${max} complete` : stateName === "partial" ? `${have}/${max} partial` : `${have}/${max} missing`;
-    return `<div class="collection-card-row collection-state-${stateName}" data-card-id="${card.id}">
-      <img src="${escapeAttr(card.image)}" alt="">
-      <div class="collection-card-copy">
-        <strong>${escapeHtml(card.name)}</strong>
-        <small>${escapeHtml(card.class)} · ${escapeHtml(card.rarity)} · ${escapeHtml(card.set)} · Cost ${card.cost}</small>
-        <small>${have < max ? `${formatNumber(missingCost)} vials to ${max}×` : "Playset complete"}</small>
-        <span class="collection-card-state">${stateLabel}</span>
-      </div>
-      <div class="owned-stepper" aria-label="Owned copies">
-        <button type="button" data-step="-1" aria-label="Remove one ${escapeAttr(card.name)}">−</button>
-        <strong>${have}</strong>
-        <button type="button" data-step="1" aria-label="Add one ${escapeAttr(card.name)}">+</button>
-      </div>
-    </div>`;
-  }).join("") || `<div class="tools-muted">No cards match these filters.</div>`;
+  const groupMode = missingView ? String(els.missingGroup?.value ?? "") : "";
+  if (groupMode) {
+    const groups = new Map();
+    for (const card of visible) {
+      const label = missingGroupLabel(card, groupMode);
+      if (!groups.has(label)) groups.set(label, []);
+      groups.get(label).push(card);
+    }
+    els.cards.innerHTML = [...groups.entries()].map(([label, groupCards]) => `
+      <div class="collection-card-group-heading"><strong>${escapeHtml(label)}</strong><span>${formatNumber(groupCards.length)} cards</span></div>
+      ${groupCards.map(renderCollectionCard).join("")}
+    `).join("") || `<div class="tools-muted">No cards match these filters.</div>`;
+  } else {
+    els.cards.innerHTML = visible.map(renderCollectionCard).join("") || `<div class="tools-muted">No cards match these filters.</div>`;
+  }
 
   const shown = visible.length;
   els.loadStatus.textContent = cards.length ? `Showing ${formatNumber(shown)} of ${formatNumber(cards.length)}` : "";
   els.loadMore.hidden = shown >= cards.length;
+}
+
+function renderCollectionCard(card) {
+  const have = owned(card);
+  const max = Number(card.maxCopies ?? 3);
+  const missingCost = Math.max(0, max - have) * getCraftCost(card);
+  const stateName = have >= max ? "complete" : have > 0 ? "partial" : "missing";
+  const stateLabel = stateName === "complete" ? `${have}/${max} complete` : stateName === "partial" ? `${have}/${max} partial` : `${have}/${max} missing`;
+  return `<div class="collection-card-row collection-state-${stateName}" data-card-id="${card.id}">
+    <img src="${escapeAttr(card.image)}" alt="">
+    <div class="collection-card-copy">
+      <strong>${escapeHtml(card.name)}</strong>
+      <small>${escapeHtml(card.class)} · ${escapeHtml(card.rarity)} · ${escapeHtml(card.set)} · Cost ${card.cost}</small>
+      <small>${have < max ? `${formatNumber(missingCost)} vials to ${max}×` : "Playset complete"}</small>
+      <span class="collection-card-state">${stateLabel}</span>
+    </div>
+    <div class="owned-stepper" aria-label="Owned copies">
+      <button type="button" data-step="-1" aria-label="Remove one ${escapeAttr(card.name)}">−</button>
+      <strong>${have}</strong>
+      <button type="button" data-step="1" aria-label="Add one ${escapeAttr(card.name)}">+</button>
+    </div>
+  </div>`;
+}
+
+function missingGroupLabel(card, mode) {
+  if (mode === "set") return card.set || "Unknown set";
+  if (mode === "class") return card.class || "Unknown class";
+  if (mode === "rarity") return card.rarity || "Unknown rarity";
+  return "Missing cards";
 }
 
 function matchesOwnershipStatus(card) {
@@ -327,7 +371,7 @@ function openSetInBrowser(setName) {
   els.classFilter.value = "";
   els.rarityFilter.value = "";
   els.setFilter.value = setName;
-  setCardStatus("all");
+  setCardStatus("missing");
   resetCardLimit();
   switchTab("cards");
   renderCards();
