@@ -9,6 +9,8 @@ const CLASS_NAMES = [
   "Neutral"
 ];
 
+// Only mechanics that are actually exclusive in the current official data belong
+// here. Reanimate is intentionally absent: Neutral card Wills United uses it too.
 export const CLASS_MECHANIC_OWNERS = Object.freeze({
   combo: "Forestcraft",
   rally: "Swordcraft",
@@ -16,7 +18,6 @@ export const CLASS_MECHANIC_OWNERS = Object.freeze({
   earthRite: "Runecraft",
   overflow: "Dragoncraft",
   necromancy: "Abysscraft",
-  reanimate: "Abysscraft",
   departed: "Abysscraft"
 });
 
@@ -27,7 +28,6 @@ export const EXCLUSIVE_MECHANIC_PATTERNS = Object.freeze([
   { mechanic: "earthRite", owner: "Runecraft", pattern: /\bEarth\s+Rite\b|\bearth\s+sigils?\b/i },
   { mechanic: "overflow", owner: "Dragoncraft", pattern: /\bOverflow\b/i },
   { mechanic: "necromancy", owner: "Abysscraft", pattern: /\bNecromancy\b/i },
-  { mechanic: "reanimate", owner: "Abysscraft", pattern: /\bReanimate\b/i },
   { mechanic: "departed", owner: "Abysscraft", pattern: /\bDeparted\b/i }
 ]);
 
