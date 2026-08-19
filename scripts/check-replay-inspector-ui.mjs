@@ -15,8 +15,9 @@ const mobileMenuCss = read("css/mobile-menu.css");
 const mobileNavCss = read("css/mobile-nav.css");
 const collectionUi = read("js/collection-ui.js");
 const decisionSummary = read("js/battle-decision-summary.js");
+const versionGuard = read("js/version-guard.js");
 
-assert.equal(version, "01.04.001", "Desktop navigation fix must use version 01.04.001");
+assert.equal(version, "01.04.002", "Beyond Decks branding fix must use version 01.04.002");
 
 for (const tab of ["action", "changes", "decision", "state"]) {
   assert.match(inspector, new RegExp(`data-inspector-tab=\\"${tab}\\"`), `Missing Replay Inspector ${tab} tab`);
@@ -41,6 +42,10 @@ assert.match(decisionSummary, /battle-replay-inspector\.js\?v=01\.03\.000/, "Bat
 assert.match(mobileUi, /mobile-primary-nav/, "Main mobile drawer must expose primary page navigation");
 assert.match(mobileUi, /href=\"\.\/collection\.html\"/, "Main mobile UI must link directly to Collection");
 assert.match(mobileUi, /href=\"\.\/battle\.html\"/, "Main mobile UI must link directly to Battle Sim");
+assert.match(mobileUi, /mobile-brand\">Beyond Decks</, "Mobile header must use the Beyond Decks name");
+assert.doesNotMatch(mobileUi, /Deci Builder/, "Legacy Deci Builder branding must not remain in the mobile header");
+assert.match(versionGuard, /replaceAll\("Deci Builder", "Beyond Decks"\)/, "Page titles must normalize legacy Deci Builder titles to Beyond Decks");
+assert.match(versionGuard, /\[Beyond Decks\] Version/, "Version logging must use the Beyond Decks name");
 assert.match(mobileMenuCss, /\.mobile-drawer-head,\s*\.mobile-primary-nav\s*\{\s*display:\s*none;/, "Mobile drawer navigation must stay hidden on desktop");
 assert.match(mobileNavCss, /repeat\(5, minmax\(0, 1fr\)\)/, "Main mobile bottom navigation must support five destinations");
 
@@ -50,4 +55,4 @@ assert.match(readabilityCss, /\.battle-body \.battle-inspector-primary[\s\S]*fon
 assert.ok(battleHtml.includes("readability-fixes.css?v="), "Battle Sim must load the readability stylesheet");
 assert.ok(collectionHtml.includes("readability-fixes.css?v="), "Collection must load the mobile tab fix");
 
-console.log("Replay Inspector + mobile navigation + readability regression: OK");
+console.log("Replay Inspector + navigation + readability + Beyond Decks branding regression: OK");
