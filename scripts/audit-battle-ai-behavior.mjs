@@ -206,6 +206,49 @@ audit("Keep Super Evo on an idle fresh follower", "efficiency", () => inspectTur
   board: [{ name: "Audit Fresh Body", attack: 4, defense: 4, summonedThisTurn: true, canAttackLeader: false, canAttackFollower: false }]
 }), plan => !plan.sequence.some(step => step.kind === "super-evolve"));
 
+// Stage 3 combat-quality gates: preserve premium attackers, allocate Bane to
+// the threat that actually needs it, and use cheap bodies to unlock face damage.
+audit("Use the cheapest body for an even trade", "combat-efficiency", () => inspectTurnPlan({
+  hand: [], pp: 0, maxPp: 5, personalTurn: 5, ep: 0, sep: 0, opponentHp: 10,
+  strategy: { style: "midrange" },
+  board: [
+    { name: "Audit Cheap Trader", attack: 2, defense: 2, canAttackLeader: true, canAttackFollower: true },
+    { name: "Audit Premium Attacker", attack: 8, defense: 8, canAttackLeader: true, canAttackFollower: true }
+  ],
+  opponentBoard: [{ name: "Audit Even Target", attack: 2, defense: 2 }]
+}), plan => {
+  const cheapTrade = plan.sequence.findIndex(step => step.kind === "attack" && step.card === "Audit Cheap Trader" && step.target === "Audit Even Target");
+  const premiumFace = plan.sequence.findIndex(step => step.kind === "attack" && step.card === "Audit Premium Attacker" && step.target === "leader");
+  return cheapTrade >= 0 && premiumFace > cheapTrade;
+});
+
+audit("Spend Bane on the largest live threat", "combat-efficiency", () => inspectTurnPlan({
+  hand: [], pp: 0, maxPp: 5, personalTurn: 5, ep: 0, sep: 0, opponentHp: 20,
+  strategy: { style: "midrange" },
+  board: [
+    { name: "Audit Precision Bane", attack: 1, defense: 1, keywords: ["Bane"], canAttackLeader: true, canAttackFollower: true },
+    { name: "Audit Normal Trader", attack: 3, defense: 3, canAttackLeader: true, canAttackFollower: true }
+  ],
+  opponentBoard: [
+    { name: "Audit Token Threat", attack: 1, defense: 1 },
+    { name: "Audit Giant Threat", attack: 9, defense: 9 }
+  ]
+}), plan => plan.sequence.some(step => step.kind === "attack" && step.card === "Audit Precision Bane" && step.target === "Audit Giant Threat"));
+
+audit("Clear Ward with cheap attacker and preserve face damage", "combat-efficiency", () => inspectTurnPlan({
+  hand: [], pp: 0, maxPp: 5, personalTurn: 5, ep: 0, sep: 0, opponentHp: 7,
+  strategy: { style: "midrange" },
+  board: [
+    { name: "Audit Ward Cleaner", attack: 2, defense: 2, canAttackLeader: true, canAttackFollower: true },
+    { name: "Audit Face Finisher", attack: 7, defense: 7, canAttackLeader: true, canAttackFollower: true }
+  ],
+  opponentBoard: [{ name: "Audit Small Ward", attack: 1, defense: 2, keywords: ["Ward"] }]
+}), plan => {
+  const clear = plan.sequence.findIndex(step => step.kind === "attack" && step.card === "Audit Ward Cleaner" && step.target === "Audit Small Ward");
+  const lethal = plan.sequence.findIndex(step => step.kind === "attack" && step.card === "Audit Face Finisher" && step.target === "leader");
+  return clear >= 0 && lethal > clear;
+});
+
 assert.ok(cases.length >= 12, "Behavior audit must keep broad deterministic coverage");
 
 const results = [];
@@ -219,7 +262,7 @@ for (const item of cases) {
   }
 }
 
-console.log("\nBattle AI behavior baseline — 01.05.004");
+console.log("\nBattle AI behavior baseline — 01.05.005");
 console.log("========================================");
 for (const result of results) {
   const status = result.passed ? "PASS" : "GAP ";
