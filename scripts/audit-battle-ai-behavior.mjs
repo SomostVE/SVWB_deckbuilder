@@ -165,6 +165,47 @@ audit("Avoid over-defending when future line is survivable", "lookahead", () => 
   depth: 3, beamWidth: 3
 }), plan => plan.futureEvaluated === true && plan.sequence[0]?.kind === "play" && plan.sequence[0]?.card === greedy.name);
 
+// Stage 2 efficiency gates: equivalent lines must preserve scarce actions and
+// exact lethal must not be padded with unnecessary Evo / Super Evo setup.
+audit("Take exact lethal without spending Evo", "efficiency", () => inspectTurnPlan({
+  hand: [], pp: 0, maxPp: 5, personalTurn: 5, ep: 2, sep: 0, opponentHp: 5,
+  strategy: { style: "midrange" },
+  board: [{ name: "Audit Exact Finisher", attack: 5, defense: 5, canAttackLeader: true, canAttackFollower: true }],
+  opponentBoard: []
+}), plan => {
+  const lethal = plan.sequence.findIndex(step => step.kind === "attack" && step.target === "leader");
+  const evolve = plan.sequence.findIndex(step => step.kind === "evolve" || step.kind === "super-evolve");
+  return lethal >= 0 && (evolve < 0 || evolve > lethal);
+});
+
+audit("Remove Ward for lethal without unnecessary Evo", "efficiency", () => inspectTurnPlan({
+  hand: [destroy], pp: 2, maxPp: 5, personalTurn: 5, ep: 2, sep: 0, opponentHp: 5,
+  strategy: { style: "midrange" },
+  board: [{ name: "Audit Ward Finisher", attack: 5, defense: 5, canAttackLeader: true, canAttackFollower: true }],
+  opponentBoard: [{ name: "Audit Lethal Ward", attack: 1, defense: 5, keywords: ["Ward"] }]
+}), plan => {
+  const removal = plan.sequence.findIndex(step => step.kind === "play" && step.card === destroy.name && step.target === "Audit Lethal Ward");
+  const lethal = plan.sequence.findIndex(step => step.kind === "attack" && step.target === "leader");
+  const evolve = plan.sequence.findIndex(step => step.kind === "evolve" || step.kind === "super-evolve");
+  return removal >= 0 && lethal > removal && (evolve < 0 || evolve > lethal);
+});
+
+audit("Keep Evo after completing a clean 5 PP curve", "efficiency", () => inspectTurnPlan({
+  hand: [curveTwo, curveThree], pp: 5, maxPp: 5, personalTurn: 5, ep: 2, sep: 0,
+  strategy: { style: "midrange" }, opponentBoard: []
+}), plan => {
+  const played = new Set(plan.sequence.filter(step => step.kind === "play").map(step => step.card));
+  const spentEvolution = plan.sequence.some(step => step.kind === "evolve" || step.kind === "super-evolve");
+  return played.has(curveTwo.name) && played.has(curveThree.name) && !spentEvolution;
+});
+
+audit("Keep Super Evo on an idle fresh follower", "efficiency", () => inspectTurnPlan({
+  hand: [], pp: 0, maxPp: 6, personalTurn: 6,
+  goingFirst: false, goingSecond: true, ep: 0, sep: 1, opponentHp: 20,
+  strategy: { style: "midrange" }, opponentBoard: [],
+  board: [{ name: "Audit Fresh Body", attack: 4, defense: 4, summonedThisTurn: true, canAttackLeader: false, canAttackFollower: false }]
+}), plan => !plan.sequence.some(step => step.kind === "super-evolve"));
+
 assert.ok(cases.length >= 12, "Behavior audit must keep broad deterministic coverage");
 
 const results = [];
@@ -178,7 +219,7 @@ for (const item of cases) {
   }
 }
 
-console.log("\nBattle AI behavior baseline — 01.05.003");
+console.log("\nBattle AI behavior baseline — 01.05.004");
 console.log("========================================");
 for (const result of results) {
   const status = result.passed ? "PASS" : "GAP ";
@@ -193,5 +234,6 @@ const categories = [...new Set(results.map(result => result.category))];
 console.log("----------------------------------------");
 console.log(`Baseline: ${passed}/${results.length} ideal behaviors observed · ${gaps} gap(s) · ${categories.length} categories`);
 if (gaps) {
-  console.log("Diagnostic gaps are intentionally non-blocking in stage 1; each confirmed gap becomes a regression gate when fixed in later stages.");
+  console.log("Stage 2 behavior gates are blocking: inefficient or tactically wrong lines must be fixed before release.");
 }
+assert.equal(gaps, 0, `Battle AI stage 2 behavior gate failed with ${gaps} gap(s)`);

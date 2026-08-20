@@ -2779,8 +2779,47 @@ function executePlannerAction(state, action, map, rng) {
   return { applied: false, actions: [] };
 }
 
+// [[battle-ai-stage2-efficiency]]
+function plannerEvolutionSpendCost(node) {
+  const sequence = node.sequence ?? [];
+  let cost = 0;
+  for (const action of sequence) {
+    if (action.kind !== "evolve") continue;
+    const superMode = Boolean(action.superMode);
+    cost += superMode ? 5.5 : 3.75;
+
+    const unit = node.state?.player?.board?.find(item => item.uid === action.unitUid) ?? null;
+    if (!unit) continue;
+    const evolveText = getUnitTriggeredText(unit, "evolve") || "";
+    const superText = superMode ? (getUnitTriggeredText(unit, "superEvolve") || "") : "";
+    const attacked = Boolean(unit.attacked) || (Number(unit.attacksMade) || 0) > 0;
+    const enemyFollowers = (node.state?.opponent?.board ?? []).filter(item => item.type === "Follower").length;
+
+    // Pure stat evolutions that neither trigger an ability nor participate in
+    // combat this turn are the most common way for the planner to burn a scarce
+    // evolution resource for no immediate purpose. Make those lines expensive,
+    // especially on an empty enemy board.
+    if (!attacked && !evolveText.trim() && !superText.trim() && enemyFollowers === 0) {
+      cost += superMode ? 4.5 : 3;
+    }
+  }
+  return cost;
+}
+
 function plannerNodeScore(node, ended = false) {
-  return plannerStateValue(node.state, ended) + node.priorTotal * .14 - node.sequence.length * .04;
+  const actionCount = (node.sequence ?? []).filter(action => action.kind !== "end").length;
+  const evolutionCost = plannerEvolutionSpendCost(node);
+
+  // Once lethal has been reached, extra setup actions have no strategic value.
+  // Prefer the shortest lethal line and preserve Evo / Super Evo unless the
+  // resource was actually required to create lethal.
+  if (node.state?.opponent?.hp <= 0) return 100000 - evolutionCost - actionCount * .1;
+  if (node.state?.player?.hp <= 0) return -100000 - actionCount * .1;
+
+  return plannerStateValue(node.state, ended)
+    + node.priorTotal * .14
+    - node.sequence.length * .04
+    - evolutionCost;
 }
 
 function planCurrentTurnBase({ player, opponent, playerIndex, enemyIndex, stats, map }, options = {}) {
