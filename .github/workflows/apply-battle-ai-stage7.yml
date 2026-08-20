@@ -1,0 +1,48 @@
+name: Apply Battle AI Stage 7
+
+on:
+  push:
+    branches:
+      - ai-stage7-01.05.009
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Stage 7 branch
+        uses: actions/checkout@v6
+        with:
+          ref: ai-stage7-01.05.009
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Apply Stage 7 evolution policy
+        run: node scripts/apply-battle-ai-stage7.mjs
+
+      - name: Validate Stage 7
+        run: |
+          node --check js/battle-engine-v5.js
+          node --check scripts/check-battle-ai-stage7-evolution.mjs
+          node scripts/audit-battle-ai-behavior.mjs
+          node scripts/check-battle-ai-stage7-evolution.mjs
+          node scripts/check-battle-turn-planner.mjs
+
+      - name: Commit Stage 7 implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/battle-engine-v5.js scripts/check-battle-ai-stage7-evolution.mjs version.json battle.html .github/workflows/validate-site.yml
+          if git diff --cached --quiet; then
+            echo "No Stage 7 implementation changes to commit."
+            exit 0
+          fi
+          git commit -m "Implement Battle AI stage 7 evolution policy"
+          git push origin HEAD:ai-stage7-01.05.009
