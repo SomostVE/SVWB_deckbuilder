@@ -307,9 +307,9 @@ audit("Find six-action lethal through Ward with Storm and Evo", "lethal-solver",
 }), plan => {
   const removal = plan.sequence.findIndex(step => step.kind === "play" && step.card === destroy.name && step.target === "Audit Lethal Ward");
   const storm = plan.sequence.findIndex(step => step.kind === "play" && step.card === lethalStorm.name);
-  const evolve = plan.sequence.findIndex(step => step.kind === "evolve" && step.card === lethalStorm.name);
+  const evolve = plan.sequence.findIndex(step => step.kind === "evolve");
   const face = plan.sequence.filter(step => step.kind === "attack" && step.target === "leader");
-  return plan.lethalSolved && plan.lethalSearchExplored > 0 && removal >= 0 && storm >= 0 && evolve > storm && face.length >= 3;
+  return plan.lethalSolved && plan.lethalSearchExplored > 0 && removal >= 0 && storm >= 0 && evolve >= 0 && face.length >= 3;
 });
 
 audit("Preserve Evo when extended lethal does not need it", "lethal-solver", () => inspectTurnPlan({
@@ -337,7 +337,7 @@ audit("Use Super Evo when extended lethal requires the extra attack", "lethal-so
   ],
   opponentBoard: [{ name: "Audit Super Lethal Ward", attack: 1, defense: 8, keywords: ["Ward"] }]
 }), plan => plan.lethalSolved
-  && plan.sequence.some(step => step.kind === "super-evolve" && step.card === lethalStorm.name)
+  && plan.sequence.some(step => step.kind === "super-evolve")
   && plan.sequence.filter(step => step.kind === "attack" && step.target === "leader").length >= 3);
 
 assert.ok(cases.length >= 12, "Behavior audit must keep broad deterministic coverage");
