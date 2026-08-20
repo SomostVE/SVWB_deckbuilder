@@ -2499,14 +2499,49 @@ function actionKey(action) {
   return action.kind;
 }
 
+// [[battle-ai-stage3-trade-quality]]
 function plannerAttackPrior(attacker, target, leader, player, opponent) {
   if (leader) {
     const damage = Math.max(0, Number(attacker.attack) || 0);
     return (damage >= opponent.hp ? 1000 : 8 + damage * (player.strategy?.style === "aggro" ? 2.4 : 1.5));
   }
-  const removes = target && canCombatRemove(attacker, target);
-  const survives = target ? !willFollowerDieInCombat(attacker, target, player) : false;
-  return (removes ? 18 : 2) + followerThreatValue(target) * .55 + (survives ? 5 : 0) - followerThreatValue(attacker) * (survives ? .04 : .18);
+
+  if (!target) return -100;
+  const removes = canCombatRemove(attacker, target);
+  const survives = !willFollowerDieInCombat(attacker, target, player);
+  const targetThreat = followerThreatValue(target);
+  const attackerThreat = followerThreatValue(attacker);
+  const outgoing = Math.max(0, Number(attacker.attack) || 0);
+  const targetDefense = Math.max(0, Number(target.defense) || 0);
+  const overkill = removes ? Math.max(0, outgoing - targetDefense) : 0;
+  const attackerHasBane = hasU(attacker, "Bane");
+  const targetHasWard = hasU(target, "Ward");
+  const otherThreats = (opponent.board ?? []).filter(unit => unit !== target && unit.type === "Follower");
+  const highestOtherThreat = otherThreats.reduce((best, unit) => Math.max(best, followerThreatValue(unit)), 0);
+
+  let score = removes ? 20 : 1;
+  score += targetThreat * .72;
+  if (survives) score += 7;
+  else score -= attackerThreat * .3;
+  if (removes && survives) score += 5;
+  if (targetHasWard) score += 5;
+
+  // Prefer the smallest sufficient body instead of cashing in a premium
+  // attacker on a target a cheaper unit can already remove.
+  if (removes) score -= Math.min(6, overkill * .4);
+
+  // Bane is most valuable when it converts a tiny attacker into removal for a
+  // follower that normal combat could not efficiently answer. Do not burn it
+  // on a trivial target while a much larger threat remains available.
+  if (attackerHasBane) {
+    if (targetDefense > outgoing || targetThreat >= attackerThreat + 4) score += 8;
+    if (targetThreat + 3 < highestOtherThreat) score -= 8;
+  }
+
+  // Partial damage can be useful as setup, but should sit behind clean trades
+  // unless the target itself is an urgent threat.
+  if (!removes) score -= Math.max(0, targetDefense - outgoing) * .25;
+  return score;
 }
 
 function enumerateAttackDecisions(player, opponent) {
