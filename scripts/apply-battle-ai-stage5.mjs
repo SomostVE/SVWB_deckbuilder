@@ -23,6 +23,10 @@ const replacement = `    if (card?.type === "Follower" && (has(card, "Storm") ||
     }
 `;
 source = source.slice(0, start) + replacement + source.slice(end);
+source = source.replace(
+  'if (opponent.hp <= 10 && (player.hand.length || player.board.some(unit => unit.type === "Follower"))) return true;',
+  'if (opponent.hp <= 6 && (plannerReadyFaceDamage(player, opponent) > 0 || plannerOptimisticBurst(player) >= opponent.hp)) return true;'
+);
 fs.writeFileSync(enginePath, source);
 
 const auditPath = "scripts/audit-battle-ai-behavior.mjs";
@@ -40,4 +44,4 @@ audit = audit.replace(
   '&& plan.sequence.some(step => step.kind === "super-evolve")'
 );
 fs.writeFileSync(auditPath, audit);
-console.log("Battle AI stage 5 lethal solver and audit repaired.");
+console.log("Battle AI stage 5 lethal solver, audit, and search bounds repaired.");
