@@ -20,6 +20,15 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 24
+      - name: Repair nested template in migration helper
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/apply-battle-ai-stage5.mjs')
+          source = path.read_text()
+          source = source.replace('const branchRng = createRng(`${seed}|lethal|${sequence.map(actionKey).join(">")}`);', 'const branchRng = createRng(seed + "|lethal|" + sequence.map(actionKey).join(">"));')
+          path.write_text(source)
+          PY
       - name: Apply stage 5 migration
         run: node scripts/apply-battle-ai-stage5.mjs
       - name: Validate lethal solver
