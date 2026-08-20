@@ -292,6 +292,54 @@ audit("Remove lethal attacker even when it has Last Words", "exchange-value", ()
   opponentBoard: [{ card: lethalLastWordsEnemy, name: lethalLastWordsEnemy.name, attack: 8, defense: 1 }]
 }), plan => plan.sequence.some(step => step.kind === "attack" && step.card === "Audit Emergency Trader" && step.target === lethalLastWordsEnemy.name));
 
+// Stage 5 lethal-solver gates: search beyond the ordinary four-action beam so
+// removal, Storm deployment, evolution and several attacks can be combined.
+const lethalStorm = follower("Audit Lethal Storm", 3, 4, 4, "Storm", ["Storm"]);
+
+audit("Find six-action lethal through Ward with Storm and Evo", "lethal-solver", () => inspectTurnPlan({
+  hand: [destroy, lethalStorm], pp: 5, maxPp: 5, personalTurn: 5, ep: 1, sep: 0, opponentHp: 10,
+  strategy: { style: "midrange" },
+  board: [
+    { name: "Audit Lethal Body A", attack: 2, defense: 2, canAttackLeader: true, canAttackFollower: true },
+    { name: "Audit Lethal Body B", attack: 2, defense: 2, canAttackLeader: true, canAttackFollower: true }
+  ],
+  opponentBoard: [{ name: "Audit Lethal Ward", attack: 1, defense: 8, keywords: ["Ward"] }]
+}), plan => {
+  const removal = plan.sequence.findIndex(step => step.kind === "play" && step.card === destroy.name && step.target === "Audit Lethal Ward");
+  const storm = plan.sequence.findIndex(step => step.kind === "play" && step.card === lethalStorm.name);
+  const evolve = plan.sequence.findIndex(step => step.kind === "evolve" && step.card === lethalStorm.name);
+  const face = plan.sequence.filter(step => step.kind === "attack" && step.target === "leader");
+  return plan.lethalSolved && plan.lethalSearchExplored > 0 && removal >= 0 && storm >= 0 && evolve > storm && face.length >= 3;
+});
+
+audit("Preserve Evo when extended lethal does not need it", "lethal-solver", () => inspectTurnPlan({
+  hand: [destroy, lethalStorm], pp: 5, maxPp: 5, personalTurn: 5, ep: 2, sep: 0, opponentHp: 10,
+  strategy: { style: "midrange" },
+  board: [
+    { name: "Audit No Evo A", attack: 2, defense: 2, canAttackLeader: true, canAttackFollower: true },
+    { name: "Audit No Evo B", attack: 2, defense: 2, canAttackLeader: true, canAttackFollower: true },
+    { name: "Audit No Evo C", attack: 2, defense: 2, canAttackLeader: true, canAttackFollower: true }
+  ],
+  opponentBoard: [{ name: "Audit No Evo Ward", attack: 1, defense: 8, keywords: ["Ward"] }]
+}), plan => plan.lethalSolved
+  && plan.sequence.some(step => step.kind === "play" && step.card === destroy.name)
+  && plan.sequence.some(step => step.kind === "play" && step.card === lethalStorm.name)
+  && plan.sequence.filter(step => step.kind === "attack" && step.target === "leader").length >= 4
+  && !plan.sequence.some(step => step.kind === "evolve" || step.kind === "super-evolve"));
+
+audit("Use Super Evo when extended lethal requires the extra attack", "lethal-solver", () => inspectTurnPlan({
+  hand: [destroy, lethalStorm], pp: 5, maxPp: 6, personalTurn: 6,
+  goingFirst: false, goingSecond: true, ep: 0, sep: 1, opponentHp: 11,
+  strategy: { style: "midrange" },
+  board: [
+    { name: "Audit Super Lethal A", attack: 2, defense: 2, canAttackLeader: true, canAttackFollower: true },
+    { name: "Audit Super Lethal B", attack: 2, defense: 2, canAttackLeader: true, canAttackFollower: true }
+  ],
+  opponentBoard: [{ name: "Audit Super Lethal Ward", attack: 1, defense: 8, keywords: ["Ward"] }]
+}), plan => plan.lethalSolved
+  && plan.sequence.some(step => step.kind === "super-evolve" && step.card === lethalStorm.name)
+  && plan.sequence.filter(step => step.kind === "attack" && step.target === "leader").length >= 3);
+
 assert.ok(cases.length >= 12, "Behavior audit must keep broad deterministic coverage");
 
 const results = [];
@@ -305,7 +353,7 @@ for (const item of cases) {
   }
 }
 
-console.log("\nBattle AI behavior baseline — 01.05.006");
+console.log("\nBattle AI behavior baseline — 01.05.007");
 console.log("========================================");
 for (const result of results) {
   const status = result.passed ? "PASS" : "GAP ";
