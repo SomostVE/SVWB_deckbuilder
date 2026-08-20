@@ -2753,7 +2753,7 @@ function shouldRunPlannerLethalSearch(root, best, options = {}) {
   // At low defense, search even when generic text cannot estimate a bespoke
   // class combo. Exact simulation, not the estimate, decides whether lethal is
   // actually legal.
-  if (opponent.hp <= 10 && (player.hand.length || player.board.some(unit => unit.type === "Follower"))) return true;
+  if (opponent.hp <= 6 && (plannerReadyFaceDamage(player, opponent) > 0 || plannerOptimisticBurst(player) >= opponent.hp)) return true;
   return false;
 }
 
