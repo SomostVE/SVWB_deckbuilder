@@ -209,7 +209,7 @@ audit("Keep Super Evo on an idle fresh follower", "efficiency", () => inspectTur
 // Stage 3 combat-quality gates: preserve premium attackers, allocate Bane to
 // the threat that actually needs it, and use cheap bodies to unlock face damage.
 audit("Use the cheapest body for an even trade", "combat-efficiency", () => inspectTurnPlan({
-  hand: [], pp: 0, maxPp: 5, personalTurn: 5, ep: 0, sep: 0, opponentHp: 10,
+  hand: [], pp: 0, maxPp: 5, hp: 2, personalTurn: 5, ep: 0, sep: 0, opponentHp: 20,
   strategy: { style: "midrange" },
   board: [
     { name: "Audit Cheap Trader", attack: 2, defense: 2, canAttackLeader: true, canAttackFollower: true },
