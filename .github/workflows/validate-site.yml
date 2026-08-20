@@ -27,22 +27,47 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Apply Stage 5 migration on its feature branch
+      - name: Apply and repair Stage 5 on its feature branch
         if: github.event_name == 'pull_request' && github.head_ref == 'ai-stage5-01.05.007' && github.actor != 'github-actions[bot]'
         run: |
           python - <<'PY'
           from pathlib import Path
-          path = Path('scripts/apply-battle-ai-stage5.mjs')
-          source = path.read_text()
+          helper = Path('scripts/apply-battle-ai-stage5.mjs')
+          source = helper.read_text()
           source = source.replace('const branchRng = createRng(`${seed}|lethal|${sequence.map(actionKey).join(">")}`);', 'const branchRng = createRng(seed + "|lethal|" + sequence.map(actionKey).join(">"));')
-          path.write_text(source)
+          helper.write_text(source)
           PY
           node scripts/apply-battle-ai-stage5.mjs
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('js/battle-engine-v5.js')
+          source = path.read_text()
+          start = source.index('    if (card?.type === "Follower" && (has(card, "Storm")')
+          end = source.index('  }\n\n  if (!player.evolutionActionUsed)', start)
+          replacement = '''    if (card?.type === "Follower" && (has(card, "Storm") || text.includes("storm"))) {
+      burst += Math.max(0, Number(card.attack) || 0);
+    }
+    const leaderPhrase = " damage to the enemy leader";
+    const leaderIndex = text.indexOf(leaderPhrase);
+    if (leaderIndex >= 0) {
+      const amount = Number(text.slice(0, leaderIndex).trim().split(" ").pop());
+      if (Number.isFinite(amount)) burst += Math.max(0, amount);
+    }
+    const randomPhrase = " damage to a random enemy";
+    const randomIndex = text.indexOf(randomPhrase);
+    if (randomIndex >= 0) {
+      const amount = Number(text.slice(0, randomIndex).trim().split(" ").pop());
+      if (Number.isFinite(amount)) burst += Math.max(0, amount);
+    }
+'''
+          source = source[:start] + replacement + source[end:]
+          path.write_text(source)
+          PY
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add js/battle-engine-v5.js scripts/audit-battle-ai-behavior.mjs version.json battle.html
           if ! git diff --cached --quiet; then
-            git commit -m "Apply Battle AI stage 5 lethal solver"
+            git commit -m "Repair Battle AI stage 5 burst heuristic"
             git push origin HEAD:ai-stage5-01.05.007
           fi
 
