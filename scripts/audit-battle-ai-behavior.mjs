@@ -251,12 +251,12 @@ audit("Clear Ward with cheap attacker and preserve face damage", "combat-efficie
 
 // Stage 4 exchange-value gates: combat decisions must account for persistent
 // defensive value and death-trigger value instead of comparing raw stats only.
-const lastWordsTrader = follower("Audit Last Words Trader", 2, 2, 2, "Last Words: Draw a card.");
-const lastWordsEnemy = follower("Audit Last Words Enemy", 2, 2, 2, "Last Words: Draw a card.");
+const lastWordsTrader = follower("Audit Last Words Trader", 2, 2, 2, "Last Words: Deal 3 damage to the enemy leader.");
+const lastWordsEnemy = follower("Audit Last Words Enemy", 2, 2, 2, "Last Words: Restore 10 defense to your leader.");
 const lethalLastWordsEnemy = follower("Audit Lethal Last Words Enemy", 8, 8, 1, "Last Words: Draw a card.");
 
-audit("Cash in own Last Words before a vanilla body", "exchange-value", () => inspectTurnPlan({
-  hand: [], deck: [ownFutureDraw], pp: 0, maxPp: 5, personalTurn: 5, ep: 0, sep: 0, opponentHp: 20,
+audit("Cash in damage Last Words to create lethal", "exchange-value", () => inspectTurnPlan({
+  hand: [], deck: [ownFutureDraw], pp: 0, maxPp: 5, personalTurn: 5, ep: 0, sep: 0, opponentHp: 5,
   strategy: { style: "midrange" },
   board: [
     { card: lastWordsTrader, name: lastWordsTrader.name, attack: 2, defense: 2, canAttackLeader: true, canAttackFollower: true },
@@ -275,8 +275,8 @@ audit("Preserve Ward when a vanilla body can make the same trade", "exchange-val
   opponentBoard: [{ name: "Audit Trade Ward", attack: 2, defense: 2, keywords: ["Ward"] }]
 }), plan => plan.sequence[0]?.kind === "attack" && plan.sequence[0]?.card === "Audit Disposable Vanilla" && plan.sequence[0]?.target === "Audit Trade Ward");
 
-audit("Avoid optional enemy Last Words when another equal threat exists", "exchange-value", () => inspectTurnPlan({
-  hand: [], pp: 0, maxPp: 5, hp: 3, personalTurn: 5, ep: 0, sep: 0, opponentHp: 20,
+audit("Avoid healing enemy Last Words when another equal threat exists", "exchange-value", () => inspectTurnPlan({
+  hand: [], pp: 0, maxPp: 5, hp: 3, personalTurn: 5, ep: 0, sep: 0, opponentHp: 5,
   strategy: { style: "control" },
   board: [{ name: "Audit Single Trader", attack: 2, defense: 3, canAttackLeader: true, canAttackFollower: true }],
   opponentBoard: [
