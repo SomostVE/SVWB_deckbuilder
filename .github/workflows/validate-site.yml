@@ -5,12 +5,49 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: write
+
 concurrency:
   group: validate-site-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  migrate-stage2:
+    if: github.event_name == 'pull_request' && github.head_ref == 'ai-stage2-01.05.004'
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.apply.outputs.changed }}
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Apply stage 2 migration
+        id: apply
+        run: |
+          node scripts/apply-battle-ai-stage2.mjs
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/battle-engine-v5.js scripts/audit-battle-ai-behavior.mjs version.json battle.html
+          git commit -m "Apply Battle AI stage 2 efficiency scoring"
+          git push origin HEAD:${{ github.head_ref }}
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
   validate:
+    needs: migrate-stage2
+    if: always() && (needs.migrate-stage2.result == 'skipped' || (needs.migrate-stage2.result == 'success' && needs.migrate-stage2.outputs.changed != 'true'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
