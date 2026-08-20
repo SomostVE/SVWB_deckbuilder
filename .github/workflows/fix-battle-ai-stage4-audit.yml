@@ -33,3 +33,5 @@ jobs:
           git add scripts/audit-battle-ai-behavior.mjs
           git commit -m "Refine Battle AI stage 4 exchange scenarios"
           git push origin HEAD:ai-stage4-01.05.006
+
+# Temporary stage 4 migration helper; removed before merge.
