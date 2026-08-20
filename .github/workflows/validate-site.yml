@@ -19,7 +19,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event_name == 'pull_request' && github.head_ref == 'ai-stage5-01.05.007' && 'ai-stage5-01.05.007' || github.ref }}
+          ref: ${{ github.event_name == 'pull_request' && github.head_ref == 'ai-stage5-final-01.05.007' && 'ai-stage5-final-01.05.007' || github.ref }}
           fetch-depth: 0
 
       - name: Setup Node
@@ -28,7 +28,7 @@ jobs:
           node-version: "24"
 
       - name: Apply and repair Stage 5 on its feature branch
-        if: github.event_name == 'pull_request' && github.head_ref == 'ai-stage5-01.05.007' && github.actor != 'github-actions[bot]'
+        if: github.event_name == 'pull_request' && github.head_ref == 'ai-stage5-final-01.05.007' && github.actor != 'github-actions[bot]'
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -68,7 +68,7 @@ jobs:
           git add js/battle-engine-v5.js scripts/audit-battle-ai-behavior.mjs version.json battle.html
           if ! git diff --cached --quiet; then
             git commit -m "Repair Battle AI stage 5 burst heuristic"
-            git push origin HEAD:ai-stage5-01.05.007
+            git push origin HEAD:ai-stage5-final-01.05.007
           fi
 
       - name: Check JavaScript syntax
