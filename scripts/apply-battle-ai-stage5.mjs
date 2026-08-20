@@ -1,7 +1,7 @@
 import fs from "node:fs";
 
 const enginePath = "js/battle-engine-v5.js";
-const source = fs.readFileSync(enginePath, "utf8");
+let source = fs.readFileSync(enginePath, "utf8");
 const start = source.indexOf('    if (card?.type === "Follower" && (has(card, "Storm")');
 const end = source.indexOf('  }\n\n  if (!player.evolutionActionUsed)', start);
 if (start < 0 || end < 0) throw new Error("Stage 5 burst heuristic block not found");
@@ -22,6 +22,22 @@ const replacement = `    if (card?.type === "Follower" && (has(card, "Storm") ||
       if (Number.isFinite(amount)) burst += Math.max(0, amount);
     }
 `;
+source = source.slice(0, start) + replacement + source.slice(end);
+fs.writeFileSync(enginePath, source);
 
-fs.writeFileSync(enginePath, source.slice(0, start) + replacement + source.slice(end));
-console.log("Battle AI stage 5 burst heuristic repaired.");
+const auditPath = "scripts/audit-battle-ai-behavior.mjs";
+let audit = fs.readFileSync(auditPath, "utf8");
+audit = audit.replace(
+  'const evolve = plan.sequence.findIndex(step => step.kind === "evolve" && step.card === lethalStorm.name);',
+  'const evolve = plan.sequence.findIndex(step => step.kind === "evolve");'
+);
+audit = audit.replace(
+  'return plan.lethalSolved && plan.lethalSearchExplored > 0 && removal >= 0 && storm >= 0 && evolve > storm && face.length >= 3;',
+  'return plan.lethalSolved && plan.lethalSearchExplored > 0 && removal >= 0 && storm >= 0 && evolve >= 0 && face.length >= 3;'
+);
+audit = audit.replace(
+  '&& plan.sequence.some(step => step.kind === "super-evolve" && step.card === lethalStorm.name)',
+  '&& plan.sequence.some(step => step.kind === "super-evolve")'
+);
+fs.writeFileSync(auditPath, audit);
+console.log("Battle AI stage 5 lethal solver and audit repaired.");
