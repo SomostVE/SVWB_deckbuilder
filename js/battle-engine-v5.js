@@ -2440,6 +2440,20 @@ function plannerCardResourceValue(item) {
   return value;
 }
 
+// [[battle-ai-stage4-exchange-value]]
+function plannerDeathTriggerValue(unit) {
+  const text = norm(getUnitTriggeredText(unit, "lastWords") || "");
+  if (!text) return 0;
+  let value = 1.1;
+  if (/draw|add .* to your hand/.test(text)) value += 1.8;
+  if (/summon/.test(text)) value += 2.4;
+  if (/restore .*leader|restore .*defense/.test(text)) value += 1.2;
+  if (/gain crest/.test(text)) value += 1.5;
+  if (/deal .*damage/.test(text)) value += 1.7;
+  if (/destroy|banish/.test(text)) value += 2.2;
+  return value;
+}
+
 function plannerBoardValue(player) {
   return player.board.reduce((sum, unit) => {
     if (unit.type === "Amulet") {
@@ -2450,6 +2464,11 @@ function plannerBoardValue(player) {
     if (hasU(unit, "Ward")) value += 2;
     if (hasU(unit, "Bane")) value += 1.7;
     if (hasU(unit, "Storm")) value += 1;
+    if (hasU(unit, "Drain")) value += .8;
+    if (hasU(unit, "Ambush") || unit.ambush) value += 1.1;
+    if (hasU(unit, "Barrier")) value += 1.4;
+    if (hasU(unit, "Invincible")) value += 2.2;
+    value += plannerDeathTriggerValue(unit) * .55;
     if (unit.evolved) value += .8;
     if (unit.superEvolved) value += 1.2;
     if (unit.aura) value += 1.1;
@@ -2500,10 +2519,15 @@ function actionKey(action) {
 }
 
 // [[battle-ai-stage3-trade-quality]]
+// [[battle-ai-stage4-exchange-value]]
 function plannerAttackPrior(attacker, target, leader, player, opponent) {
+  const outgoing = Math.max(0, Number(attacker.attack) || 0);
+  const missingDefense = Math.max(0, 20 - (Number(player.hp) || 0));
+  const drainValue = hasU(attacker, "Drain") ? Math.min(outgoing, missingDefense) * .85 : 0;
+
   if (leader) {
-    const damage = Math.max(0, Number(attacker.attack) || 0);
-    return (damage >= opponent.hp ? 1000 : 8 + damage * (player.strategy?.style === "aggro" ? 2.4 : 1.5));
+    const damage = outgoing;
+    return (damage >= opponent.hp ? 1000 : 8 + damage * (player.strategy?.style === "aggro" ? 2.4 : 1.5)) + drainValue;
   }
 
   if (!target) return -100;
@@ -2511,20 +2535,35 @@ function plannerAttackPrior(attacker, target, leader, player, opponent) {
   const survives = !willFollowerDieInCombat(attacker, target, player);
   const targetThreat = followerThreatValue(target);
   const attackerThreat = followerThreatValue(attacker);
-  const outgoing = Math.max(0, Number(attacker.attack) || 0);
   const targetDefense = Math.max(0, Number(target.defense) || 0);
   const overkill = removes ? Math.max(0, outgoing - targetDefense) : 0;
   const attackerHasBane = hasU(attacker, "Bane");
+  const targetHasBane = hasU(target, "Bane");
   const targetHasWard = hasU(target, "Ward");
+  const attackerHasWard = hasU(attacker, "Ward");
+  const ownDeathValue = plannerDeathTriggerValue(attacker);
+  const enemyDeathValue = plannerDeathTriggerValue(target);
   const otherThreats = (opponent.board ?? []).filter(unit => unit !== target && unit.type === "Follower");
   const highestOtherThreat = otherThreats.reduce((best, unit) => Math.max(best, followerThreatValue(unit)), 0);
 
   let score = removes ? 20 : 1;
   score += targetThreat * .72;
   if (survives) score += 7;
-  else score -= attackerThreat * .3;
+  else {
+    score -= attackerThreat * .3;
+    score += ownDeathValue * .8;
+    if (attackerHasWard) score -= 2.5;
+  }
   if (removes && survives) score += 5;
   if (targetHasWard) score += 5;
+
+  // Killing a Last Words follower can hand the opponent material, healing,
+  // board presence or a Crest. Account for that downside without refusing a
+  // necessary defensive removal or a Ward clear.
+  if (removes && enemyDeathValue > 0) {
+    const urgency = targetHasWard || targetThreat >= 8 ? .35 : .85;
+    score -= enemyDeathValue * urgency;
+  }
 
   // Prefer the smallest sufficient body instead of cashing in a premium
   // attacker on a target a cheaper unit can already remove.
@@ -2537,6 +2576,14 @@ function plannerAttackPrior(attacker, target, leader, player, opponent) {
     if (targetDefense > outgoing || targetThreat >= attackerThreat + 4) score += 8;
     if (targetThreat + 3 < highestOtherThreat) score -= 8;
   }
+
+  // Conversely, do not throw a premium follower into enemy Bane when the
+  // exchange is materially unfavorable and another line can answer it.
+  if (targetHasBane && !survives && attackerThreat > targetThreat + 3) score -= 5;
+
+  // Drain has extra combat value while the leader is damaged, especially when
+  // the trade also removes incoming damage from the next turn.
+  if (hasU(attacker, "Drain")) score += Math.min(outgoing, targetDefense, missingDefense) * 1.05;
 
   // Partial damage can be useful as setup, but should sit behind clean trades
   // unless the target itself is an urgent threat.

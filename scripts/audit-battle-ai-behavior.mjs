@@ -249,6 +249,49 @@ audit("Clear Ward with cheap attacker and preserve face damage", "combat-efficie
   return clear >= 0 && lethal > clear;
 });
 
+// Stage 4 exchange-value gates: combat decisions must account for persistent
+// defensive value and death-trigger value instead of comparing raw stats only.
+const lastWordsTrader = follower("Audit Last Words Trader", 2, 2, 2, "Last Words: Deal 3 damage to the enemy leader.");
+const lastWordsEnemy = follower("Audit Last Words Enemy", 2, 2, 2, "Last Words: Restore 10 defense to your leader.");
+const lethalLastWordsEnemy = follower("Audit Lethal Last Words Enemy", 8, 8, 1, "Last Words: Draw a card.");
+
+audit("Cash in damage Last Words to create lethal", "exchange-value", () => inspectTurnPlan({
+  hand: [], deck: [ownFutureDraw], pp: 0, maxPp: 5, personalTurn: 5, ep: 0, sep: 0, opponentHp: 5,
+  strategy: { style: "midrange" },
+  board: [
+    { card: lastWordsTrader, name: lastWordsTrader.name, attack: 2, defense: 2, canAttackLeader: true, canAttackFollower: true },
+    { name: "Audit Vanilla Trader", attack: 2, defense: 2, canAttackLeader: true, canAttackFollower: true }
+  ],
+  opponentBoard: [{ name: "Audit Forced Ward", attack: 2, defense: 2, keywords: ["Ward"] }]
+}), plan => plan.sequence[0]?.kind === "attack" && plan.sequence[0]?.card === lastWordsTrader.name && plan.sequence[0]?.target === "Audit Forced Ward");
+
+audit("Preserve Ward when a vanilla body can make the same trade", "exchange-value", () => inspectTurnPlan({
+  hand: [], pp: 0, maxPp: 5, personalTurn: 5, ep: 0, sep: 0, opponentHp: 20,
+  strategy: { style: "control" },
+  board: [
+    { name: "Audit Defensive Ward", attack: 2, defense: 2, keywords: ["Ward"], canAttackLeader: true, canAttackFollower: true },
+    { name: "Audit Disposable Vanilla", attack: 2, defense: 2, canAttackLeader: true, canAttackFollower: true }
+  ],
+  opponentBoard: [{ name: "Audit Trade Ward", attack: 2, defense: 2, keywords: ["Ward"] }]
+}), plan => plan.sequence[0]?.kind === "attack" && plan.sequence[0]?.card === "Audit Disposable Vanilla" && plan.sequence[0]?.target === "Audit Trade Ward");
+
+audit("Avoid healing enemy Last Words when another equal threat exists", "exchange-value", () => inspectTurnPlan({
+  hand: [], pp: 0, maxPp: 5, hp: 3, personalTurn: 5, ep: 0, sep: 0, opponentHp: 5,
+  strategy: { style: "control" },
+  board: [{ name: "Audit Single Trader", attack: 2, defense: 3, canAttackLeader: true, canAttackFollower: true }],
+  opponentBoard: [
+    { card: lastWordsEnemy, name: lastWordsEnemy.name, attack: 2, defense: 2 },
+    { name: "Audit Plain Enemy", attack: 2, defense: 2 }
+  ]
+}), plan => plan.sequence.some(step => step.kind === "attack" && step.card === "Audit Single Trader" && step.target === "Audit Plain Enemy"));
+
+audit("Remove lethal attacker even when it has Last Words", "exchange-value", () => inspectTurnPlan({
+  hand: [], deck: [ownFutureDraw], pp: 0, maxPp: 5, hp: 8, personalTurn: 5, ep: 0, sep: 0, opponentHp: 20,
+  strategy: { style: "control" },
+  board: [{ name: "Audit Emergency Trader", attack: 1, defense: 1, canAttackLeader: true, canAttackFollower: true }],
+  opponentBoard: [{ card: lethalLastWordsEnemy, name: lethalLastWordsEnemy.name, attack: 8, defense: 1 }]
+}), plan => plan.sequence.some(step => step.kind === "attack" && step.card === "Audit Emergency Trader" && step.target === lethalLastWordsEnemy.name));
+
 assert.ok(cases.length >= 12, "Behavior audit must keep broad deterministic coverage");
 
 const results = [];
@@ -262,7 +305,7 @@ for (const item of cases) {
   }
 }
 
-console.log("\nBattle AI behavior baseline — 01.05.005");
+console.log("\nBattle AI behavior baseline — 01.05.006");
 console.log("========================================");
 for (const result of results) {
   const status = result.passed ? "PASS" : "GAP ";
@@ -277,6 +320,6 @@ const categories = [...new Set(results.map(result => result.category))];
 console.log("----------------------------------------");
 console.log(`Baseline: ${passed}/${results.length} ideal behaviors observed · ${gaps} gap(s) · ${categories.length} categories`);
 if (gaps) {
-  console.log("Stage 2 behavior gates are blocking: inefficient or tactically wrong lines must be fixed before release.");
+  console.log("Battle AI behavior gates are blocking: inefficient or tactically wrong lines must be fixed before release.");
 }
-assert.equal(gaps, 0, `Battle AI stage 2 behavior gate failed with ${gaps} gap(s)`);
+assert.equal(gaps, 0, `Battle AI behavior gate failed with ${gaps} gap(s)`);
