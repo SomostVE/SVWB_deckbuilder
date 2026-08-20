@@ -2711,18 +2711,20 @@ function plannerOptimisticBurst(player) {
     if (!legal.length) continue;
     const card = item.card;
     const text = norm(card?.text);
-    if (card?.type === "Follower" && (has(card, "Storm") || /give this follower storm|storm/.test(text))) {
+    if (card?.type === "Follower" && (has(card, "Storm") || text.includes("storm"))) {
       burst += Math.max(0, Number(card.attack) || 0);
     }
-    for (const match of text.matchAll(/deals+(d+)s+damages+tos+(?:thes+)?enemys+leader/g)) {
-      burst += Math.max(0, Number(match[1]) || 0);
+    const leaderPhrase = " damage to the enemy leader";
+    const leaderIndex = text.indexOf(leaderPhrase);
+    if (leaderIndex >= 0) {
+      const amount = Number(text.slice(0, leaderIndex).trim().split(" ").pop());
+      if (Number.isFinite(amount)) burst += Math.max(0, amount);
     }
-    for (const match of text.matchAll(/deals+(d+)s+damages+tos+as+randoms+enemy/g)) {
-      burst += Math.max(0, Number(match[1]) || 0);
-    }
-    for (const match of text.matchAll(/give[^.
-]*+(d+)s*/s*[+-]?d+/g)) {
-      burst += Math.max(0, Number(match[1]) || 0);
+    const randomPhrase = " damage to a random enemy";
+    const randomIndex = text.indexOf(randomPhrase);
+    if (randomIndex >= 0) {
+      const amount = Number(text.slice(0, randomIndex).trim().split(" ").pop());
+      if (Number.isFinite(amount)) burst += Math.max(0, amount);
     }
   }
 
