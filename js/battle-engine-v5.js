@@ -2665,7 +2665,7 @@ function stage7EvolutionPrior(unit, player, opponent, superMode) {
   if (context.effectValue >= 5) score += Math.min(9, context.effectValue * .7);
 
   if (superMode) {
-    if (context.normalEquivalent) score -= 6;
+    if (context.normalEquivalent) score -= 40;
     if (player.sep <= 1 && context.routine) score -= 4.5;
     if ((style === "control" || style === "ward-control") && context.routine) score -= 2;
   } else if (player.ep <= 1 && context.routine) {
@@ -3062,8 +3062,8 @@ function plannerEvolutionSpendCost(node) {
   const sequence = node.sequence ?? [];
   let cost = 0;
   for (const action of sequence) {
-    if (action.kind !== "evolve") continue;
-    const superMode = Boolean(action.superMode);
+    if (action.kind !== "evolve" && action.kind !== "super-evolve") continue;
+    const superMode = action.kind === "super-evolve" || Boolean(action.superMode);
     const player = node.state?.player;
     const opponent = node.state?.opponent;
     let actionCost = superMode ? 5.25 : 3.25;
