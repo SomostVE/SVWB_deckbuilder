@@ -13,3 +13,5 @@ if (!source.includes(before) && !source.includes(after)) {
 source = source.replace(before, after);
 fs.writeFileSync(path, source);
 console.log("Stage 7 planner now charges Super Evo resource spend.");
+
+// Triggered once after installing the repair workflow.
