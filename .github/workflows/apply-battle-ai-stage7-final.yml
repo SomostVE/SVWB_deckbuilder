@@ -1,4 +1,4 @@
-name: Diagnose Battle AI Stage 7 final
+name: Materialize Battle AI Stage 7 final
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  diagnose:
+  apply:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
@@ -20,19 +20,19 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: "24"
-      - name: Capture Stage 7 migration result
+      - name: Apply and syntax-check Stage 7
         run: |
-          set +e
-          node scripts/apply-battle-ai-stage7.mjs > .stage7-diagnostic.log 2>&1
-          code=$?
-          echo "exit_code=$code" >> .stage7-diagnostic.log
-          node --check js/battle-engine-v5.js >> .stage7-diagnostic.log 2>&1
-          echo "syntax_exit=$?" >> .stage7-diagnostic.log
-          exit 0
-      - name: Commit diagnostic
+          node scripts/apply-battle-ai-stage7.mjs
+          node --check js/battle-engine-v5.js
+          node --check scripts/check-battle-ai-stage7-evolution.mjs
+      - name: Commit Stage 7 implementation
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .stage7-diagnostic.log
-          git commit -m "Capture Stage 7 migration diagnostics"
+          git add js/battle-engine-v5.js version.json battle.html .github/workflows/validate-site.yml scripts/check-battle-ai-stage7-evolution.mjs
+          if git diff --cached --quiet; then
+            echo "No Stage 7 implementation changes to commit."
+            exit 0
+          fi
+          git commit -m "Apply Battle AI stage 7 evolution policy"
           git push origin HEAD:ai-stage7-final-01.05.009
