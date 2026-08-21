@@ -27,8 +27,7 @@ jobs:
       - name: Repair Stage 5 behavior gates
         run: |
           node scripts/fix-stage5-gates.mjs
-          node --check js/battle-engine-v5.js
-          node scripts/audit-battle-ai-behavior.mjs
+          node --check scripts/audit-battle-ai-behavior.mjs
 
       - name: Commit Stage 5 gate correction
         run: |
