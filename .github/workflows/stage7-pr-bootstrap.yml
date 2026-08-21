@@ -1,0 +1,36 @@
+name: Bootstrap Battle AI Stage 7
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    if: github.head_ref == 'ai-stage7-final-01.05.009' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ai-stage7-final-01.05.009
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Apply Stage 7 policy
+        run: |
+          node scripts/apply-battle-ai-stage7.mjs
+          node --check js/battle-engine-v5.js
+          node --check scripts/check-battle-ai-stage7-evolution.mjs
+      - name: Commit Stage 7 policy
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/battle-engine-v5.js version.json battle.html .github/workflows/validate-site.yml scripts/check-battle-ai-stage7-evolution.mjs
+          if git diff --cached --quiet; then
+            echo "Stage 7 already materialized."
+            exit 0
+          fi
+          git commit -m "Apply Battle AI stage 7 evolution policy"
+          git push origin HEAD:ai-stage7-final-01.05.009
