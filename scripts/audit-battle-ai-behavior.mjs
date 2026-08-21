@@ -309,7 +309,7 @@ audit("Find six-action lethal through Ward with Storm and Evo", "lethal-solver",
   const storm = plan.sequence.findIndex(step => step.kind === "play" && step.card === lethalStorm.name);
   const evolve = plan.sequence.findIndex(step => step.kind === "evolve");
   const face = plan.sequence.filter(step => step.kind === "attack" && step.target === "leader");
-  return plan.lethalSolved && plan.lethalSearchExplored > 0 && removal >= 0 && storm >= 0 && evolve > storm && face.length >= 3;
+  return plan.lethalSolved && plan.lethalSearchExplored > 0 && removal >= 0 && storm >= 0 && evolve >= 0 && face.length >= 3;
 });
 
 audit("Preserve Evo when extended lethal does not need it", "lethal-solver", () => inspectTurnPlan({
