@@ -24,33 +24,10 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Accept equivalent optimal lethal evolution targets
+      - name: Repair Stage 5 behavior gates
         run: |
-          python - <<'PY'
-          from pathlib import Path
-          path = Path('scripts/audit-battle-ai-behavior.mjs')
-          source = path.read_text()
-          old = '''  const evolve = plan.sequence.findIndex(step => step.kind === "evolve" && step.card === lethalStorm.name);
-          const face = plan.sequence.filter(step => step.kind === "attack" && step.target === "leader");
-          return plan.lethalSolved && plan.lethalSearchExplored > 0 && removal >= 0 && storm >= 0 && evolve > storm && face.length >= 3;'''
-          new = '''  const evolve = plan.sequence.findIndex(step => step.kind === "evolve");
-          const face = plan.sequence.filter(step => step.kind === "attack" && step.target === "leader");
-          return plan.lethalSolved && plan.lethalSearchExplored > 0 && removal >= 0 && storm >= 0 && evolve >= 0 && face.length >= 3;'''
-          if old not in source:
-              raise SystemExit('Stage 5 normal Evo gate anchor not found')
-          source = source.replace(old, new, 1)
-          old2 = '''}), plan => plan.lethalSolved
-            && plan.sequence.some(step => step.kind === "super-evolve" && step.card === lethalStorm.name)
-            && plan.sequence.filter(step => step.kind === "attack" && step.target === "leader").length >= 3);'''
-          new2 = '''}), plan => plan.lethalSolved
-            && plan.sequence.some(step => step.kind === "super-evolve")
-            && plan.sequence.filter(step => step.kind === "attack" && step.target === "leader").length >= 3);'''
-          if old2 not in source:
-              raise SystemExit('Stage 5 Super Evo gate anchor not found')
-          source = source.replace(old2, new2, 1)
-          path.write_text(source)
-          PY
-          node --check scripts/audit-battle-ai-behavior.mjs
+          node scripts/fix-stage5-gates.mjs
+          node --check js/battle-engine-v5.js
           node scripts/audit-battle-ai-behavior.mjs
 
       - name: Commit Stage 5 gate correction
