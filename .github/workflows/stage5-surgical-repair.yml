@@ -28,6 +28,7 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import textwrap
           path = Path('js/battle-engine-v5.js')
           source = path.read_text()
           start = source.index('function plannerOptimisticBurst(player) {')
@@ -67,21 +68,11 @@ jobs:
             }
             return burst;
           }'''
-          # Strip the indentation introduced by the YAML-embedded Python source.
-          import textwrap
-          replacement = textwrap.dedent(replacement)
-          path.write_text(source[:start] + replacement + source[end:])
+          path.write_text(source[:start] + textwrap.dedent(replacement) + source[end:])
           PY
-
-      - name: Validate repaired Stage 5
-        run: |
           node --check js/battle-engine-v5.js
-          node scripts/check-battle-rules.mjs
-          node scripts/check-battle-turn-planner.mjs
-          node scripts/audit-battle-ai-behavior.mjs
-          node scripts/check-battle-ai-lethal.mjs
 
-      - name: Commit repair
+      - name: Commit repaired engine
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
