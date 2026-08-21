@@ -89,6 +89,9 @@ jobs:
       - name: Audit Battle Sim AI behavior baseline
         run: node scripts/audit-battle-ai-behavior.mjs
 
+      - name: Run Battle AI Stage 7 evolution policy gates
+        run: node scripts/check-battle-ai-stage7-evolution.mjs
+
       - name: Run Battle Sim integrity audit
         run: node scripts/check-battle-integrity.mjs
 
