@@ -1,0 +1,53 @@
+name: Repair Stage 5 regex
+
+on:
+  push:
+    branches:
+      - ai-stage5-final-01.05.007
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ai-stage5-final-01.05.007
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Repair lethal burst regexes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('js/battle-engine-v5.js')
+          source = path.read_text()
+          start = source.index('    for (const match of text.matchAll(/deals+')
+          end = source.index('  }\n\n  if (!player.evolutionActionUsed)', start)
+          replacement = r'''    for (const match of text.matchAll(/deal\s+(\d+)\s+damage\s+to\s+(?:the\s+)?enemy\s+leader/g)) {
+      burst += Math.max(0, Number(match[1]) || 0);
+    }
+    for (const match of text.matchAll(/deal\s+(\d+)\s+damage\s+to\s+a\s+random\s+enemy/g)) {
+      burst += Math.max(0, Number(match[1]) || 0);
+    }
+    for (const match of text.matchAll(/give[^.\n]*\+(\d+)\s*\/\s*[+-]?\d+/g)) {
+      burst += Math.max(0, Number(match[1]) || 0);
+    }
+'''
+          path.write_text(source[:start] + replacement + source[end:])
+          PY
+          node --check js/battle-engine-v5.js
+      - name: Commit repair
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/battle-engine-v5.js
+          git commit -m "Fix Stage 5 lethal burst regexes"
+          git push origin HEAD:ai-stage5-final-01.05.007
