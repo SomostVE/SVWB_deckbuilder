@@ -1,0 +1,40 @@
+name: Repair Battle AI Stage 7 Super Evo cost
+
+on:
+  push:
+    branches:
+      - ai-stage7-final-01.05.009
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ai-stage7-final-01.05.009
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Apply Super Evo spend-cost repair
+        run: node scripts/fix-stage7-super-evo-cost.mjs
+      - name: Validate repaired Stage 7
+        run: |
+          node --check js/battle-engine-v5.js
+          node scripts/audit-battle-ai-behavior.mjs
+          node scripts/check-battle-ai-stage7-evolution.mjs
+      - name: Commit repaired Stage 7 engine
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/battle-engine-v5.js
+          if git diff --cached --quiet; then
+            echo "Stage 7 Super Evo spend cost already repaired."
+            exit 0
+          fi
+          git commit -m "Fix Stage 7 Super Evo resource scoring"
+          git push origin HEAD:ai-stage7-final-01.05.009
