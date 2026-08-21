@@ -21,13 +21,14 @@ jobs:
       - name: Apply Stage 7 policy
         run: |
           node scripts/apply-battle-ai-stage7.mjs
+          git restore .github/workflows/validate-site.yml
           node --check js/battle-engine-v5.js
           node --check scripts/check-battle-ai-stage7-evolution.mjs
       - name: Commit Stage 7 policy
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add js/battle-engine-v5.js version.json battle.html .github/workflows/validate-site.yml scripts/check-battle-ai-stage7-evolution.mjs
+          git add js/battle-engine-v5.js version.json battle.html
           if git diff --cached --quiet; then
             echo "Stage 7 already materialized."
             exit 0
