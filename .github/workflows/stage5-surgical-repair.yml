@@ -1,0 +1,94 @@
+name: Repair Stage 5 lethal solver
+
+on:
+  push:
+    branches:
+      - ai-stage5-final-01.05.007
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Stage 5 branch
+        uses: actions/checkout@v6
+        with:
+          ref: ai-stage5-final-01.05.007
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Replace corrupted burst heuristic
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('js/battle-engine-v5.js')
+          source = path.read_text()
+          start = source.index('function plannerOptimisticBurst(player) {')
+          end = source.index('\n\nfunction shouldRunPlannerLethalSearch', start)
+          replacement = r'''function plannerOptimisticBurst(player) {
+            let burst = player.board
+              .filter(unit => unit.type === "Follower" && unit.attacksMade < unit.maxAttacks)
+              .reduce((sum, unit) => {
+                const attacks = Math.max(0, (Number(unit.maxAttacks) || 1) - (Number(unit.attacksMade) || 0));
+                return sum + Math.max(0, Number(unit.attack) || 0) * attacks;
+              }, 0);
+
+            for (const item of player.hand ?? []) {
+              const legal = modes(item, player).filter(mode => mode.cost <= player.pp);
+              if (!legal.length) continue;
+              const card = item.card;
+              const text = norm(card?.text);
+              if (card?.type === "Follower" && (has(card, "Storm") || /give this follower storm|\bstorm\b/.test(text))) {
+                burst += Math.max(0, Number(card.attack) || 0);
+              }
+              for (const match of text.matchAll(/deal\s+(\d+)\s+damage\s+to\s+(?:the\s+)?enemy\s+leader/g)) {
+                burst += Math.max(0, Number(match[1]) || 0);
+              }
+              for (const match of text.matchAll(/deal\s+(\d+)\s+damage\s+to\s+a\s+random\s+enemy/g)) {
+                burst += Math.max(0, Number(match[1]) || 0);
+              }
+              for (const match of text.matchAll(/give[^.\n]*\+(\d+)\s*\/\s*[+-]?\d+/g)) {
+                burst += Math.max(0, Number(match[1]) || 0);
+              }
+            }
+
+            if (!player.evolutionActionUsed) {
+              const normalAvailable = player.personalTurn >= (player.goingFirst ? 5 : 4) && player.ep > 0;
+              const superAvailable = player.personalTurn >= (player.goingFirst ? 7 : 6) && player.sep > 0;
+              if (superAvailable) burst += 3;
+              else if (normalAvailable) burst += 2;
+            }
+            return burst;
+          }'''
+          # Strip the indentation introduced by the YAML-embedded Python source.
+          import textwrap
+          replacement = textwrap.dedent(replacement)
+          path.write_text(source[:start] + replacement + source[end:])
+          PY
+
+      - name: Validate repaired Stage 5
+        run: |
+          node --check js/battle-engine-v5.js
+          node scripts/check-battle-rules.mjs
+          node scripts/check-battle-turn-planner.mjs
+          node scripts/audit-battle-ai-behavior.mjs
+          node scripts/check-battle-ai-lethal.mjs
+
+      - name: Commit repair
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/battle-engine-v5.js
+          if git diff --cached --quiet; then
+            echo "No Stage 5 repair changes to commit."
+            exit 0
+          fi
+          git commit -m "Fix Stage 5 lethal burst heuristic"
+          git push origin HEAD:ai-stage5-final-01.05.007
