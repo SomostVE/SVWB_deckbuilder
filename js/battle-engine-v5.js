@@ -2626,6 +2626,59 @@ function evolutionTargetPlans(unit, superMode, opponent) {
     : [null];
 }
 
+// [[battle-ai-stage7-evolution-policy]]
+function stage7EvolutionContext(unit, player, opponent, superMode) {
+  const bonus = superMode ? 3 : 2;
+  const postAttack = Math.max(0, Number(unit.attack) || 0) + bonus;
+  const normalPostAttack = Math.max(0, Number(unit.attack) || 0) + 2;
+  const foes = opponent.board.filter(item => item.type === "Follower");
+  const wards = activeWards(opponent.board);
+  const canFace = Boolean(unit.canAttackLeader) && wards.length === 0;
+  const lethal = canFace && postAttack >= Math.max(0, Number(opponent.hp) || 0);
+  const normalLethal = canFace && normalPostAttack >= Math.max(0, Number(opponent.hp) || 0);
+  const canTrade = foes.some(target => postAttack >= Math.max(0, Number(target.defense) || 0) || hasU(unit, "Bane"));
+  const normalCanTrade = foes.some(target => normalPostAttack >= Math.max(0, Number(target.defense) || 0) || hasU(unit, "Bane"));
+  const incoming = estimateVisibleIncomingDamage(player, opponent);
+  const defensive = canTrade && (Number(player.hp) || 0) <= incoming + 3;
+  const boardSwing = canTrade && foes.length >= 2;
+  const evolveValue = evolutionTextValue(getUnitTriggeredText(unit, "evolve"), player, opponent, unit);
+  const superValue = superMode ? evolutionTextValue(getUnitTriggeredText(unit, "superEvolve"), player, opponent, unit) : 0;
+  const effectValue = evolveValue + superValue;
+  const effectDriven = effectValue >= 5;
+  const routine = !lethal && !defensive && !boardSwing && !effectDriven;
+  const normalEquivalent = superMode
+    && player.ep > 0
+    && superValue < 4
+    && ((lethal && normalLethal) || (canTrade && normalCanTrade));
+  return { postAttack, foes, canFace, lethal, defensive, boardSwing, effectValue, routine, normalEquivalent };
+}
+
+function stage7EvolutionPrior(unit, player, opponent, superMode) {
+  const context = stage7EvolutionContext(unit, player, opponent, superMode);
+  const style = String(player.strategy?.style ?? "midrange");
+  let score = 0;
+
+  if (context.lethal) score += 24;
+  else if (context.canFace && opponent.hp <= context.postAttack + 4) score += style === "aggro" ? 4 : 2;
+  if (context.defensive) score += 9;
+  if (context.boardSwing) score += 4.5;
+  if (context.effectValue >= 5) score += Math.min(9, context.effectValue * .7);
+
+  if (superMode) {
+    if (context.normalEquivalent) score -= 6;
+    if (player.sep <= 1 && context.routine) score -= 4.5;
+    if ((style === "control" || style === "ward-control") && context.routine) score -= 2;
+  } else if (player.ep <= 1 && context.routine) {
+    score -= 2.25;
+  }
+
+  if (!context.foes.length && context.effectValue < 3 && !context.lethal) {
+    score -= superMode ? 10 : 5.5;
+  }
+  return score;
+}
+
+
 function enumerateEvolutionDecisions(player, opponent) {
   if (player.evolutionActionUsed) return [];
   const normalAvailable = player.personalTurn >= (player.goingFirst ? 5 : 4) && player.ep > 0;
@@ -2636,12 +2689,12 @@ function enumerateEvolutionDecisions(player, opponent) {
   for (const unit of units) {
     if (normalAvailable) {
       for (const targetPlan of evolutionTargetPlans(unit, false, opponent)) {
-        out.push({ kind: "evolve", unitUid: unit.uid, superMode: false, targetPlan, prior: scoreEvolutionCandidate(unit, player, opponent, false) + targetBranchValue(targetPlan, opponent) * .25 });
+        out.push({ kind: "evolve", unitUid: unit.uid, superMode: false, targetPlan, prior: scoreEvolutionCandidate(unit, player, opponent, false) + targetBranchValue(targetPlan, opponent) * .25 + stage7EvolutionPrior(unit, player, opponent, false) });
       }
     }
     if (superAvailable) {
       for (const targetPlan of evolutionTargetPlans(unit, true, opponent)) {
-        out.push({ kind: "evolve", unitUid: unit.uid, superMode: true, targetPlan, prior: scoreEvolutionCandidate(unit, player, opponent, true) + targetBranchValue(targetPlan, opponent) * .25 });
+        out.push({ kind: "evolve", unitUid: unit.uid, superMode: true, targetPlan, prior: scoreEvolutionCandidate(unit, player, opponent, true) + targetBranchValue(targetPlan, opponent) * .25 + stage7EvolutionPrior(unit, player, opponent, true) });
       }
     }
   }
@@ -3011,22 +3064,28 @@ function plannerEvolutionSpendCost(node) {
   for (const action of sequence) {
     if (action.kind !== "evolve") continue;
     const superMode = Boolean(action.superMode);
-    cost += superMode ? 5.5 : 3.75;
+    const player = node.state?.player;
+    const opponent = node.state?.opponent;
+    let actionCost = superMode ? 5.25 : 3.25;
+    const unit = player?.board?.find(item => item.uid === action.unitUid) ?? null;
 
-    const unit = node.state?.player?.board?.find(item => item.uid === action.unitUid) ?? null;
-    if (!unit) continue;
-    const evolveText = getUnitTriggeredText(unit, "evolve") || "";
-    const superText = superMode ? (getUnitTriggeredText(unit, "superEvolve") || "") : "";
-    const attacked = Boolean(unit.attacked) || (Number(unit.attacksMade) || 0) > 0;
-    const enemyFollowers = (node.state?.opponent?.board ?? []).filter(item => item.type === "Follower").length;
-
-    // Pure stat evolutions that neither trigger an ability nor participate in
-    // combat this turn are the most common way for the planner to burn a scarce
-    // evolution resource for no immediate purpose. Make those lines expensive,
-    // especially on an empty enemy board.
-    if (!attacked && !evolveText.trim() && !superText.trim() && enemyFollowers === 0) {
-      cost += superMode ? 4.5 : 3;
+    if (unit && player && opponent) {
+      const context = stage7EvolutionContext(unit, player, opponent, superMode);
+      if (context.lethal) actionCost = 0;
+      else {
+        if (context.defensive) actionCost -= superMode ? 3 : 1.75;
+        if (context.boardSwing) actionCost -= 1.25;
+        if (context.effectValue >= 7) actionCost -= superMode ? 1.75 : 1.25;
+        if (context.normalEquivalent) actionCost += 2.75;
+        if (context.routine && player[superMode ? "sep" : "ep"] <= 0) actionCost += superMode ? 2.5 : 1.5;
+        if (!context.foes.length && context.effectValue < 3) actionCost += superMode ? 3.5 : 2;
+      }
+    } else {
+      const prior = Number(action.prior) || 0;
+      if (prior >= 20) actionCost -= superMode ? 3.5 : 2;
+      else if (prior >= 10) actionCost -= superMode ? 1.75 : 1;
     }
+    cost += Math.max(0, actionCost);
   }
   return cost;
 }
