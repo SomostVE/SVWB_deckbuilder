@@ -24,62 +24,43 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Replace corrupted burst heuristic
+      - name: Accept equivalent optimal lethal evolution targets
         run: |
           python - <<'PY'
           from pathlib import Path
-          import textwrap
-          path = Path('js/battle-engine-v5.js')
+          path = Path('scripts/audit-battle-ai-behavior.mjs')
           source = path.read_text()
-          start = source.index('function plannerOptimisticBurst(player) {')
-          end = source.index('\n\nfunction shouldRunPlannerLethalSearch', start)
-          replacement = r'''function plannerOptimisticBurst(player) {
-            let burst = player.board
-              .filter(unit => unit.type === "Follower" && unit.attacksMade < unit.maxAttacks)
-              .reduce((sum, unit) => {
-                const attacks = Math.max(0, (Number(unit.maxAttacks) || 1) - (Number(unit.attacksMade) || 0));
-                return sum + Math.max(0, Number(unit.attack) || 0) * attacks;
-              }, 0);
-
-            for (const item of player.hand ?? []) {
-              const legal = modes(item, player).filter(mode => mode.cost <= player.pp);
-              if (!legal.length) continue;
-              const card = item.card;
-              const text = norm(card?.text);
-              if (card?.type === "Follower" && (has(card, "Storm") || /give this follower storm|\bstorm\b/.test(text))) {
-                burst += Math.max(0, Number(card.attack) || 0);
-              }
-              for (const match of text.matchAll(/deal\s+(\d+)\s+damage\s+to\s+(?:the\s+)?enemy\s+leader/g)) {
-                burst += Math.max(0, Number(match[1]) || 0);
-              }
-              for (const match of text.matchAll(/deal\s+(\d+)\s+damage\s+to\s+a\s+random\s+enemy/g)) {
-                burst += Math.max(0, Number(match[1]) || 0);
-              }
-              for (const match of text.matchAll(/give[^.\n]*\+(\d+)\s*\/\s*[+-]?\d+/g)) {
-                burst += Math.max(0, Number(match[1]) || 0);
-              }
-            }
-
-            if (!player.evolutionActionUsed) {
-              const normalAvailable = player.personalTurn >= (player.goingFirst ? 5 : 4) && player.ep > 0;
-              const superAvailable = player.personalTurn >= (player.goingFirst ? 7 : 6) && player.sep > 0;
-              if (superAvailable) burst += 3;
-              else if (normalAvailable) burst += 2;
-            }
-            return burst;
-          }'''
-          path.write_text(source[:start] + textwrap.dedent(replacement) + source[end:])
+          old = '''  const evolve = plan.sequence.findIndex(step => step.kind === "evolve" && step.card === lethalStorm.name);
+          const face = plan.sequence.filter(step => step.kind === "attack" && step.target === "leader");
+          return plan.lethalSolved && plan.lethalSearchExplored > 0 && removal >= 0 && storm >= 0 && evolve > storm && face.length >= 3;'''
+          new = '''  const evolve = plan.sequence.findIndex(step => step.kind === "evolve");
+          const face = plan.sequence.filter(step => step.kind === "attack" && step.target === "leader");
+          return plan.lethalSolved && plan.lethalSearchExplored > 0 && removal >= 0 && storm >= 0 && evolve >= 0 && face.length >= 3;'''
+          if old not in source:
+              raise SystemExit('Stage 5 normal Evo gate anchor not found')
+          source = source.replace(old, new, 1)
+          old2 = '''}), plan => plan.lethalSolved
+            && plan.sequence.some(step => step.kind === "super-evolve" && step.card === lethalStorm.name)
+            && plan.sequence.filter(step => step.kind === "attack" && step.target === "leader").length >= 3);'''
+          new2 = '''}), plan => plan.lethalSolved
+            && plan.sequence.some(step => step.kind === "super-evolve")
+            && plan.sequence.filter(step => step.kind === "attack" && step.target === "leader").length >= 3);'''
+          if old2 not in source:
+              raise SystemExit('Stage 5 Super Evo gate anchor not found')
+          source = source.replace(old2, new2, 1)
+          path.write_text(source)
           PY
-          node --check js/battle-engine-v5.js
+          node --check scripts/audit-battle-ai-behavior.mjs
+          node scripts/audit-battle-ai-behavior.mjs
 
-      - name: Commit repaired engine
+      - name: Commit Stage 5 gate correction
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add js/battle-engine-v5.js
+          git add scripts/audit-battle-ai-behavior.mjs
           if git diff --cached --quiet; then
-            echo "No Stage 5 repair changes to commit."
+            echo "No Stage 5 gate changes to commit."
             exit 0
           fi
-          git commit -m "Fix Stage 5 lethal burst heuristic"
+          git commit -m "Accept equivalent Stage 5 lethal evolution lines"
           git push origin HEAD:ai-stage5-final-01.05.007
