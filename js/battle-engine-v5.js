@@ -2711,17 +2711,16 @@ function plannerOptimisticBurst(player) {
     if (!legal.length) continue;
     const card = item.card;
     const text = norm(card?.text);
-    if (card?.type === "Follower" && (has(card, "Storm") || /give this follower storm|storm/.test(text))) {
+    if (card?.type === "Follower" && (has(card, "Storm") || /give this follower storm|\bstorm\b/.test(text))) {
       burst += Math.max(0, Number(card.attack) || 0);
     }
-    for (const match of text.matchAll(/deals+(d+)s+damages+tos+(?:thes+)?enemys+leader/g)) {
+    for (const match of text.matchAll(/deal\s+(\d+)\s+damage\s+to\s+(?:the\s+)?enemy\s+leader/g)) {
       burst += Math.max(0, Number(match[1]) || 0);
     }
-    for (const match of text.matchAll(/deals+(d+)s+damages+tos+as+randoms+enemy/g)) {
+    for (const match of text.matchAll(/deal\s+(\d+)\s+damage\s+to\s+a\s+random\s+enemy/g)) {
       burst += Math.max(0, Number(match[1]) || 0);
     }
-    for (const match of text.matchAll(/give[^.
-]*+(d+)s*/s*[+-]?d+/g)) {
+    for (const match of text.matchAll(/give[^.\n]*\+(\d+)\s*\/\s*[+-]?\d+/g)) {
       burst += Math.max(0, Number(match[1]) || 0);
     }
   }
