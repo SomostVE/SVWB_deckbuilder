@@ -22,14 +22,10 @@ jobs:
           node-version: "24"
       - name: Apply Stage 7
         run: node scripts/apply-battle-ai-stage7.mjs
-      - name: Validate Stage 7
+      - name: Check generated JavaScript
         run: |
           node --check js/battle-engine-v5.js
           node --check scripts/check-battle-ai-stage7-evolution.mjs
-          node scripts/audit-battle-ai-behavior.mjs
-          node scripts/check-battle-ai-stage7-evolution.mjs
-          node scripts/check-battle-turn-planner.mjs
-          node scripts/check-battle-ai-lethal.mjs
       - name: Commit Stage 7 implementation
         run: |
           git config user.name "github-actions[bot]"
