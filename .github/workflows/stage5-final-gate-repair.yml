@@ -1,0 +1,38 @@
+name: Final Stage 5 gate repair
+
+on:
+  push:
+    branches:
+      - ai-stage5-final-01.05.007
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ai-stage5-final-01.05.007
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Apply final gate correction
+        run: |
+          node scripts/fix-stage5-final-gate.mjs
+          node --check scripts/audit-battle-ai-behavior.mjs
+          node scripts/audit-battle-ai-behavior.mjs
+      - name: Commit final gate correction
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/audit-battle-ai-behavior.mjs
+          if git diff --cached --quiet; then
+            echo "No Stage 5 final gate changes to commit."
+            exit 0
+          fi
+          git commit -m "Finalize Stage 5 lethal behavior gates"
+          git push origin HEAD:ai-stage5-final-01.05.007
