@@ -1,0 +1,5 @@
+Applied Battle AI Stage 7 evolution policy (01.05.009).
+apply_exit=0
+engine_syntax_exit=0
+gate_syntax_exit=0
+?? .stage7-materialize-diagnostic.log
